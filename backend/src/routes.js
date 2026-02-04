@@ -3,11 +3,15 @@ const router = express.Router();
 const authRoutes = require("./modules/auth/auth.routes");
 const authMiddleware = require("./middlewares/auth.middleware");
 const adminRoutes = require("./modules/admin/admin.routes");
+const chatRoutes = require("./modules/chats/chat.routes");
 
 router.use("/auth", authRoutes);
 
 // STEP 4: Mount admin routes under /admin
 router.use("/admin", adminRoutes);
+
+// ✅ Step-6
+router.use("/chats", chatRoutes);
 
 router.get("/protected", authMiddleware, (req, res) => {
     res.json({

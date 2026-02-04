@@ -3,6 +3,8 @@ const { verifySocketJWT } = require("../utils/socketAuth.util");
 const presence = require("./presence.socket");
 const logger = require("../utils/logger.util");
 
+const registerChatSocket = require("../modules/chats/chat.socket");
+
 function registerSockets(io) {
     // 1) JWT socket authentication middleware
     io.use(async (socket, next) => {
@@ -95,6 +97,9 @@ function registerSockets(io) {
                 });
             }
         });
+
+        // ✅ Step-6: register chat events on this socket
+        registerChatSocket(io, socket);
 
         socket.on("disconnect", async () => {
             logger.info(

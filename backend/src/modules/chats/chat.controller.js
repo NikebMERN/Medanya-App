@@ -1,0 +1,128 @@
+// src/modules/chats/chat.controller.js
+const chatService = require("./chat.service");
+const logger = require("../../utils/logger.util");
+
+function mapError(res, err) {
+    const code = err.code || "SERVER_ERROR";
+    const status =
+        code === "FORBIDDEN"
+            ? 403
+            : code === "INVALID_CHAT"
+                ? 404
+                : code === "INVALID_PEER"
+                    ? 400
+                    : code === "VALIDATION_ERROR"
+                        ? 400
+                        : code === "GROUP_TOO_LARGE"
+                            ? 400
+                            : code === "LAST_ADMIN_BLOCKED"
+                                ? 409
+                                : 500;
+
+    return res.status(status).json({
+        error: { code, message: err.message || code },
+    });
+}
+
+const startDirect = async (req, res) => {
+    try {
+        const me = req.user.id ?? req.user.userId;
+        const { peerUserId } = req.body;
+        const chat = await chatService.startDirectChat(me, peerUserId);
+        return res.json({ success: true, chat });
+    } catch (err) {
+        return mapError(res, err);
+    }
+};
+
+const createGroup = async (req, res) => {
+    try {
+        const me = req.user.id ?? req.user.userId;
+        const { groupName, memberIds } = req.body;
+        const chat = await chatService.createGroupChat(me, groupName, memberIds);
+        return res.json({ success: true, chat });
+    } catch (err) {
+        return mapError(res, err);
+    }
+};
+
+const listChats = async (req, res) => {
+    try {
+        const me = req.user.id ?? req.user.userId;
+        const { page, limit } = req.query;
+        const data = await chatService.listChats(me, { page, limit });
+        return res.json({ success: true, ...data });
+    } catch (err) {
+        return mapError(res, err);
+    }
+};
+
+const getChat = async (req, res) => {
+    try {
+        const me = req.user.id ?? req.user.userId;
+        const { chatId } = req.params;
+        const chat = await chatService.getChatMeta(me, chatId);
+        return res.json({ success: true, chat });
+    } catch (err) {
+        return mapError(res, err);
+    }
+};
+
+const listMessages = async (req, res) => {
+    try {
+        const me = req.user.id ?? req.user.userId;
+        const { chatId } = req.params;
+        const { cursor, limit } = req.query;
+        const data = await chatService.listMessages(me, { chatId, cursor, limit });
+        return res.json({ success: true, ...data });
+    } catch (err) {
+        return mapError(res, err);
+    }
+};
+
+const setGroupName = async (req, res) => {
+    try {
+        const me = req.user.id ?? req.user.userId;
+        const { chatId } = req.params;
+        const { groupName } = req.body;
+        await chatService.setGroupName(me, chatId, groupName);
+        return res.json({ success: true });
+    } catch (err) {
+        return mapError(res, err);
+    }
+};
+
+const addMembers = async (req, res) => {
+    try {
+        const me = req.user.id ?? req.user.userId;
+        const { chatId } = req.params;
+        const { memberIds } = req.body;
+        await chatService.addGroupMembers(me, chatId, memberIds);
+        return res.json({ success: true });
+    } catch (err) {
+        return mapError(res, err);
+    }
+};
+
+const removeMember = async (req, res) => {
+    try {
+        const me = req.user.id ?? req.user.userId;
+        const { chatId } = req.params;
+        const { memberId } = req.body;
+        await chatService.removeGroupMember(me, chatId, memberId);
+        return res.json({ success: true });
+    } catch (err) {
+        return mapError(res, err);
+    }
+};
+
+module.exports = {
+    startDirect,
+    createGroup,
+    listChats,
+    getChat,
+    listMessages,
+    setGroupName,
+    addMembers,
+    removeMember,
+};

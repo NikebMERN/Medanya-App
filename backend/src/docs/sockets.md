@@ -48,3 +48,22 @@ Payload:
 ```json
 { "roomId": "room:community" }
 ```
+
+## Chat Events (Step-6)
+
+### Rooms
+
+- Each chat uses room: `chat:{chatId}`
+- Server joins the socket to `chat:{chatId}` only if the user is a participant.
+
+---
+
+### Client -> Server
+
+#### `chat:direct:start`
+
+Payload:
+
+```json
+{ "peerUserId": "2" }
+```
