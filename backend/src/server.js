@@ -8,36 +8,37 @@ const { testMySQLConnection } = require("./config/mysql");
 const { connectRedis } = require("./config/redis");
 
 const { Server } = require("socket.io");
+const registerSockets = require("./sockets"); // src/sockets/index.js
+const logger = require("./utils/logger.util");
 
 const startServer = async () => {
     try {
-        // Connect all databases
         await connectMongo();
         await testMySQLConnection();
         await connectRedis();
 
-        // HTTP server
         const server = http.createServer(app);
 
-        // Socket.IO
         const io = new Server(server, {
-            cors: { origin: "*" },
+            cors: {
+                origin: "*", // tighten in prod
+                methods: ["GET", "POST"],
+                credentials: false,
+            },
+            transports: ["websocket", "polling"],
+            pingInterval: 25000,
+            pingTimeout: 20000,
         });
 
-        io.on("connection", (socket) => {
-            console.log("🟢 Socket connected:", socket.id);
+        // Register Socket.IO middleware + base events (Step-5)
+        registerSockets(io);
 
-            socket.on("disconnect", () => {
-                console.log("🔴 Socket disconnected:", socket.id);
-            });
-        });
-
-        const PORT = Number(env.PORT);
+        const PORT = Number(env.PORT || 4000);
         server.listen(PORT, () => {
-            console.log(`🚀 Server running on http://localhost:${PORT}/api`);
+            logger.info(`🚀 Server running on http://localhost:${PORT}`);
         });
     } catch (err) {
-        console.error("❌ Server bootstrap failed:", err);
+        logger.error("❌ Server bootstrap failed", err);
         process.exit(1);
     }
 };
