@@ -33,7 +33,7 @@ const startServer = async () => {
         // Register Socket.IO middleware + base events (Step-5)
         registerSockets(io);
 
-        const PORT = Number(env.PORT || 4000);
+        const PORT = Number(env.PORT || 4001);
         server.listen(PORT, () => {
             logger.info(`🚀 Server running on http://localhost:${PORT}`);
         });
@@ -44,3 +44,4 @@ const startServer = async () => {
 };
 
 startServer();
+
