@@ -1,6 +1,8 @@
 CREATE TABLE IF NOT EXISTS users (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     phone_number VARCHAR(20) NOT NULL UNIQUE,
+    email VARCHAR(255) NULL,
+    firebase_uid VARCHAR(128) UNIQUE,
     role ENUM('user','admin','moderator') DEFAULT 'user',
     is_verified TINYINT DEFAULT 0,
     is_banned TINYINT DEFAULT 0,

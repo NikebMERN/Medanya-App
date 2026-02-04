@@ -34,7 +34,7 @@ const startServer = async () => {
 
         const PORT = Number(env.PORT);
         server.listen(PORT, () => {
-            console.log(`🚀 Server running on http://localhost:${PORT}`);
+            console.log(`🚀 Server running on http://localhost:${PORT}/api`);
         });
     } catch (err) {
         console.error("❌ Server bootstrap failed:", err);
