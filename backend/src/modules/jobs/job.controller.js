@@ -1,0 +1,113 @@
+// src/modules/jobs/job.controller.js
+const jobService = require("./job.service");
+const {
+    enqueueNotificationJob,
+} = require("../../utils/notificationQueue.util");
+
+function sendErr(res, err) {
+    const code = err.code || "SERVER_ERROR";
+    const status =
+        code === "UNAUTHORIZED"
+            ? 401
+            : code === "FORBIDDEN"
+                ? 403
+                : code === "NOT_FOUND"
+                    ? 404
+                    : code === "VALIDATION_ERROR"
+                        ? 400
+                        : 500;
+
+    return res
+        .status(status)
+        .json({ error: { code, message: err.message || code } });
+}
+
+const createJob = async (req, res) => {
+    try {
+        const job = await jobService.createJob(req.user, req.body);
+
+        // ✅ 1) Emit Socket.IO event for realtime refresh
+        const io = req.app.get("io");
+        if (io) {
+            io.emit("jobs:new", {
+                job: {
+                    id: job.id,
+                    title: job.title,
+                    category: job.category,
+                    salary: job.salary,
+                    location: job.location,
+                    contact_phone: job.contact_phone,
+                    image_url: job.image_url,
+                    status: job.status,
+                    created_at: job.created_at,
+                },
+            });
+        }
+
+        // ✅ 2) Enqueue background job for future notification module
+        await enqueueNotificationJob("jobs:new", {
+            jobId: job.id,
+            category: job.category,
+            location: job.location,
+            title: job.title,
+        });
+
+        return res.status(201).json({ success: true, job });
+    } catch (err) {
+        return sendErr(res, err);
+    }
+};
+
+const listJobs = async (req, res) => {
+    try {
+        const data = await jobService.list(req.query);
+        return res.json({ success: true, ...data });
+    } catch (err) {
+        return sendErr(res, err);
+    }
+};
+
+const getJob = async (req, res) => {
+    try {
+        const job = await jobService.getJob(req.params.id);
+        return res.json({ success: true, job });
+    } catch (err) {
+        return sendErr(res, err);
+    }
+};
+
+const updateJob = async (req, res) => {
+    try {
+        const job = await jobService.update(req.user, req.params.id, req.body);
+        return res.json({ success: true, job });
+    } catch (err) {
+        return sendErr(res, err);
+    }
+};
+
+const deleteJob = async (req, res) => {
+    try {
+        await jobService.remove(req.user, req.params.id);
+        return res.json({ success: true });
+    } catch (err) {
+        return sendErr(res, err);
+    }
+};
+
+const searchJobs = async (req, res) => {
+    try {
+        const data = await jobService.search(req.query);
+        return res.json({ success: true, ...data });
+    } catch (err) {
+        return sendErr(res, err);
+    }
+};
+
+module.exports = {
+    createJob,
+    listJobs,
+    getJob,
+    updateJob,
+    deleteJob,
+    searchJobs,
+};

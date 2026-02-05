@@ -67,3 +67,29 @@ Payload:
 ```json
 { "peerUserId": "2" }
 ```
+
+## Jobs Events
+
+### Server -> Client
+
+#### `jobs:new`
+
+Emitted after a job is created (POST /jobs).
+
+Payload:
+
+```json
+{
+  "job": {
+    "id": 12,
+    "title": "Driver Needed",
+    "category": "driver",
+    "salary": "12000 ETB",
+    "location": "Addis Ababa",
+    "contact_phone": "+2519xxxxxxx",
+    "image_url": "",
+    "status": "active",
+    "created_at": "2026-02-05T09:00:00.000Z"
+  }
+}
+```
