@@ -5,6 +5,7 @@ const authMiddleware = require("./middlewares/auth.middleware");
 const adminRoutes = require("./modules/admin/admin.routes");
 const chatRoutes = require("./modules/chats/chat.routes");
 const jobRoutes = require("./modules/jobs/job.routes");
+const reportRoutes = require("./modules/reports/report.routes");
 
 router.use("/auth", authRoutes);
 
@@ -16,6 +17,9 @@ router.use("/chats", chatRoutes);
 
 // ✅ JOBS
 router.use("/jobs", jobRoutes);
+
+// ✅ REPORTS
+router.use("/", reportRoutes);
 
 router.get("/protected", authMiddleware, (req, res) => {
     res.json({
