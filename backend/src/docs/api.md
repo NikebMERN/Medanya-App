@@ -46,3 +46,21 @@ Body:
   }
 }
 ```
+
+## Missing Persons API
+
+### POST /missing-persons (JWT required)
+
+Body:
+
+```json
+{
+  "photoUrl": "https://example.com/photo.jpg",
+  "fullName": "Abel Tesfaye",
+  "contactPhone": "+251900000000",
+  "voiceUrl": "https://example.com/voice.m4a",
+  "lastKnownLocationText": "Addis Ababa - Bole",
+  "gps": { "lat": 9.02, "lng": 38.76 },
+  "description": "Missing since yesterday. Wearing a blue jacket."
+}
+```

@@ -1,19 +1,42 @@
+// src/modules/missingPersons/missing.model.js
 const mongoose = require("mongoose");
 
-const missingSchema = new mongoose.Schema({
-    fullName: String,
-    photo: String,
-    voiceNote: String,
-    lastLocation: { lat: Number, lng: Number },
-    phone: String,
-    comments: [
-        {
-            userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-            comment: String,
-            createdAt: { type: Date, default: Date.now },
-        },
-    ],
-    createdAt: { type: Date, default: Date.now },
-});
+const GPSchema = new mongoose.Schema(
+    { lat: Number, lng: Number },
+    { _id: false },
+);
 
-module.exports = mongoose.model("MissingPerson", missingSchema);
+const MissingPersonSchema = new mongoose.Schema(
+    {
+        createdBy: { type: String, required: true, index: true },
+
+        photoUrl: { type: String, required: true },
+        fullName: { type: String, default: "" },
+
+        contactPhone: { type: String, required: true },
+        voiceUrl: { type: String, default: "" },
+
+        lastKnownLocationText: { type: String, required: true },
+        gps: { type: GPSchema, default: null },
+
+        description: { type: String, required: true },
+
+        status: {
+            type: String,
+            enum: ["active", "found", "closed"],
+            default: "active",
+            index: true,
+        },
+    },
+    { timestamps: true },
+);
+
+// Indexes for feed/listing
+MissingPersonSchema.index({ status: 1, createdAt: -1 });
+MissingPersonSchema.index({ createdBy: 1, createdAt: -1 });
+
+// Simple search helpers
+MissingPersonSchema.index({ fullName: 1 });
+MissingPersonSchema.index({ lastKnownLocationText: 1 });
+
+module.exports = mongoose.model("MissingPerson", MissingPersonSchema);
