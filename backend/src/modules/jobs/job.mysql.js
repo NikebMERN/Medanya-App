@@ -168,6 +168,21 @@ const closeJob = async (id) => {
     return result.affectedRows;
 };
 
+const listRecentJobsForFeed = async ({ limit = 25 } = {}) => {
+    const l = Math.min(Math.max(parseInt(limit, 10) || 25, 1), 100);
+    const [rows] = await pool.query(
+        `
+    SELECT id, title, category, salary, location, image_url, status, created_at
+    FROM jobs
+    WHERE status = 'active'
+    ORDER BY created_at DESC
+    LIMIT ?
+    `,
+        [l],
+    );
+    return rows;
+};
+
 module.exports = {
     insertJob,
     findJobById,
@@ -175,4 +190,5 @@ module.exports = {
     searchJobs,
     updateJob,
     closeJob,
+    listRecentJobsForFeed,
 };

@@ -64,3 +64,51 @@ Body:
   "description": "Missing since yesterday. Wearing a blue jacket."
 }
 ```
+
+## Marketplace API
+
+### POST /marketplace/items (JWT required)
+
+```json
+{
+  "title": "iPhone 12",
+  "description": "Clean condition, 128GB",
+  "price": 45000,
+  "category": "electronics",
+  "location": "Addis Ababa",
+  "image_urls": ["https://res.cloudinary.com/.../img.jpg"]
+}
+```
+
+## Community Feed
+
+### GET /feed
+
+Query:
+
+- cursor (base64 string from previous response)
+- limit (max 50)
+- types (optional comma list): job,report,missing_person,marketplace
+
+Example:
+GET /feed?limit=20&types=job,missing_person
+
+Response:
+
+```json
+{
+  "success": true,
+  "items": [
+    {
+      "type": "job",
+      "id": 12,
+      "title": "Driver Needed",
+      "summary": "driver • 12000 ETB",
+      "location": "Addis Ababa",
+      "createdAt": "2026-02-05T12:00:00.000Z",
+      "preview": { "category": "driver", "salary": "12000 ETB", "imageUrl": "" }
+    }
+  ],
+  "nextCursor": "BASE64..."
+}
+```

@@ -7,6 +7,8 @@ const chatRoutes = require("./modules/chats/chat.routes");
 const jobRoutes = require("./modules/jobs/job.routes");
 const reportRoutes = require("./modules/reports/report.routes");
 const missingRoutes = require("./modules/missingPersons/missing.routes");
+const marketRoutes = require("./modules/marketplace/market.routes");
+const feedRoutes = require("./modules/feed/feed.routes");
 
 router.use("/auth", authRoutes);
 
@@ -24,6 +26,12 @@ router.use("/", reportRoutes);
 
 // ✅ MISSING PERSONS
 router.use("/", missingRoutes);
+
+// ✅ MARKETPLACE
+router.use("/", marketRoutes);
+
+// ✅ FEED
+router.use("/", feedRoutes);
 
 router.get("/protected", authMiddleware, (req, res) => {
     res.json({

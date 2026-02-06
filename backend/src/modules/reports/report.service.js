@@ -1,6 +1,7 @@
 // src/modules/reports/report.service.js
 const mongoose = require("mongoose");
 const Report = require("./report.model");
+const { maskPhone, maskName, maskLocation } = require("../../utils/mask.util");
 
 const DUP_WINDOW_MINUTES = 30; // prevent same reporter+phone spam
 const MAX_DESC = 1500;
@@ -383,6 +384,71 @@ async function adminReject(reportId) {
     return report.toObject();
 }
 
+async function listBlacklistSummariesForFeed({ limit = 25 } = {}) {
+    const l = Math.min(Math.max(parseInt(limit, 10) || 25, 1), 100);
+
+    const pipeline = [
+        { $match: { status: "approved", targetType: "employer" } },
+        {
+            $group: {
+                _id: "$phoneNumber",
+                totalReports: { $sum: 1 },
+                severeCount: {
+                    $sum: {
+                        $cond: [
+                            {
+                                $in: [
+                                    "$reason",
+                                    [
+                                        "physical_abuse",
+                                        "sexual_harassment",
+                                        "passport_confiscation",
+                                    ],
+                                ],
+                            },
+                            1,
+                            0,
+                        ],
+                    },
+                },
+                latestAt: { $max: "$createdAt" },
+                employerName: { $first: "$employerName" },
+                locationText: { $first: "$locationText" },
+            },
+        },
+        {
+            $addFields: {
+                riskLevel: {
+                    $cond: [
+                        {
+                            $or: [
+                                { $gte: ["$totalReports", 5] },
+                                { $gte: ["$severeCount", 2] },
+                            ],
+                        },
+                        "dangerous",
+                        "warning",
+                    ],
+                },
+            },
+        },
+        { $sort: { latestAt: -1 } },
+        { $limit: l },
+    ];
+
+    const rows = await Report.aggregate(pipeline);
+
+    // mask sensitive for public feed
+    return rows.map((x) => ({
+        phoneNumberMasked: maskPhone(x._id),
+        employerName: maskName(x.employerName || ""),
+        locationText: maskLocation(x.locationText || ""),
+        totalReports: x.totalReports,
+        riskLevel: x.riskLevel,
+        latestAt: x.latestAt,
+    }));
+}
+
 module.exports = {
     SEVERE_REASONS,
     createReport,
@@ -392,4 +458,5 @@ module.exports = {
     adminListReports,
     adminApprove,
     adminReject,
+    listBlacklistSummariesForFeed,
 };
