@@ -1,57 +1,50 @@
+// src/modules/severeAbuse/abuse.model.js
 const mongoose = require("mongoose");
 
-const severeAbuseSchema = new mongoose.Schema({
-    isAnonymous: { type: Boolean, default: true },
+const AbuseSchema = new mongoose.Schema(
+    {
+        // reporterId is nullable when anonymous=true
+        reporterId: { type: String, default: null, index: true },
+        anonymous: { type: Boolean, default: false, index: true },
 
-    reporterId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
-        required: false,
+        accusedPhoneNumber: { type: String, default: "" },
+        accusedName: { type: String, default: "" },
+
+        gps: {
+            lat: { type: Number },
+            lng: { type: Number },
+        },
+
+        category: {
+            type: String,
+            enum: ["physical_abuse", "sexual_harassment", "trafficking", "forced_labor", "other"],
+            required: true,
+            index: true,
+        },
+
+        description: { type: String, required: true },
+
+        evidenceUrls: {
+            photos: { type: [String], default: [] },
+            videos: { type: [String], default: [] },
+            voice: { type: [String], default: [] },
+        },
+
+        status: {
+            type: String,
+            enum: ["pending", "approved", "rejected"],
+            default: "pending",
+            index: true,
+        },
+
+        contentWarning: { type: String, default: "" },
+        legalDisclaimerAccepted: { type: Boolean, required: true },
     },
+    { timestamps: { createdAt: "createdAt", updatedAt: "updatedAt" } }
+);
 
-    abuseType: {
-        type: String,
-        enum: [
-            "physical_abuse",
-            "sexual_harassment",
-            "forced_labor",
-            "passport_confiscation",
-            "threats",
-            "other",
-        ],
-        required: true,
-    },
+// fast admin queries + public feeds
+AbuseSchema.index({ status: 1, createdAt: -1 });
+AbuseSchema.index({ category: 1, status: 1, createdAt: -1 });
 
-    description: {
-        type: String,
-        required: true,
-    },
-
-    evidence: {
-        photos: [String],
-        videos: [String],
-        audios: [String],
-    },
-
-    location: {
-        lat: Number,
-        lng: Number,
-        description: String,
-    },
-
-    status: {
-        type: String,
-        enum: ["pending", "approved", "rejected"],
-        default: "pending",
-    },
-
-    reviewedBy: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User", // admin/moderator
-    },
-
-    createdAt: { type: Date, default: Date.now },
-    reviewedAt: Date,
-});
-
-module.exports = mongoose.model("SevereAbuse", severeAbuseSchema);
+module.exports = mongoose.model("SevereAbuse", AbuseSchema);

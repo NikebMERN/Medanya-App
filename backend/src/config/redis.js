@@ -4,7 +4,7 @@ const env = require("./env");
 
 const redisClient = redis.createClient({
     socket: {
-        host: env.REDIS_HOST,
+        host: env.REDIS_HOST || "localhost",
         port: Number(env.REDIS_PORT),
     },
     password: env.REDIS_PASSWORD || undefined,

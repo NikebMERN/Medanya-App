@@ -112,3 +112,37 @@ Response:
   "nextCursor": "BASE64..."
 }
 ```
+
+## Short Videos API
+
+### POST /videos (JWT required)
+
+Creates a video post (URLs only). Normal users => pending.
+
+Body:
+
+```json
+{
+  "videoUrl": "https://cdn.example.com/video.mp4",
+  "thumbnailUrl": "https://cdn.example.com/thumb.jpg",
+  "caption": "Be careful in this area",
+  "locationText": "Addis Ababa"
+}
+```
+
+## Severe Abuse
+
+```json
+{
+  "anonymous": true,
+  "category": "trafficking",
+  "description": "I witnessed trafficking activity at ...",
+  "legalDisclaimerAccepted": true,
+  "contentWarning": "Sensitive content",
+  "evidenceUrls": {
+    "photos": ["https://..."],
+    "videos": [],
+    "voice": []
+  }
+}
+```

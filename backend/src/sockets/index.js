@@ -4,6 +4,8 @@ const presence = require("./presence.socket");
 const logger = require("../utils/logger.util");
 
 const registerChatSocket = require("../modules/chats/chat.socket");
+const { registerVideoSocket } = require("../modules/videos/video.socket");
+const { registerStreamSocket } = require("../modules/livestream/stream.socket");
 
 function registerSockets(io) {
     // 1) JWT socket authentication middleware
@@ -31,6 +33,11 @@ function registerSockets(io) {
         // Join personal room by default
         const personalRoom = `user:${socket.user.id}`;
         socket.join(personalRoom);
+
+        // ✅ Admin sockets join a private admins room (for pending videos + reports)
+        if (socket.user?.role === "admin") {
+            socket.join("admins");
+        }
 
         // Lightweight per-socket rate limit (join/leave)
         const limiter = createEventLimiter({ windowMs: 5000, max: 20 });
@@ -101,6 +108,12 @@ function registerSockets(io) {
         // ✅ Step-6: register chat events on this socket
         registerChatSocket(io, socket);
 
+        // ✅ Step-7: register video events on this socket
+        registerVideoSocket(io, socket);
+
+        // ✅ Step-8: register livestream events on this socket
+        registerStreamSocket(io, socket);
+
         socket.on("disconnect", async () => {
             logger.info(
                 `🔴 Socket disconnected ${socket.id} user=${socket.user?.id}`,
@@ -113,14 +126,22 @@ function registerSockets(io) {
 }
 
 function validateRoomId(roomId, userId) {
-    if (!roomId || typeof roomId !== "string") {
-        return {
-            ok: false,
-            err: {
+    // ✅ Allow video:{mongoObjectId} rooms (for short video realtime)
+    if (roomId.startsWith("video:")) {
+        const raw = roomId.slice(6);
+        if (!raw || !/^[a-fA-F0-9]{24}$/.test(raw)) {
+            return {
                 ok: false,
-                error: { code: "BAD_REQUEST", message: "roomId required" },
-            },
-        };
+                err: {
+                    ok: false,
+                    error: {
+                        code: "BAD_REQUEST",
+                        message: "Invalid video roomId format",
+                    },
+                },
+            };
+        }
+        return { ok: true };
     }
 
     // Allowed patterns:

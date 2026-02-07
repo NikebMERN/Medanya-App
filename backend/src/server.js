@@ -10,6 +10,7 @@ const { connectRedis } = require("./config/redis");
 const { Server } = require("socket.io");
 const registerSockets = require("./sockets"); // src/sockets/index.js
 const logger = require("./utils/logger.util");
+const { startNotificationWorker } = require("./jobs/workers/notification.worker");
 
 const startServer = async () => {
     try {
@@ -32,6 +33,9 @@ const startServer = async () => {
 
         // Register Socket.IO middleware + base events (Step-5)
         registerSockets(io);
+
+        // Start background workers
+        startNotificationWorker();
 
         const PORT = Number(env.PORT || 4001);
         server.listen(PORT, () => {

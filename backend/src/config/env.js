@@ -6,16 +6,28 @@ dotenv.config();
 
 const envSchema = z.object({
     PORT: z.string().default("4000"),
-    NODE_ENV: z.enum(["development", "production"]),
+    NODE_ENV: z.enum(["development", "production"]).default("development"),
+
     MONGO_URI: z.string().min(1),
+
     MYSQL_HOST: z.string().min(1),
     MYSQL_PORT: z.string().regex(/^\d+$/),
     MYSQL_USER: z.string().min(1),
-    MYSQL_PASSWORD: z.string(),
+    MYSQL_PASSWORD: z.string().optional().default(""),
     MYSQL_DB: z.string().min(1),
-    REDIS_HOST: z.string().min(1),
-    REDIS_PORT: z.string().regex(/^\d+$/),
+
+    // Redis is optional (your health already shows redis false sometimes)
+    REDIS_HOST: z.string().optional().default("127.0.0.1"),
+    REDIS_PORT: z.string().regex(/^\d+$/).optional().default("6379"),
     REDIS_PASSWORD: z.string().optional(),
+
+    // ✅ Firebase Admin (FCM)
+    FIREBASE_PROJECT_ID: z.string().min(1),
+    FIREBASE_CLIENT_EMAIL: z.string().min(1),
+    FIREBASE_PRIVATE_KEY: z.string().min(1),
+
+    // optional topic
+    FCM_DEFAULT_TOPIC: z.string().optional().default("medanya_all"),
 });
 
 const env = envSchema.parse(process.env);
