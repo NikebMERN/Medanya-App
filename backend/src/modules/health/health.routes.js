@@ -4,6 +4,15 @@ const router = express.Router();
 const mongoose = require("mongoose");
 const { pool } = require("../../config/mysql");
 const redis = require("../../config/redis");
+const env = require("../../config/env");
+
+router.get("/config", (req, res) => {
+    return res.json({
+        success: true,
+        emergencyPhone: env.EMERGENCY_PHONE || null,
+        emergencyLabel: env.EMERGENCY_LABEL || "Direct Community Liaison Line",
+    });
+});
 
 router.get("/health", async (req, res) => {
     const out = {

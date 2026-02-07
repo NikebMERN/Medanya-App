@@ -28,6 +28,11 @@ const envSchema = z.object({
 
     // optional topic
     FCM_DEFAULT_TOPIC: z.string().optional().default("medanya_all"),
+
+    JWT_SECRET: z.string().min(1, "JWT_SECRET is required for auth"),
+
+    EMERGENCY_PHONE: z.string().optional(),
+    EMERGENCY_LABEL: z.string().optional().default("Direct Community Liaison Line"),
 });
 
 const env = envSchema.parse(process.env);

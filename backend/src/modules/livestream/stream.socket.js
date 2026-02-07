@@ -4,6 +4,40 @@ const Stream = require("./stream.model");
 const service = require("./stream.service");
 const logger = require("../../utils/logger.util");
 
+const KICK_REENTRY_MS = 5 * 60 * 1000;
+
+const mutedByStream = new Map();
+const kickedByStream = new Map();
+
+function getMutedSet(streamId) {
+    let set = mutedByStream.get(streamId);
+    if (!set) {
+        set = new Set();
+        mutedByStream.set(streamId, set);
+    }
+    return set;
+}
+
+function getKickedMap(streamId) {
+    let map = kickedByStream.get(streamId);
+    if (!map) {
+        map = new Map();
+        kickedByStream.set(streamId, map);
+    }
+    return map;
+}
+
+function isKicked(streamId, userId) {
+    const map = getKickedMap(streamId);
+    const expireAt = map.get(String(userId));
+    if (!expireAt) return false;
+    if (Date.now() > expireAt) {
+        map.delete(String(userId));
+        return false;
+    }
+    return true;
+}
+
 function createLimiter({ windowMs = 60_000, max = 20 }) {
     const hits = new Map(); // key -> {count, resetAt}
     return {
@@ -115,6 +149,8 @@ function registerStreamSocket(io, socket) {
             if (!text) return badAck(ack, "BAD_REQUEST", "text required");
             if (!joined.has(streamId))
                 return badAck(ack, "FORBIDDEN", "Join stream first");
+            if (getMutedSet(streamId).has(userId))
+                return badAck(ack, "MUTED", "You are muted in this stream");
 
             const stream = await Stream.findById(streamId).lean();
             if (!stream) return badAck(ack, "NOT_FOUND", "Stream not found");
@@ -169,6 +205,92 @@ function registerStreamSocket(io, socket) {
                 return badAck(ack, "INVALID_GIFT", "Invalid gift");
             logger.error("stream:gift:send error", e);
             return badAck(ack, "SERVER_ERROR", "gift failed");
+        }
+    });
+
+    socket.on("stream:mute", async (payload = {}, ack) => {
+        try {
+            const streamId = payload?.streamId;
+            const targetUserId = String(payload?.targetUserId || "");
+            if (!mongoose.isValidObjectId(streamId) || !targetUserId)
+                return badAck(ack, "BAD_REQUEST", "streamId and targetUserId required");
+
+            const stream = await Stream.findById(streamId).lean();
+            if (!stream) return badAck(ack, "NOT_FOUND", "Stream not found");
+            if (stream.status !== "live")
+                return badAck(ack, "STREAM_NOT_LIVE", "Stream not live");
+
+            const isHost = stream.hostId === userId;
+            const isAdmin = socket.user?.role === "admin";
+            if (!isHost && !isAdmin)
+                return badAck(ack, "FORBIDDEN", "Only host or admin can mute");
+
+            getMutedSet(streamId).add(targetUserId);
+            io.to(`stream:${streamId}`).emit("stream:user:muted", { streamId, userId: targetUserId });
+            return okAck(ack, { muted: true });
+        } catch (e) {
+            logger.error("stream:mute error", e);
+            return badAck(ack, "SERVER_ERROR", "mute failed");
+        }
+    });
+
+    socket.on("stream:unmute", async (payload = {}, ack) => {
+        try {
+            const streamId = payload?.streamId;
+            const targetUserId = String(payload?.targetUserId || "");
+            if (!mongoose.isValidObjectId(streamId) || !targetUserId)
+                return badAck(ack, "BAD_REQUEST", "streamId and targetUserId required");
+
+            const stream = await Stream.findById(streamId).lean();
+            if (!stream) return badAck(ack, "NOT_FOUND", "Stream not found");
+            const isHost = stream.hostId === userId;
+            const isAdmin = socket.user?.role === "admin";
+            if (!isHost && !isAdmin)
+                return badAck(ack, "FORBIDDEN", "Only host or admin can unmute");
+
+            getMutedSet(streamId).delete(targetUserId);
+            return okAck(ack, { unmuted: true });
+        } catch (e) {
+            logger.error("stream:unmute error", e);
+            return badAck(ack, "SERVER_ERROR", "unmute failed");
+        }
+    });
+
+    socket.on("stream:kick", async (payload = {}, ack) => {
+        try {
+            const streamId = payload?.streamId;
+            const targetUserId = String(payload?.targetUserId || "");
+            if (!mongoose.isValidObjectId(streamId) || !targetUserId)
+                return badAck(ack, "BAD_REQUEST", "streamId and targetUserId required");
+
+            const stream = await Stream.findById(streamId).lean();
+            if (!stream) return badAck(ack, "NOT_FOUND", "Stream not found");
+            if (stream.status !== "live")
+                return badAck(ack, "STREAM_NOT_LIVE", "Stream not live");
+
+            const isHost = stream.hostId === userId;
+            const isAdmin = socket.user?.role === "admin";
+            if (!isHost && !isAdmin)
+                return badAck(ack, "FORBIDDEN", "Only host or admin can kick");
+
+            const room = `stream:${streamId}`;
+            const sockets = await io.in(room).fetchSockets();
+            const targetSocket = sockets.find((s) => String(s.user?.id) === targetUserId);
+            if (targetSocket) {
+                getKickedMap(streamId).set(targetUserId, Date.now() + KICK_REENTRY_MS);
+                targetSocket.emit("stream:kicked", { streamId, message: "You were removed from the stream" });
+                targetSocket.leave(room);
+                Stream.updateOne({ _id: streamId }, { $inc: { viewerCount: -1 } }).catch(() => {});
+                const doc = await Stream.findById(streamId).lean().catch(() => null);
+                io.to(room).emit("stream:viewerCount", {
+                    streamId,
+                    viewerCount: Math.max(doc?.viewerCount ?? 0, 0),
+                });
+            }
+            return okAck(ack, { kicked: true });
+        } catch (e) {
+            logger.error("stream:kick error", e);
+            return badAck(ack, "SERVER_ERROR", "kick failed");
         }
     });
 }

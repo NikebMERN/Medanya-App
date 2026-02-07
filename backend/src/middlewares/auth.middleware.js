@@ -3,21 +3,32 @@ const { pool } = require("../config/mysql");
 
 const authMiddleware = async (req, res, next) => {
     const authHeader = req.headers.authorization;
-    if (!authHeader) {
+    if (!authHeader || typeof authHeader !== "string") {
         return res.status(401).json({
             error: { code: "UNAUTHORIZED", message: "Authentication required" },
         });
     }
 
-    const token = authHeader.split(" ")[1];
+    const parts = authHeader.trim().split(/\s+/);
+    const token = parts[0] === "Bearer" ? parts[1] : parts[0];
+    if (!token || typeof token !== "string") {
+        return res.status(401).json({
+            error: { code: "UNAUTHORIZED", message: "Invalid authorization header" },
+        });
+    }
 
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        // decoded should include: { id, phone_number, role }
-        // Ban check (DB)
+        // JWT payload from auth.service.issueJWT: { userId, role, phone }
+        const userId = decoded.userId ?? decoded.id;
+        if (!userId) {
+            return res.status(401).json({
+                error: { code: "UNAUTHORIZED", message: "Invalid token" },
+            });
+        }
         const [rows] = await pool.query(
             "SELECT is_banned FROM users WHERE id = ?",
-            [decoded.id],
+            [userId],
         );
         if (!rows.length) {
             return res.status(401).json({
@@ -30,7 +41,7 @@ const authMiddleware = async (req, res, next) => {
             });
         }
 
-        req.user = decoded;
+        req.user = { id: userId, role: decoded.role, phone_number: decoded.phone ?? decoded.phone_number };
         return next();
     } catch (err) {
         return res.status(401).json({

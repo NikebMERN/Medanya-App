@@ -200,6 +200,38 @@ function normalizeRow(row) {
     return { ...row, image_urls };
 }
 
+const addFavorite = async (userId, itemId) => {
+    const [result] = await pool.query(
+        `INSERT IGNORE INTO marketplace_favorites (user_id, item_id) VALUES (?, ?)`,
+        [userId, itemId],
+    );
+    return result.affectedRows > 0;
+};
+
+const removeFavorite = async (userId, itemId) => {
+    const [result] = await pool.query(
+        `DELETE FROM marketplace_favorites WHERE user_id = ? AND item_id = ?`,
+        [userId, itemId],
+    );
+    return result.affectedRows > 0;
+};
+
+const listFavoriteItemIdsByUserId = async (userId) => {
+    const [rows] = await pool.query(
+        `SELECT item_id FROM marketplace_favorites WHERE user_id = ? ORDER BY created_at DESC`,
+        [userId],
+    );
+    return rows.map((r) => r.item_id);
+};
+
+const isFavorite = async (userId, itemId) => {
+    const [rows] = await pool.query(
+        `SELECT 1 FROM marketplace_favorites WHERE user_id = ? AND item_id = ? LIMIT 1`,
+        [userId, itemId],
+    );
+    return rows.length > 0;
+};
+
 const listRecentMarketplaceForFeed = async ({ limit = 25 } = {}) => {
     const l = Math.min(Math.max(parseInt(limit, 10) || 25, 1), 100);
     const [rows] = await pool.query(
@@ -225,4 +257,8 @@ module.exports = {
     markSold,
     softRemove,
     listRecentMarketplaceForFeed,
+    addFavorite,
+    removeFavorite,
+    listFavoriteItemIdsByUserId,
+    isFavorite,
 };

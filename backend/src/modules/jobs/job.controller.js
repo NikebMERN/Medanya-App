@@ -103,6 +103,51 @@ const searchJobs = async (req, res) => {
     }
 };
 
+const applyToJob = async (req, res) => {
+    try {
+        const application = await jobService.apply(req.user, req.params.id, req.body);
+        return res.status(201).json({ success: true, application });
+    } catch (err) {
+        return sendErr(res, err);
+    }
+};
+
+const listJobApplications = async (req, res) => {
+    try {
+        const data = await jobService.listApplicationsForJob(req.user, req.params.id, req.query);
+        return res.json({ success: true, ...data });
+    } catch (err) {
+        return sendErr(res, err);
+    }
+};
+
+const listMyApplications = async (req, res) => {
+    try {
+        const data = await jobService.listMyApplications(req.user, req.query);
+        return res.json({ success: true, ...data });
+    } catch (err) {
+        return sendErr(res, err);
+    }
+};
+
+const patchApplicationStatus = async (req, res) => {
+    try {
+        const result = await jobService.updateApplicationStatus(req.user, req.params.applicationId, req.body.status);
+        return res.json({ success: true, ...result });
+    } catch (err) {
+        return sendErr(res, err);
+    }
+};
+
+const rateJob = async (req, res) => {
+    try {
+        const result = await jobService.rateJob(req.user, req.params.id, req.body);
+        return res.json({ success: true, ...result });
+    } catch (err) {
+        return sendErr(res, err);
+    }
+};
+
 module.exports = {
     createJob,
     listJobs,
@@ -110,4 +155,9 @@ module.exports = {
     updateJob,
     deleteJob,
     searchJobs,
+    applyToJob,
+    listJobApplications,
+    listMyApplications,
+    patchApplicationStatus,
+    rateJob,
 };

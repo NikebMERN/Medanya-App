@@ -83,4 +83,22 @@ const close = async (req, res) => {
     }
 };
 
-module.exports = { create, list, detail, update, close };
+const addComment = async (req, res) => {
+    try {
+        const comment = await service.addComment(req.user, req.params.id, req.body);
+        return res.status(201).json({ success: true, comment });
+    } catch (err) {
+        return sendError(res, err);
+    }
+};
+
+const listComments = async (req, res) => {
+    try {
+        const data = await service.listComments(req.params.id, req.query);
+        return res.json({ success: true, ...data });
+    } catch (err) {
+        return sendError(res, err);
+    }
+};
+
+module.exports = { create, list, detail, update, close, addComment, listComments };

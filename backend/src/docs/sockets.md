@@ -93,3 +93,173 @@ Payload:
   }
 }
 ```
+
+---
+
+## Livestream Events (Stream)
+
+Stream rooms use the pattern `stream:{streamId}` where `streamId` is the Mongo ObjectId of the stream. Clients must **join** a stream before sending chat or gifts. Viewer count is best-effort (in-memory + Mongo).
+
+### Client -> Server
+
+#### `stream:join`
+
+Join a live stream room. Required before chat/gifts. If the user was kicked, re-entry is blocked for 5 minutes.
+
+Payload:
+
+```json
+{ "streamId": "507f1f77bcf86cd799439011" }
+```
+
+Ack: `{ ok: true, stream }` or `{ ok: false, error, message }`. Errors: `NOT_FOUND`, `STREAM_NOT_LIVE`, `KICKED`, `RATE_LIMIT`.
+
+---
+
+#### `stream:leave`
+
+Leave a stream room.
+
+Payload:
+
+```json
+{ "streamId": "507f1f77bcf86cd799439011" }
+```
+
+---
+
+#### `stream:chat:send`
+
+Send a text message to the stream chat. User must have joined the stream. Muted users receive `MUTED`.
+
+Payload:
+
+```json
+{ "streamId": "...", "text": "Hello everyone" }
+```
+
+Ack: `{ ok: true, message }` or `{ ok: false, error, message }`.
+
+---
+
+#### `stream:gift:send`
+
+Send a gift (debits viewer wallet, credits host + platform). User must have joined the stream.
+
+Payload:
+
+```json
+{ "streamId": "...", "giftId": "rose", "quantity": 1 }
+```
+
+Ack: `{ ok: true, ... }` or errors `INSUFFICIENT_FUNDS`, `STREAM_NOT_LIVE`, `INVALID_GIFT`.
+
+---
+
+#### `stream:mute` (Host or Admin only)
+
+Mute a user in this stream so they cannot send chat messages.
+
+Payload:
+
+```json
+{ "streamId": "...", "targetUserId": "123" }
+```
+
+---
+
+#### `stream:unmute` (Host or Admin only)
+
+Remove a user’s mute in this stream.
+
+Payload:
+
+```json
+{ "streamId": "...", "targetUserId": "123" }
+```
+
+---
+
+#### `stream:kick` (Host or Admin only)
+
+Remove a user from the stream room and block re-entry for 5 minutes.
+
+Payload:
+
+```json
+{ "streamId": "...", "targetUserId": "123" }
+```
+
+The target socket receives `stream:kicked` and is removed from the room.
+
+---
+
+### Server -> Client
+
+#### `stream:viewerCount`
+
+Emitted to the stream room when viewer count changes (after join/leave/kick).
+
+Payload:
+
+```json
+{ "streamId": "...", "viewerCount": 42 }
+```
+
+---
+
+#### `stream:chat:new`
+
+Emitted to the stream room when a new chat message is persisted.
+
+Payload:
+
+```json
+{
+  "streamId": "...",
+  "message": { "_id": "...", "streamId": "...", "senderId": "123", "text": "Hello", "createdAt": "..." }
+}
+```
+
+---
+
+#### `stream:gift:new`
+
+Emitted to the stream room when a gift is sent.
+
+Payload:
+
+```json
+{
+  "streamId": "...",
+  "fromUserId": "123",
+  "toHostId": "456",
+  "giftId": "rose",
+  "quantity": 2,
+  "totalCost": 20
+}
+```
+
+---
+
+#### `stream:user:muted`
+
+Emitted to the stream room when a user is muted by host/admin.
+
+Payload:
+
+```json
+{ "streamId": "...", "userId": "123" }
+```
+
+---
+
+#### `stream:kicked`
+
+Emitted **to the kicked socket only** when host/admin kicks them. Client should leave the stream UI and may retry join after the re-entry cooldown.
+
+Payload:
+
+```json
+{ "streamId": "...", "message": "You were removed from the stream" }
+```

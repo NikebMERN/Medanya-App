@@ -83,6 +83,64 @@ const adminBan = async (req, res) => {
     }
 };
 
+const adminVerify = async (req, res) => {
+    try {
+        const user = await service.adminSetVerified(
+            req.user,
+            String(req.params.id),
+            req.body,
+        );
+        res.json({ success: true, user });
+    } catch (e) {
+        sendErr(res, e);
+    }
+};
+
+const follow = async (req, res) => {
+    try {
+        const result = await service.followUser(req.user, String(req.params.id));
+        res.json({ success: true, ...result });
+    } catch (e) {
+        sendErr(res, e);
+    }
+};
+
+const unfollow = async (req, res) => {
+    try {
+        const result = await service.unfollowUser(req.user, String(req.params.id));
+        res.json({ success: true, ...result });
+    } catch (e) {
+        sendErr(res, e);
+    }
+};
+
+const followers = async (req, res) => {
+    try {
+        const data = await service.getFollowers(req.user, String(req.params.id), req.query);
+        res.json({ success: true, ...data });
+    } catch (e) {
+        sendErr(res, e);
+    }
+};
+
+const following = async (req, res) => {
+    try {
+        const data = await service.getFollowing(req.user, String(req.params.id), req.query);
+        res.json({ success: true, ...data });
+    } catch (e) {
+        sendErr(res, e);
+    }
+};
+
+const discoverUsers = async (req, res) => {
+    try {
+        const data = await service.discover(req.user, req.query);
+        res.json({ success: true, ...data });
+    } catch (e) {
+        sendErr(res, e);
+    }
+};
+
 module.exports = {
     me,
     patchMe,
@@ -90,4 +148,10 @@ module.exports = {
     adminUsers,
     adminRole,
     adminBan,
+    adminVerify,
+    follow,
+    unfollow,
+    followers,
+    following,
+    discoverUsers,
 };

@@ -183,6 +183,83 @@ const listRecentJobsForFeed = async ({ limit = 25 } = {}) => {
     return rows;
 };
 
+const insertApplication = async (jobId, applicantId, message = null) => {
+    const [result] = await pool.query(
+        `INSERT INTO job_applications (job_id, applicant_id, message, status) VALUES (?, ?, ?, 'pending')`,
+        [jobId, applicantId, message || null],
+    );
+    return result.insertId;
+};
+
+const findApplicationByJobAndApplicant = async (jobId, applicantId) => {
+    const [rows] = await pool.query(
+        `SELECT * FROM job_applications WHERE job_id = ? AND applicant_id = ? LIMIT 1`,
+        [jobId, applicantId],
+    );
+    return rows[0] || null;
+};
+
+const listApplicationsByJobId = async (jobId, { page = 1, limit = 20 } = {}) => {
+    const p = Math.max(parseInt(page, 10) || 1, 1);
+    const l = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 50);
+    const offset = (p - 1) * l;
+    const [rows] = await pool.query(
+        `SELECT ja.*, u.display_name, u.phone_number FROM job_applications ja
+         LEFT JOIN users u ON u.id = ja.applicant_id
+         WHERE ja.job_id = ? ORDER BY ja.created_at DESC LIMIT ? OFFSET ?`,
+        [jobId, l, offset],
+    );
+    const [[c]] = await pool.query(`SELECT COUNT(*) AS total FROM job_applications WHERE job_id = ?`, [jobId]);
+    return { page: p, limit: l, total: c.total, applications: rows };
+};
+
+const listApplicationsByApplicantId = async (applicantId, { page = 1, limit = 20 } = {}) => {
+    const p = Math.max(parseInt(page, 10) || 1, 1);
+    const l = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 50);
+    const offset = (p - 1) * l;
+    const [rows] = await pool.query(
+        `SELECT ja.*, j.title, j.category, j.location, j.status AS job_status FROM job_applications ja
+         LEFT JOIN jobs j ON j.id = ja.job_id
+         WHERE ja.applicant_id = ? ORDER BY ja.created_at DESC LIMIT ? OFFSET ?`,
+        [applicantId, l, offset],
+    );
+    const [[c]] = await pool.query(`SELECT COUNT(*) AS total FROM job_applications WHERE applicant_id = ?`, [applicantId]);
+    return { page: p, limit: l, total: c.total, applications: rows };
+};
+
+const findApplicationById = async (id) => {
+    const [rows] = await pool.query(
+        `SELECT ja.*, j.created_by AS job_owner_id FROM job_applications ja JOIN jobs j ON j.id = ja.job_id WHERE ja.id = ?`,
+        [id],
+    );
+    return rows[0] || null;
+};
+
+const updateApplicationStatus = async (id, status) => {
+    const [result] = await pool.query(
+        `UPDATE job_applications SET status = ? WHERE id = ?`,
+        [status, id],
+    );
+    return result.affectedRows;
+};
+
+const insertJobRating = async (jobId, raterId, rating) => {
+    const [result] = await pool.query(
+        `INSERT INTO job_ratings (job_id, rater_id, rating) VALUES (?, ?, ?)
+         ON DUPLICATE KEY UPDATE rating = VALUES(rating)`,
+        [jobId, raterId, rating],
+    );
+    return result.affectedRows;
+};
+
+const getAverageRatingByJobId = async (jobId) => {
+    const [[row]] = await pool.query(
+        `SELECT COALESCE(AVG(rating), 0) AS avgRating, COUNT(*) AS count FROM job_ratings WHERE job_id = ?`,
+        [jobId],
+    );
+    return { avgRating: Number(Number(row.avgRating).toFixed(1)), count: row.count || 0 };
+};
+
 module.exports = {
     insertJob,
     findJobById,
@@ -191,4 +268,12 @@ module.exports = {
     updateJob,
     closeJob,
     listRecentJobsForFeed,
+    insertApplication,
+    findApplicationByJobAndApplicant,
+    listApplicationsByJobId,
+    listApplicationsByApplicantId,
+    findApplicationById,
+    updateApplicationStatus,
+    insertJobRating,
+    getAverageRatingByJobId,
 };

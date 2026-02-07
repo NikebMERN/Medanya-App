@@ -42,11 +42,19 @@ const getUserById = async (userId) => {
     return rows[0] || null;
 };
 
-const setUserRole = async (userId, role) => {
+const setUserRole = async (userId, role, currentUserId) => {
     if (!ALLOWED_ROLES.includes(role)) {
         const err = new Error("Invalid role");
         err.status = 400;
         err.code = "VALIDATION_ERROR";
+        throw err;
+    }
+
+    const targetUserId = Number(userId);
+    if (currentUserId != null && targetUserId === Number(currentUserId)) {
+        const err = new Error("Cannot change your own role");
+        err.status = 403;
+        err.code = "SELF_ROLE_CHANGE_FORBIDDEN";
         throw err;
     }
 

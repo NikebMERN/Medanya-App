@@ -38,4 +38,9 @@ router.patch("/marketplace/items/:id", auth, controller.updateItem);
 router.patch("/marketplace/items/:id/sold", auth, controller.markSold);
 router.delete("/marketplace/items/:id", auth, controller.deleteItem);
 
+// Favorites (auth)
+router.get("/marketplace/favorites", auth, controller.listFavorites);
+router.post("/marketplace/items/:id/favorite", auth, controller.addFavorite);
+router.delete("/marketplace/items/:id/favorite", auth, controller.removeFavorite);
+
 module.exports = router;

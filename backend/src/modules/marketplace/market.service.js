@@ -163,12 +163,59 @@ async function search(query) {
     return db.searchItems(query);
 }
 
+async function addFavorite(user, itemId) {
+    const userId = user?.id ?? user?.userId;
+    if (!userId) throw codeErr("UNAUTHORIZED", "Auth required");
+    const item = await db.findById(itemId);
+    if (!item) throw codeErr("NOT_FOUND", "Item not found");
+    const added = await db.addFavorite(userId, itemId);
+    return { favorited: true, added };
+}
+
+async function removeFavorite(user, itemId) {
+    const userId = user?.id ?? user?.userId;
+    if (!userId) throw codeErr("UNAUTHORIZED", "Auth required");
+    await db.removeFavorite(userId, itemId);
+    return { favorited: false };
+}
+
+async function listFavorites(user, query) {
+    const userId = user?.id ?? user?.userId;
+    if (!userId) throw codeErr("UNAUTHORIZED", "Auth required");
+    const itemIds = await db.listFavoriteItemIdsByUserId(userId);
+    if (itemIds.length === 0) return { page: 1, limit: 20, total: 0, items: [] };
+    const page = Math.max(parseInt(query.page, 10) || 1, 1);
+    const limit = Math.min(Math.max(parseInt(query.limit, 10) || 20, 1), 50);
+    const offset = (page - 1) * limit;
+    const paginatedIds = itemIds.slice(offset, offset + limit);
+    const items = [];
+    for (const id of paginatedIds) {
+        const item = await db.findById(id);
+        if (item) items.push({ ...item, isFavorited: true });
+    }
+    return { page, limit, total: itemIds.length, items };
+}
+
+async function detailWithFavorite(user, id) {
+    const item = await detail(id);
+    if (user?.id || user?.userId) {
+        item.isFavorited = await db.isFavorite(user.id ?? user.userId, id);
+    } else {
+        item.isFavorited = false;
+    }
+    return item;
+}
+
 module.exports = {
     create,
     list,
     detail,
+    detailWithFavorite,
     update,
     markSold,
     remove,
     search,
+    addFavorite,
+    removeFavorite,
+    listFavorites,
 };

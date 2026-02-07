@@ -31,10 +31,12 @@ const createLimiter = createRateLimiter({ windowMs: 60_000, max: 3 });
 // Public
 router.get("/missing-persons", controller.list);
 router.get("/missing-persons/:id", controller.detail);
+router.get("/missing-persons/:id/comments", controller.listComments);
 
 // Protected
 router.post("/missing-persons", auth, createLimiter, controller.create);
 router.patch("/missing-persons/:id", auth, controller.update);
 router.patch("/missing-persons/:id/close", auth, controller.close);
+router.post("/missing-persons/:id/comments", auth, controller.addComment);
 
 module.exports = router;

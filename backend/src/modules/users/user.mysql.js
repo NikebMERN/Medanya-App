@@ -3,7 +3,7 @@ const { pool } = require("../../config/mysql");
 
 async function getById(userId) {
     const [rows] = await pool.query(
-        `SELECT id, phone_number, display_name, avatar_url, role, is_verified,
+        `SELECT id, phone_number, display_name, avatar_url, neighborhood, bio, preferred_theme, role, is_verified,
             privacy_hide_phone, notification_enabled, is_banned, banned_reason, is_active,
             created_at, updated_at
      FROM users WHERE id = ? LIMIT 1`,
@@ -16,6 +16,9 @@ async function updateById(userId, fields) {
     const allowed = {
         display_name: fields.display_name,
         avatar_url: fields.avatar_url,
+        neighborhood: fields.neighborhood,
+        bio: fields.bio,
+        preferred_theme: fields.preferred_theme,
         privacy_hide_phone: fields.privacy_hide_phone,
         notification_enabled: fields.notification_enabled,
     };
@@ -52,7 +55,7 @@ async function adminSearch({ query = "", page = 1, limit = 20 }) {
     const params = q.length > 0 ? [like, like, like, l, offset] : [l, offset];
 
     const [rows] = await pool.query(
-        `SELECT id, phone_number, display_name, avatar_url, role, is_verified,
+        `SELECT id, phone_number, display_name, avatar_url, neighborhood, bio, preferred_theme, role, is_verified,
             privacy_hide_phone, notification_enabled, is_banned, banned_reason, is_active,
             created_at, updated_at
      FROM users
@@ -90,6 +93,11 @@ async function countAdmins() {
     return rows[0]?.c || 0;
 }
 
+async function setVerified(userId, verified) {
+    await pool.query(`UPDATE users SET is_verified = ? WHERE id = ?`, [verified ? 1 : 0, userId]);
+    return getById(userId);
+}
+
 module.exports = {
     getById,
     updateById,
@@ -98,4 +106,5 @@ module.exports = {
     setRole,
     banUser,
     countAdmins,
+    setVerified,
 };

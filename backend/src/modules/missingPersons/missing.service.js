@@ -1,6 +1,7 @@
 // src/modules/missingPersons/missing.service.js
 const mongoose = require("mongoose");
 const MissingPerson = require("./missing.model");
+const MissingPersonComment = require("./missingComment.model");
 
 const MAX_LIMIT = 50;
 
@@ -178,10 +179,53 @@ async function close(user, id, status = "closed") {
     return doc.toObject();
 }
 
+async function addComment(user, missingPersonId, body) {
+    const authorId = toId(user?.id ?? user?.userId);
+    if (!authorId) throw codeErr("UNAUTHORIZED", "Auth required");
+    if (!mongoose.isValidObjectId(missingPersonId)) throw codeErr("NOT_FOUND", "Not found");
+
+    const alert = await MissingPerson.findOne({ _id: missingPersonId }).lean();
+    if (!alert) throw codeErr("NOT_FOUND", "Not found");
+
+    const text = cleanStr(body.text, 1000);
+    const voiceUrl = body.voiceUrl ? cleanStr(body.voiceUrl, 600) : null;
+    if (!text && !voiceUrl) throw codeErr("VALIDATION_ERROR", "text or voiceUrl required");
+
+    const doc = await MissingPersonComment.create({
+        missingPersonId: alert._id,
+        authorId,
+        text: text || undefined,
+        voiceUrl: voiceUrl || undefined,
+    });
+    return doc.toObject();
+}
+
+async function listComments(missingPersonId, { page = 1, limit = 50 } = {}) {
+    if (!mongoose.isValidObjectId(missingPersonId)) throw codeErr("NOT_FOUND", "Not found");
+    const p = Math.max(parseInt(page, 10) || 1, 1);
+    const l = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 100);
+    const skip = (p - 1) * l;
+
+    const alert = await MissingPerson.findById(missingPersonId).lean();
+    if (!alert) throw codeErr("NOT_FOUND", "Not found");
+
+    const [items, total] = await Promise.all([
+        MissingPersonComment.find({ missingPersonId })
+            .sort({ createdAt: 1 })
+            .skip(skip)
+            .limit(l)
+            .lean(),
+        MissingPersonComment.countDocuments({ missingPersonId }),
+    ]);
+    return { page: p, limit: l, total, comments: items };
+}
+
 module.exports = {
     create,
     list,
     getById,
     update,
     close,
+    addComment,
+    listComments,
 };

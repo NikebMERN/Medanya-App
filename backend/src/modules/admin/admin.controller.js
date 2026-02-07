@@ -19,8 +19,8 @@ const setUserRole = async (req, res, next) => {
     try {
         const userId = Number(req.params.id);
         const { role } = req.body;
-        console.log(userId, role);
-        const updated = await adminService.setUserRole(userId, role);
+        const currentUserId = req.user?.id ?? req.user?.userId;
+        const updated = await adminService.setUserRole(userId, role, currentUserId);
         return res.json({ success: true, updated });
     } catch (err) {
         return next(err);

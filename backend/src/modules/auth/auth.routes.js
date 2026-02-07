@@ -1,8 +1,11 @@
 const express = require("express");
 const router = express.Router();
-const { otpLimiter } = require("../../middlewares/rateLimit.middleware");
-const { verifyOtpAndLogin } = require("./auth.controller");
-const { validateVerifyOtp } = require("./auth.validation");
+const { otpLimiter, otpSendLimiter } = require("../../middlewares/rateLimit.middleware");
+const { verifyOtpAndLogin, sendOtpHandler, verifyOtpAndLoginServer } = require("./auth.controller");
+const { validateVerifyOtp, validateSendOtp, validateVerifyOtpServer } = require("./auth.validation");
+
+router.post("/otp/send", otpSendLimiter, validateSendOtp, sendOtpHandler);
+router.post("/otp/verify", otpLimiter, validateVerifyOtpServer, verifyOtpAndLoginServer);
 
 router.post(
     "/verify-otp",

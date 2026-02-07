@@ -39,8 +39,37 @@ const listItems = async (req, res) => {
 
 const getItem = async (req, res) => {
     try {
-        const item = await service.detail(req.params.id);
+        const item = req.user
+            ? await service.detailWithFavorite(req.user, req.params.id)
+            : await service.detail(req.params.id);
         return res.json({ success: true, item });
+    } catch (err) {
+        return sendErr(res, err);
+    }
+};
+
+const addFavorite = async (req, res) => {
+    try {
+        const result = await service.addFavorite(req.user, req.params.id);
+        return res.json({ success: true, ...result });
+    } catch (err) {
+        return sendErr(res, err);
+    }
+};
+
+const removeFavorite = async (req, res) => {
+    try {
+        const result = await service.removeFavorite(req.user, req.params.id);
+        return res.json({ success: true, ...result });
+    } catch (err) {
+        return sendErr(res, err);
+    }
+};
+
+const listFavorites = async (req, res) => {
+    try {
+        const data = await service.listFavorites(req.user, req.query);
+        return res.json({ success: true, ...data });
     } catch (err) {
         return sendErr(res, err);
     }
@@ -90,4 +119,7 @@ module.exports = {
     markSold,
     deleteItem,
     search,
+    addFavorite,
+    removeFavorite,
+    listFavorites,
 };

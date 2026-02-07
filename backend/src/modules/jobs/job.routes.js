@@ -32,11 +32,20 @@ const postLimiter = createRateLimiter({ windowMs: 60_000, max: 5 });
 // Public list/search
 router.get("/", jobController.listJobs);
 router.get("/search", jobController.searchJobs);
+router.get("/my-applications", authMiddleware, jobController.listMyApplications);
 router.get("/:id", jobController.getJob);
 
 // Protected create/update/delete
 router.post("/", authMiddleware, postLimiter, jobController.createJob);
 router.patch("/:id", authMiddleware, jobController.updateJob);
 router.delete("/:id", authMiddleware, jobController.deleteJob);
+
+// Applications (auth)
+router.post("/:id/apply", authMiddleware, jobController.applyToJob);
+router.get("/:id/applications", authMiddleware, jobController.listJobApplications);
+router.patch("/:id/applications/:applicationId", authMiddleware, jobController.patchApplicationStatus);
+
+// Rating (auth)
+router.post("/:id/rate", authMiddleware, jobController.rateJob);
 
 module.exports = router;

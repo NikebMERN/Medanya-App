@@ -33,8 +33,7 @@ async function createVideo(user, body) {
 
     if (!videoUrl) throw codeErr("VALIDATION_ERROR", "videoUrl is required");
 
-    // For simplicity, auto-approve all uploads. In real app, may require moderation.
-    const status = "approved";
+    const status = user?.role === "admin" ? "approved" : "pending";
 
     const doc = await Video.create({
         createdBy: userId,
