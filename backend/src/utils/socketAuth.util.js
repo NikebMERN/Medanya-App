@@ -1,6 +1,7 @@
 // src/utils/socketAuth.util.js
 const jwt = require("jsonwebtoken");
 const jwtConfig = require("../config/jwt");
+const { pool } = require("../config/mysql");
 
 /**
  * Extract token from:
@@ -17,7 +18,6 @@ function extractToken(socket) {
         if (parts.length === 2 && parts[0].toLowerCase() === "bearer")
             return parts[1];
     }
-
     return null;
 }
 
@@ -28,16 +28,24 @@ async function verifySocketJWT(socket) {
     let decoded;
     try {
         decoded = jwt.verify(token, jwtConfig.secret, jwtConfig.verifyOptions);
-    } catch (e) {
+    } catch {
         throw new Error("Invalid token");
     }
 
-    // Support both payload shapes (Step-3 may use userId/phone):
     const id = decoded.id ?? decoded.userId;
     const phone_number = decoded.phone_number ?? decoded.phone ?? null;
     const role = decoded.role ?? "user";
 
     if (!id) throw new Error("Invalid token payload");
+
+    // ✅ Ban + active check (same rule as HTTP)
+    const [rows] = await pool.query(
+        "SELECT is_banned, is_active FROM users WHERE id = ? LIMIT 1",
+        [id],
+    );
+    if (!rows.length) throw new Error("Invalid user");
+    if (rows[0].is_active === 0) throw new Error("Inactive user");
+    if (rows[0].is_banned) throw new Error("BANNED");
 
     return { id, phone_number, role };
 }
