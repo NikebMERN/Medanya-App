@@ -17,6 +17,7 @@ const stripeRoutes = require("./modules/payments/stripe.routes");
 const stripeWebhook = require("./webhooks/stripe.webhook");
 const notificationRoutes = require("./modules/notifications/notification.routes");
 const severeAbuseRoutes = require("./modules/severeAbuse/abuse.routes");
+const userRoutes = require("./modules/users/user.routes");
 
 router.use("/auth", authRoutes);
 
@@ -62,6 +63,9 @@ router.use("/", notificationRoutes);
 
 // ✅ SEVERE ABUSE
 router.use("/", severeAbuseRoutes);
+
+// ✅ USERS
+router.use("/", userRoutes);
 
 router.get("/protected", authMiddleware, (req, res) => {
     res.json({

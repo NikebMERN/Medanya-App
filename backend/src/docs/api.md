@@ -146,3 +146,20 @@ Body:
   }
 }
 ```
+
+## Users
+
+```
+GET /users/me
+
+PATCH /users/me
+
+DELETE /users/me
+
+GET /admin/users?query=&page=&limit=
+
+PATCH /admin/users/:id/role
+
+PATCH /admin/users/:id/ban
+
+```
