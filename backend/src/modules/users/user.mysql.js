@@ -3,23 +3,29 @@ const { pool } = require("../../config/mysql");
 
 async function getById(userId) {
     const [rows] = await pool.query(
-        `SELECT id, phone_number, display_name, avatar_url, neighborhood, bio, preferred_theme, role, is_verified,
-            privacy_hide_phone, notification_enabled, is_banned, banned_reason, is_active,
+        `SELECT id, phone_number, email, display_name, avatar_url, neighborhood, last_lat, last_lng, bio, preferred_theme, role, is_verified,
+            privacy_hide_phone, account_private, notification_enabled, is_banned, banned_reason, is_active,
             created_at, updated_at
      FROM users WHERE id = ? LIMIT 1`,
         [userId],
     );
-    return rows[0] || null;
+    const row = rows[0] || null;
+    if (row && row.account_private !== undefined) row.account_private = Boolean(row.account_private);
+    return row;
 }
 
 async function updateById(userId, fields) {
     const allowed = {
         display_name: fields.display_name,
+        email: fields.email,
         avatar_url: fields.avatar_url,
         neighborhood: fields.neighborhood,
+        last_lat: fields.last_lat,
+        last_lng: fields.last_lng,
         bio: fields.bio,
         preferred_theme: fields.preferred_theme,
         privacy_hide_phone: fields.privacy_hide_phone,
+        account_private: fields.account_private,
         notification_enabled: fields.notification_enabled,
     };
 

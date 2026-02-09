@@ -1,0 +1,49 @@
+import Constants from "expo-constants";
+
+const extra = Constants.expoConfig?.extra ?? {};
+
+// Backend serves at /api/* — use base URL without /api (e.g. http://192.168.0.101:4001)
+function normalizeApiUrl(url) {
+  const u = (url || "http://localhost:4001").trim().replace(/\/+$/, "");
+  return u.endsWith("/api") ? u.slice(0, -4) : u;
+}
+
+export const env = {
+  apiUrl: normalizeApiUrl(extra.apiUrl || process.env.EXPO_PUBLIC_API_URL || "http://localhost:4001"),
+  socketUrl: extra.socketUrl || process.env.EXPO_PUBLIC_SOCKET_URL || "http://localhost:4001",
+  agoraAppId: extra.agoraAppId || process.env.EXPO_PUBLIC_AGORA_APP_ID || "",
+  livekitUrl: extra.livekitUrl || process.env.EXPO_PUBLIC_LIVEKIT_URL || "",
+  firebaseApiKey: extra.firebaseApiKey || process.env.EXPO_PUBLIC_FIREBASE_API_KEY || "",
+  firebaseAuthDomain: extra.firebaseAuthDomain || process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN || "",
+  firebaseProjectId: extra.firebaseProjectId || process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID || "",
+  firebaseStorageBucket: extra.firebaseStorageBucket || process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET || "",
+  firebaseMessagingSenderId: extra.firebaseMessagingSenderId || process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "",
+  firebaseAppId: extra.firebaseAppId || process.env.EXPO_PUBLIC_FIREBASE_APP_ID || "",
+  googleWebClientId: extra.googleWebClientId || process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || "",
+  facebookAppId: extra.facebookAppId || process.env.EXPO_PUBLIC_FACEBOOK_APP_ID || "",
+  cloudinaryCloudName: extra.cloudinaryCloudName || process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME || "",
+  cloudinaryUploadPreset: extra.cloudinaryUploadPreset || process.env.EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET || "",
+};
+
+/**
+ * Upload image to Cloudinary (unsigned preset) and return the hosted URL.
+ * Flow: app uploads file to Cloudinary -> get secure_url -> send that URL to backend.
+ * Requires in .env: EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME, EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET (unsigned).
+ */
+export async function uploadToCloudinary(uri, resourceType = "image") {
+  const cloudName = env.cloudinaryCloudName;
+  const preset = env.cloudinaryUploadPreset;
+  if (!cloudName || !preset) {
+    throw new Error("Cloudinary not configured. Add EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME and EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET to .env");
+  }
+  const formData = new FormData();
+  formData.append("file", { uri, type: resourceType === "video" ? "video/mp4" : "image/jpeg", name: "upload" });
+  formData.append("upload_preset", preset);
+  const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`, {
+    method: "POST",
+    body: formData,
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message || "Cloudinary upload failed");
+  return data.secure_url || null;
+}

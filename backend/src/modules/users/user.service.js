@@ -27,6 +27,13 @@ function validatePatch(body = {}) {
         out.display_name = v;
     }
 
+    if (body.email !== undefined) {
+        const v = String(body.email || "").trim().toLowerCase();
+        if (v.length > 255) throw err("VALIDATION_ERROR", "email too long");
+        if (v && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) throw err("VALIDATION_ERROR", "Invalid email");
+        out.email = v || null;
+    }
+
     if (body.avatarUrl !== undefined) {
         const v = String(body.avatarUrl).trim();
         if (v.length > 500) throw err("VALIDATION_ERROR", "avatarUrl too long");
@@ -36,9 +43,20 @@ function validatePatch(body = {}) {
     if (body.privacyHidePhone !== undefined) {
         out.privacy_hide_phone = body.privacyHidePhone ? 1 : 0;
     }
+    if (body.accountPrivate !== undefined) {
+        out.account_private = body.accountPrivate ? 1 : 0;
+    }
 
     if (body.notificationEnabled !== undefined) {
         out.notification_enabled = body.notificationEnabled ? 1 : 0;
+    }
+    if (body.lastLat !== undefined) {
+        const v = Number(body.lastLat);
+        out.last_lat = Number.isFinite(v) ? v : null;
+    }
+    if (body.lastLng !== undefined) {
+        const v = Number(body.lastLng);
+        out.last_lng = Number.isFinite(v) ? v : null;
     }
 
     if (body.neighborhood !== undefined) {
@@ -47,7 +65,8 @@ function validatePatch(body = {}) {
     }
     if (body.bio !== undefined) {
         const v = String(body.bio || "").trim();
-        out.bio = v.length > 500 ? v.slice(0, 500) : (v || null);
+        const maxLen = 800;
+        out.bio = v.length > maxLen ? v.slice(0, maxLen) : (v || null);
     }
     if (body.preferredTheme !== undefined) {
         const v = String(body.preferredTheme || "dark").toLowerCase();
@@ -80,6 +99,38 @@ async function deleteMe(reqUser) {
     const userId = getUserId(reqUser);
     await db.deactivate(userId);
     return { deactivated: true };
+}
+
+async function uploadAvatar(reqUser, file) {
+    if (!file || !file.buffer) throw err("VALIDATION_ERROR", "No image file provided");
+    const userId = getUserId(reqUser);
+    const { cloudinary, isConfigured } = require("../../config/cloudinary");
+
+    if (isConfigured()) {
+        return new Promise((resolve, reject) => {
+            const uploadStream = cloudinary.uploader.upload_stream(
+                {
+                    folder: "medanya/avatars",
+                    resource_type: "image",
+                    public_id: `user_${userId}_${Date.now()}`,
+                },
+                (uploadErr, result) => {
+                    if (uploadErr) {
+                        const msg = uploadErr.message || String(uploadErr);
+                        return reject(err("UPLOAD_ERROR", `Cloudinary: ${msg}. Check CLOUDINARY_* in .env and use signed upload (API Secret).`));
+                    }
+                    if (!result || !result.secure_url) return reject(err("UPLOAD_ERROR", "Cloudinary upload failed"));
+                    db.updateById(userId, { avatar_url: result.secure_url })
+                        .then(resolve)
+                        .catch(reject);
+                },
+            );
+            uploadStream.end(file.buffer);
+        });
+    }
+
+    const placeholderUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${userId}`;
+    return db.updateById(userId, { avatar_url: placeholderUrl });
 }
 
 /** Admin */
@@ -124,6 +175,16 @@ async function followUser(reqUser, targetUserId) {
     if (String(followerId) === String(targetUserId)) throw err("VALIDATION_ERROR", "Cannot follow yourself");
     const target = await db.getById(targetUserId);
     if (!target) throw err("NOT_FOUND", "User not found");
+
+    const alreadyFollowing = await followDb.isFollowing(followerId, targetUserId);
+    if (alreadyFollowing) return { following: true, added: false };
+
+    const isPrivate = Boolean(target.account_private);
+    if (isPrivate) {
+        await followDb.createFollowRequest(followerId, targetUserId);
+        return { following: false, requested: true };
+    }
+
     const added = await followDb.follow(followerId, targetUserId);
     return { following: true, added };
 }
@@ -146,6 +207,28 @@ async function getFollowing(reqUser, targetUserId, query) {
     return followDb.listFollowing(targetUserId, query);
 }
 
+async function listFollowRequests(reqUser) {
+    const userId = getUserId(reqUser);
+    const requests = await followDb.listPendingRequestsForUser(userId);
+    return { requests };
+}
+
+async function acceptFollowRequestById(reqUser, requestId) {
+    const userId = getUserId(reqUser);
+    const reqRow = await followDb.getFollowRequestById(requestId, userId);
+    if (!reqRow) throw err("NOT_FOUND", "Follow request not found");
+    await followDb.acceptFollowRequest(userId, reqRow.requester_id);
+    return { accepted: true };
+}
+
+async function rejectFollowRequestById(reqUser, requestId) {
+    const userId = getUserId(reqUser);
+    const reqRow = await followDb.getFollowRequestById(requestId, userId);
+    if (!reqRow) throw err("NOT_FOUND", "Follow request not found");
+    await followDb.rejectFollowRequest(userId, reqRow.requester_id);
+    return { rejected: true };
+}
+
 async function discover(reqUser, query) {
     const currentUserId = getUserId(reqUser);
     return followDb.discoverUsers(currentUserId, query);
@@ -155,6 +238,7 @@ module.exports = {
     me,
     updateMe,
     deleteMe,
+    uploadAvatar,
     adminList,
     adminSetRole,
     adminBan,
@@ -163,5 +247,8 @@ module.exports = {
     unfollowUser,
     getFollowers,
     getFollowing,
+    listFollowRequests,
+    acceptFollowRequestById,
+    rejectFollowRequestById,
     discover,
 };

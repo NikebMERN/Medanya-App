@@ -10,7 +10,7 @@ function sendErr(res, err) {
                 ? 403
                 : code === "NOT_FOUND"
                     ? 404
-                    : code === "VALIDATION_ERROR"
+                    : code === "VALIDATION_ERROR" || code === "UPLOAD_ERROR"
                         ? 400
                         : 500;
 
@@ -41,6 +41,15 @@ const deleteMe = async (req, res) => {
     try {
         const out = await service.deleteMe(req.user);
         res.json({ success: true, ...out });
+    } catch (e) {
+        sendErr(res, e);
+    }
+};
+
+const uploadAvatar = async (req, res) => {
+    try {
+        const user = await service.uploadAvatar(req.user, req.file);
+        res.json({ success: true, user, url: user.avatar_url });
     } catch (e) {
         sendErr(res, e);
     }
@@ -141,10 +150,38 @@ const discoverUsers = async (req, res) => {
     }
 };
 
+const listFollowRequests = async (req, res) => {
+    try {
+        const data = await service.listFollowRequests(req.user);
+        res.json({ success: true, ...data });
+    } catch (e) {
+        sendErr(res, e);
+    }
+};
+
+const acceptFollowRequest = async (req, res) => {
+    try {
+        const data = await service.acceptFollowRequestById(req.user, String(req.params.id));
+        res.json({ success: true, ...data });
+    } catch (e) {
+        sendErr(res, e);
+    }
+};
+
+const rejectFollowRequest = async (req, res) => {
+    try {
+        const data = await service.rejectFollowRequestById(req.user, String(req.params.id));
+        res.json({ success: true, ...data });
+    } catch (e) {
+        sendErr(res, e);
+    }
+};
+
 module.exports = {
     me,
     patchMe,
     deleteMe,
+    uploadAvatar,
     adminUsers,
     adminRole,
     adminBan,
@@ -153,5 +190,8 @@ module.exports = {
     unfollow,
     followers,
     following,
+    listFollowRequests,
+    acceptFollowRequest,
+    rejectFollowRequest,
     discoverUsers,
 };

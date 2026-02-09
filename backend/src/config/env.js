@@ -31,8 +31,14 @@ const envSchema = z.object({
 
     JWT_SECRET: z.string().min(1, "JWT_SECRET is required for auth"),
 
+    FIREBASE_WEB_API_KEY: z.string().optional(),
+
     EMERGENCY_PHONE: z.string().optional(),
     EMERGENCY_LABEL: z.string().optional().default("Direct Community Liaison Line"),
+
+    CLOUDINARY_CLOUD_NAME: z.string().optional(),
+    CLOUDINARY_API_KEY: z.string().optional(),
+    CLOUDINARY_API_SECRET: z.string().optional(),
 });
 
 const env = envSchema.parse(process.env);

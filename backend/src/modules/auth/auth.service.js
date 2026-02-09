@@ -2,8 +2,9 @@ const admin = require("../../config/firebase");
 const jwt = require("jsonwebtoken");
 const { pool } = require("../../config/mysql");
 const { redisClient } = require("../../config/redis");
+const { sendVerificationCode, signInWithPhoneNumber } = require("./firebase-phone");
 
-const OTP_TTL_SEC = 5 * 60;
+const OTP_SESSION_TTL_SEC = 5 * 60;
 const OTP_SEND_WINDOW_SEC = 5 * 60;
 const OTP_SEND_MAX_PER_WINDOW = 3;
 const OTP_VERIFY_ATTEMPTS_WINDOW_SEC = 15 * 60;
@@ -19,7 +20,6 @@ const normalizeIdToken = (raw) => {
     if (!raw) return raw;
     if (typeof raw !== "string") return "";
     const token = raw.trim();
-    // Allow either the raw JWT or "Bearer <JWT>"
     if (token.toLowerCase().startsWith("bearer ")) return token.slice(7).trim();
     return token;
 };
@@ -72,17 +72,25 @@ const issueJWT = (user) => {
 };
 
 async function findOrCreateUserByPhone(phone) {
-    const [rows] = await pool.query("SELECT * FROM users WHERE phone_number = ?", [phone]);
+    const normalized = normalizePhone(phone);
+    const [rows] = await pool.query("SELECT * FROM users WHERE phone_number = ?", [normalized]);
     if (rows.length) return rows[0];
     const [result] = await pool.query(
         "INSERT INTO users (phone_number, is_verified) VALUES (?, 1)",
-        [phone]
+        [normalized]
     );
     const [user] = await pool.query("SELECT * FROM users WHERE id = ?", [result.insertId]);
     return user[0];
 }
 
-async function sendOtp(phone) {
+/**
+ * Send OTP via Firebase Phone Auth.
+ * Two supported flows:
+ * 1. Client sends sessionInfo (e.g. from Firebase signInWithPhoneNumber in app) -> we just store it (SMS already sent by client).
+ * 2. Client sends recaptchaToken -> we call Firebase sendVerificationCode (Firebase sends SMS).
+ * If neither is sent, we try calling Firebase without recaptchaToken; Firebase may reject or accept (e.g. test numbers).
+ */
+async function sendOtp(phone, recaptchaToken, sessionInfoFromClient) {
     const normalized = normalizePhone(phone);
     if (!normalized || normalized.length < 9) {
         const err = new Error("Invalid phone number");
@@ -109,13 +117,41 @@ async function sendOtp(phone) {
         throw err;
     }
 
-    const code = String(Math.floor(100000 + Math.random() * 900000));
-    const otpKey = `otp:${normalized}`;
-    await redisClient.setEx(otpKey, OTP_TTL_SEC, code);
+    const sessionKey = `otp_session:${normalized}`;
+    let sessionInfo;
 
-    return { sent: true, expiresIn: OTP_TTL_SEC };
+    if (sessionInfoFromClient) {
+        sessionInfo = sessionInfoFromClient;
+    } else {
+        const e164 = normalized.startsWith("+") ? normalized : `+${normalized}`;
+        try {
+            const result = await sendVerificationCode(e164, recaptchaToken);
+            sessionInfo = result.sessionInfo;
+        } catch (e) {
+            const needsClientVerification =
+                e.code === "FIREBASE_PHONE_ERROR" ||
+                e.message?.includes("recaptcha") ||
+                e.message?.includes("RECAPTCHA") ||
+                e.message === "MISSING_CLIENT_IDENTIFIER";
+            if (needsClientVerification) {
+                const err = new Error(
+                    "Phone verification requires app verification. Add your number as a test number in Firebase Console (Authentication > Sign-in method > Phone > Phone numbers for testing) and use that code, or use Google/Facebook sign-in."
+                );
+                err.code = "RECAPTCHA_REQUIRED";
+                err.status = 400;
+                throw err;
+            }
+            throw e;
+        }
+    }
+
+    await redisClient.setEx(sessionKey, OTP_SESSION_TTL_SEC, sessionInfo);
+    return { sent: true, expiresIn: OTP_SESSION_TTL_SEC };
 }
 
+/**
+ * Verify OTP with Firebase (signInWithPhoneNumber), then find/create user and return user for JWT.
+ */
 async function verifyOtp(phone, code) {
     const normalized = normalizePhone(phone);
     if (!normalized || normalized.length < 9) {
@@ -139,26 +175,37 @@ async function verifyOtp(phone, code) {
         throw err;
     }
 
-    const otpKey = `otp:${normalized}`;
-    const stored = await redisClient.get(otpKey);
-    const attemptsKey = `otp_verify_attempts:${normalized}`;
-
-    if (stored !== codeStr) {
-        const attempts = await redisClient.incr(attemptsKey);
-        if (attempts === 1) await redisClient.expire(attemptsKey, OTP_VERIFY_ATTEMPTS_WINDOW_SEC);
-        if (attempts >= OTP_VERIFY_MAX_ATTEMPTS) {
-            await redisClient.setEx(cooldownKey, OTP_COOLDOWN_SEC, "1");
-        }
-        const err = new Error("Invalid or expired OTP");
+    const sessionKey = `otp_session:${normalized}`;
+    const sessionInfo = await redisClient.get(sessionKey);
+    if (!sessionInfo) {
+        const err = new Error("Invalid or expired OTP. Request a new code.");
         err.code = "INVALID_OTP";
         err.status = 400;
         throw err;
     }
 
-    await redisClient.del(otpKey);
-    await redisClient.del(attemptsKey);
+    const attemptsKey = `otp_verify_attempts:${normalized}`;
+    let user;
 
-    const user = await findOrCreateUserByPhone(normalized);
+    try {
+        const { idToken, phoneNumber } = await signInWithPhoneNumber(sessionInfo, codeStr);
+        const phoneFromFirebase = phoneNumber ? normalizePhone(phoneNumber) : normalized;
+        user = await findOrCreateUserByPhone(phoneFromFirebase);
+    } catch (e) {
+        const attempts = await redisClient.incr(attemptsKey);
+        if (attempts === 1) await redisClient.expire(attemptsKey, OTP_VERIFY_ATTEMPTS_WINDOW_SEC);
+        if (attempts >= OTP_VERIFY_MAX_ATTEMPTS) {
+            await redisClient.setEx(cooldownKey, OTP_COOLDOWN_SEC, "1");
+            await redisClient.del(sessionKey);
+        }
+        const err = new Error(e.message || "Invalid or expired OTP");
+        err.code = "INVALID_OTP";
+        err.status = 400;
+        throw err;
+    }
+
+    await redisClient.del(sessionKey);
+    await redisClient.del(attemptsKey);
     return user;
 }
 

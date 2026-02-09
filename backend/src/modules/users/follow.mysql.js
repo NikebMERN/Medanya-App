@@ -75,6 +75,74 @@ async function listFollowing(userId, { page = 1, limit = 50 } = {}) {
     return { page: p, limit: l, total: c.total, users: rows };
 }
 
+// Follow requests (for private accounts)
+async function createFollowRequest(requesterId, targetId) {
+    const [result] = await pool.query(
+        `INSERT INTO follow_requests (requester_id, target_id, status) VALUES (?, ?, 'pending')
+         ON DUPLICATE KEY UPDATE status = 'pending', created_at = CURRENT_TIMESTAMP`,
+        [requesterId, targetId],
+    );
+    return result.affectedRows > 0 || result.insertId > 0;
+}
+
+async function getPendingRequest(requesterId, targetId) {
+    const [rows] = await pool.query(
+        `SELECT id, status FROM follow_requests WHERE requester_id = ? AND target_id = ? AND status = 'pending' LIMIT 1`,
+        [requesterId, targetId],
+    );
+    return rows[0] || null;
+}
+
+async function acceptFollowRequest(targetId, requesterId) {
+    const conn = await pool.getConnection();
+    try {
+        await conn.beginTransaction();
+        await conn.query(
+            `INSERT IGNORE INTO follows (follower_id, following_id) VALUES (?, ?)`,
+            [requesterId, targetId],
+        );
+        const [r] = await conn.query(
+            `UPDATE follow_requests SET status = 'accepted' WHERE target_id = ? AND requester_id = ? AND status = 'pending'`,
+            [targetId, requesterId],
+        );
+        await conn.commit();
+        return r.affectedRows > 0;
+    } catch (e) {
+        await conn.rollback();
+        throw e;
+    } finally {
+        conn.release();
+    }
+}
+
+async function rejectFollowRequest(targetId, requesterId) {
+    const [r] = await pool.query(
+        `UPDATE follow_requests SET status = 'rejected' WHERE target_id = ? AND requester_id = ? AND status = 'pending'`,
+        [targetId, requesterId],
+    );
+    return r.affectedRows > 0;
+}
+
+async function listPendingRequestsForUser(targetId) {
+    const [rows] = await pool.query(
+        `SELECT fr.id, fr.requester_id, fr.created_at, u.display_name, u.avatar_url, u.is_verified
+         FROM follow_requests fr
+         JOIN users u ON u.id = fr.requester_id
+         WHERE fr.target_id = ? AND fr.status = 'pending' AND u.is_active = 1
+         ORDER BY fr.created_at DESC`,
+        [targetId],
+    );
+    return rows;
+}
+
+async function getFollowRequestById(requestId, targetId) {
+    const [rows] = await pool.query(
+        `SELECT id, requester_id, target_id, status FROM follow_requests WHERE id = ? AND target_id = ? AND status = 'pending' LIMIT 1`,
+        [requestId, targetId],
+    );
+    return rows[0] || null;
+}
+
 async function discoverUsers(currentUserId, { page = 1, limit = 20, q = "" } = {}) {
     const p = Math.max(parseInt(page, 10) || 1, 1);
     const l = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 50);
@@ -124,5 +192,11 @@ module.exports = {
     countFollowing,
     listFollowers,
     listFollowing,
+    createFollowRequest,
+    getPendingRequest,
+    getFollowRequestById,
+    acceptFollowRequest,
+    rejectFollowRequest,
+    listPendingRequestsForUser,
     discoverUsers,
 };

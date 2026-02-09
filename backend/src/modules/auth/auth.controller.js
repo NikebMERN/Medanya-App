@@ -29,6 +29,10 @@ const verifyOtpAndLogin = async (req, res, next) => {
                 id: user.id,
                 phone: user.phone_number,
                 role: user.role,
+                display_name: user.display_name ?? null,
+                email: user.email ?? null,
+                neighborhood: user.neighborhood ?? null,
+                avatar_url: user.avatar_url ?? null,
             },
         });
     } catch (err) {
@@ -38,12 +42,19 @@ const verifyOtpAndLogin = async (req, res, next) => {
 
 const sendOtpHandler = async (req, res, next) => {
     try {
-        const { phone } = req.body;
-        await sendOtp(phone);
+        const { phone, recaptchaToken, sessionInfo } = req.body;
+        await sendOtp(phone, recaptchaToken, sessionInfo);
         res.json({ success: true, message: "OTP sent", expiresIn: 300 });
     } catch (err) {
         if (err.code === "OTP_COOLDOWN" || err.code === "OTP_SEND_LIMIT") {
             return res.status(err.status || 429).json({
+                success: false,
+                message: err.message,
+                code: err.code,
+            });
+        }
+        if (err.code === "RECAPTCHA_REQUIRED") {
+            return res.status(400).json({
                 success: false,
                 message: err.message,
                 code: err.code,
@@ -70,6 +81,10 @@ const verifyOtpAndLoginServer = async (req, res, next) => {
                 id: user.id,
                 phone: user.phone_number,
                 role: user.role,
+                display_name: user.display_name ?? null,
+                email: user.email ?? null,
+                neighborhood: user.neighborhood ?? null,
+                avatar_url: user.avatar_url ?? null,
             },
         });
     } catch (err) {

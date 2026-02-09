@@ -5,8 +5,8 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import * as SplashScreen from "expo-splash-screen";
 import { useAuthStore } from "./src/store/auth.store";
+import { useThemeStore } from "./src/store/theme.store";
 import RootNavigator from "./src/navigation/RootNavigator";
-import { colors } from "./src/theme/colors";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -18,15 +18,18 @@ const queryClient = new QueryClient({
 
 export default function App() {
   const rehydrate = useAuthStore((s) => s.rehydrate);
+  const rehydrateTheme = useThemeStore((s) => s.rehydrate);
+  const theme = useThemeStore((s) => s.theme);
   const [ready, setReady] = React.useState(false);
 
   useEffect(() => {
     (async () => {
       await rehydrate();
+      await rehydrateTheme();
       setReady(true);
       await SplashScreen.hideAsync();
     })();
-  }, [rehydrate]);
+  }, [rehydrate, rehydrateTheme]);
 
   if (!ready) return null;
 
@@ -34,7 +37,7 @@ export default function App() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
-          <StatusBar style="light" backgroundColor={colors.background} />
+          <StatusBar style={theme === "dark" ? "light" : "dark"} />
           <RootNavigator />
         </QueryClientProvider>
       </SafeAreaProvider>
