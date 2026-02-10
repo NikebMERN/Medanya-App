@@ -23,6 +23,7 @@ export const env = {
   facebookAppId: extra.facebookAppId || process.env.EXPO_PUBLIC_FACEBOOK_APP_ID || "",
   cloudinaryCloudName: extra.cloudinaryCloudName || process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME || "",
   cloudinaryUploadPreset: extra.cloudinaryUploadPreset || process.env.EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET || "",
+  oauthRedirectUri: (extra.oauthRedirectUri || process.env.EXPO_PUBLIC_OAUTH_REDIRECT_URI || "").trim().replace(/^["']|["']$/g, "") || null,
 };
 
 /**
@@ -44,6 +45,14 @@ export async function uploadToCloudinary(uri, resourceType = "image") {
     body: formData,
   });
   const data = await res.json();
-  if (data.error) throw new Error(data.error.message || "Cloudinary upload failed");
+  if (data.error) {
+    const msg = data.error.message || "Cloudinary upload failed";
+    if (msg.toLowerCase().includes("unknown") || msg.toLowerCase().includes("invalid")) {
+      throw new Error(
+        msg + " Check EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME and EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET in .env (see .env.example)."
+      );
+    }
+    throw new Error(msg);
+  }
   return data.secure_url || null;
 }

@@ -159,10 +159,8 @@ export default function EditProfileScreen() {
             ""
           ).trim();
           console.log("[EditProfile] Avatar URL (pending result):", serverUrl);
-          if (serverUrl) {
-            setAvatarUri(serverUrl);
-            if (res.user) setAuth(token, { ...user, ...res.user });
-          }
+          if (serverUrl) setAvatarUri(serverUrl);
+          // Do NOT update auth store — header stays old until user taps Save
         } catch (_) { }
         setUploadingAvatar(false);
       } catch (_) { }
@@ -207,9 +205,7 @@ export default function EditProfileScreen() {
           console.log("[EditProfile] Avatar URL after upload:", serverUrl);
           if (serverUrl) {
             setAvatarUri(serverUrl);
-            if (res.user) {
-              setAuth(token, { ...user, ...res.user, avatar_url: serverUrl, avatarUrl: serverUrl });
-            }
+            // Do NOT update auth store here — header stays old until user taps Save
           }
         } catch (uploadErr) {
           setError(
@@ -308,9 +304,10 @@ export default function EditProfileScreen() {
           avatar_url: avatarUrlFromServer,
           avatarUrl: avatarUrlFromServer,
         });
-        Alert.alert("Saved", "Your profile has been updated.", [
-          { text: "OK", onPress: () => navigation.goBack() },
-        ]);
+        // Alert.alert("Saved", "Your profile has been updated.", [
+        //   { text: "OK", onPress: () => navigation.goBack() },
+        // ]);
+        navigation.goBack()
       } else {
         setError("Save succeeded but could not refresh profile.");
       }

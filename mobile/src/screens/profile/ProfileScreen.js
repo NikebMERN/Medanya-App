@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   View,
   Text,
@@ -7,7 +7,15 @@ import {
   ScrollView,
   Image,
   ActivityIndicator,
+  Modal,
+  Pressable,
+  useWindowDimensions,
 } from "react-native";
+import {
+  PinchGestureHandler,
+  PanGestureHandler,
+  State,
+} from "react-native-gesture-handler";
 import { useNavigation } from "@react-navigation/native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useAuthStore } from "../../store/auth.store";
@@ -26,6 +34,61 @@ export default function ProfileScreen() {
   const [user, setUser] = useState(storeUser);
   const [loading, setLoading] = useState(true);
   const [followRequestCount, setFollowRequestCount] = useState(0);
+  const [avatarFullScreenVisible, setAvatarFullScreenVisible] = useState(false);
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const [zoomScale, setZoomScale] = useState(1);
+  const [translateX, setTranslateX] = useState(0);
+  const [translateY, setTranslateY] = useState(0);
+  const baseScaleRef = useRef(1);
+  const baseTranslateXRef = useRef(0);
+  const baseTranslateYRef = useRef(0);
+
+  const MIN_ZOOM = 1;
+  const MAX_ZOOM = 4;
+
+  const openAvatarFullScreen = () => setAvatarFullScreenVisible(true);
+  const closeAvatarFullScreen = () => {
+    setAvatarFullScreenVisible(false);
+    setZoomScale(1);
+    setTranslateX(0);
+    setTranslateY(0);
+    baseScaleRef.current = 1;
+    baseTranslateXRef.current = 0;
+    baseTranslateYRef.current = 0;
+  };
+
+  const onPinchStateChange = (e) => {
+    const { state, scale } = e.nativeEvent;
+    if (state === State.BEGAN) baseScaleRef.current = zoomScale;
+    if (state === State.END || state === State.CANCELLED) {
+      const next = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, baseScaleRef.current * scale));
+      baseScaleRef.current = next;
+      setZoomScale(next);
+    }
+  };
+  const onPinchGestureEvent = (e) => {
+    const { scale } = e.nativeEvent;
+    const next = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, baseScaleRef.current * scale));
+    setZoomScale(next);
+  };
+  const onPanStateChange = (e) => {
+    const { state, translationX, translationY } = e.nativeEvent;
+    if (state === State.BEGAN) {
+      baseTranslateXRef.current = translateX;
+      baseTranslateYRef.current = translateY;
+    }
+    if (state === State.END || state === State.CANCELLED) {
+      setTranslateX(baseTranslateXRef.current + translationX);
+      setTranslateY(baseTranslateYRef.current + translationY);
+      baseTranslateXRef.current = baseTranslateXRef.current + translationX;
+      baseTranslateYRef.current = baseTranslateYRef.current + translationY;
+    }
+  };
+  const onPanGestureEvent = (e) => {
+    const { translationX, translationY } = e.nativeEvent;
+    setTranslateX(baseTranslateXRef.current + translationX);
+    setTranslateY(baseTranslateYRef.current + translationY);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -41,6 +104,24 @@ export default function ProfileScreen() {
     })();
     return () => { cancelled = true; };
   }, [storeUser?.id]);
+
+  // Sync local user when store updates (e.g. after Edit Profile saves new avatar)
+  useEffect(() => {
+    if (!storeUser?.id) return;
+    setUser((prev) =>
+      prev?.id === storeUser?.id ? { ...prev, ...storeUser } : storeUser
+    );
+  }, [
+    storeUser?.avatar_url,
+    storeUser?.avatarUrl,
+    storeUser?.display_name,
+    storeUser?.displayName,
+    storeUser?.bio,
+    storeUser?.neighborhood,
+    storeUser?.account_private,
+    storeUser?.accountPrivate,
+    storeUser?.email,
+  ]);
 
   useEffect(() => {
     const accountPrivate = user?.account_private ?? user?.accountPrivate;
@@ -78,6 +159,7 @@ export default function ProfileScreen() {
   }
 
   return (
+    <>
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.content}
@@ -86,9 +168,14 @@ export default function ProfileScreen() {
       {/* Profile header card - gradient style */}
       <View style={styles.headerCard}>
         <View style={styles.headerRow}>
-          <View style={styles.avatarWrap}>
+          <TouchableOpacity
+            style={styles.avatarWrap}
+            onPress={() => avatarUrl && openAvatarFullScreen()}
+            activeOpacity={avatarUrl ? 0.9 : 1}
+            disabled={!avatarUrl}
+          >
             {avatarUrl ? (
-              <Image source={{ uri: avatarUrl }} style={styles.avatar} />
+              <Image source={{ uri: avatarUrl }} style={styles.avatar} key={avatarUrl} />
             ) : (
               <View style={styles.avatarPlaceholder}>
                 <Text style={styles.avatarLetter}>
@@ -99,7 +186,7 @@ export default function ProfileScreen() {
             <View style={styles.cameraBadge}>
               <MaterialIcons name="camera-alt" size={16} color={colors.white} />
             </View>
-          </View>
+          </TouchableOpacity>
           <View style={styles.headerActions}>
             <TouchableOpacity style={styles.editBtn} onPress={openEditProfile} activeOpacity={0.8}>
               <MaterialIcons name="edit" size={14} color={colors.white} />
@@ -160,6 +247,62 @@ export default function ProfileScreen() {
 
       <View style={styles.footer} />
     </ScrollView>
+
+    <Modal
+      visible={avatarFullScreenVisible}
+      transparent
+      animationType="fade"
+      onRequestClose={closeAvatarFullScreen}
+    >
+      <Pressable
+        style={[styles.avatarFullScreenOverlay, { width: windowWidth, height: windowHeight }]}
+        onPress={closeAvatarFullScreen}
+      >
+        <PinchGestureHandler
+          onGestureEvent={onPinchGestureEvent}
+          onHandlerStateChange={onPinchStateChange}
+        >
+          <View style={styles.avatarFullScreenContent}>
+            <PanGestureHandler
+              onGestureEvent={onPanGestureEvent}
+              onHandlerStateChange={onPanStateChange}
+              minPointers={1}
+            >
+              <View
+                style={[
+                  styles.avatarFullScreenImageWrap,
+                  {
+                    transform: [
+                      { scale: zoomScale },
+                      { translateX },
+                      { translateY },
+                    ],
+                  },
+                ]}
+              >
+                <Image
+                  source={{ uri: avatarUrl }}
+                  style={[
+                    styles.avatarFullScreenImage,
+                    { width: windowWidth, height: windowWidth, maxHeight: windowHeight },
+                  ]}
+                  resizeMode="contain"
+                />
+              </View>
+            </PanGestureHandler>
+          </View>
+        </PinchGestureHandler>
+
+        <TouchableOpacity
+          style={styles.avatarFullScreenClose}
+          onPress={closeAvatarFullScreen}
+          hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+        >
+          <MaterialIcons name="close" size={28} color={colors.white} />
+        </TouchableOpacity>
+      </Pressable>
+    </Modal>
+    </>
   );
 }
 
@@ -331,5 +474,33 @@ function createStyles(colors) {
       letterSpacing: 0.5,
     },
     footer: { height: spacing.xxl },
+    avatarFullScreenOverlay: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.95)",
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    avatarFullScreenContent: {
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    avatarFullScreenImageWrap: {
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    avatarFullScreenImage: {
+      backgroundColor: "transparent",
+    },
+    avatarFullScreenClose: {
+      position: "absolute",
+      top: 52,
+      right: spacing.md,
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: "rgba(255,255,255,0.2)",
+      justifyContent: "center",
+      alignItems: "center",
+    },
   });
 }

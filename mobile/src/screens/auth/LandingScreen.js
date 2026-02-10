@@ -1,4 +1,10 @@
-import React, { useState, useMemo } from "react";
+import React, {
+  useState,
+  useMemo,
+  useEffect,
+  useCallback,
+  useRef,
+} from "react";
 import {
   View,
   Text,
@@ -8,12 +14,20 @@ import {
   Platform,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
+import * as Google from "expo-auth-session/providers/google";
+import * as Facebook from "expo-auth-session/providers/facebook";
 import Logo from "../../components/ui/Logo";
 import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
 import { useAuthStore } from "../../store/auth.store";
 import { useThemeStore } from "../../store/theme.store";
-import { signInWithGoogle, signInWithFacebook } from "../../services/firebaseAuth";
+import {
+  signInWithGoogleCredential,
+  signInWithFacebookCredential,
+  getAppRedirectUri,
+  logExpoAuthProxyUrl,
+} from "../../services/firebaseAuth";
+import { env } from "../../utils/env";
 
 export default function LandingScreen() {
   const navigation = useNavigation();
@@ -26,47 +40,90 @@ export default function LandingScreen() {
 
   const styles = useMemo(() => createStyles(colors), [colors]);
 
-  const handleGetStartedWithPhone = () => {
+  const googleWebClientId = env.googleWebClientId || "";
+  const facebookAppId = env.facebookAppId || "";
+  const redirectUri = getAppRedirectUri();
+
+  useEffect(() => {
+    logExpoAuthProxyUrl();
+  }, []);
+
+  const [googleRequest, googleResponse, googlePromptAsync] =
+    Google.useIdTokenAuthRequest({
+      webClientId: googleWebClientId,
+      iosClientId: googleWebClientId,
+      androidClientId: googleWebClientId,
+      redirectUri,
+    });
+
+  const [fbRequest, fbResponse, fbPromptAsync] = Facebook.useAuthRequest({
+    webClientId: facebookAppId,
+    iosClientId: facebookAppId,
+    androidClientId: facebookAppId,
+    scopes: ["public_profile", "email"],
+    redirectUri,
+  });
+
+  const loginWithBackend = useCallback(
+    async (idToken) => {
+      try {
+        const { loginWithFirebaseToken } = await import("../../api/auth.api");
+        const res = await loginWithFirebaseToken(idToken);
+        if (res.token && res.user) {
+          setAuth(res.token, res.user);
+        } else {
+          setError("Login failed. Please try again.");
+        }
+      } catch (e) {
+        setError("Backend communication failed.");
+      }
+    },
+    [setAuth]
+  );
+
+  const lastGoogleSuccessRef = useRef(null);
+  const lastFbSuccessRef = useRef(null);
+
+  useEffect(() => {
+    if (googleResponse?.type === "success") {
+      const idToken = googleResponse.params?.id_token;
+      if (!idToken || lastGoogleSuccessRef.current === googleResponse) return;
+      lastGoogleSuccessRef.current = googleResponse;
+
+      setError("");
+      setLoading(true);
+      signInWithGoogleCredential(idToken)
+        .then(({ token }) => loginWithBackend(token))
+        .catch((err) => setError(err.message || "Google sign-in failed."))
+        .finally(() => setLoading(false));
+    } else if (googleResponse?.type === "error") {
+      setError("Google Login Error: " + googleResponse.error?.message);
+    }
+  }, [googleResponse, loginWithBackend]);
+
+  useEffect(() => {
+    if (fbResponse?.type === "success") {
+      const accessToken = fbResponse.params?.access_token;
+      if (!accessToken || lastFbSuccessRef.current === fbResponse) return;
+      lastFbSuccessRef.current = fbResponse;
+
+      setError("");
+      setLoading(true);
+      signInWithFacebookCredential(accessToken)
+        .then(({ token }) => loginWithBackend(token))
+        .catch((err) => setError(err.message || "Facebook sign-in failed."))
+        .finally(() => setLoading(false));
+    }
+  }, [fbResponse, loginWithBackend]);
+
+  const handleGoogleLogin = () => {
     setError("");
-    navigation.navigate("Phone");
+    googlePromptAsync();
   };
 
-  const handleGoogleLogin = async () => {
+  const handleFacebookLogin = () => {
     setError("");
-    setLoading(true);
-    try {
-      const { user, token: idToken } = await signInWithGoogle();
-      const { loginWithFirebaseToken } = await import("../../api/auth.api");
-      const res = await loginWithFirebaseToken(idToken);
-      if (res.token && res.user) {
-        setAuth(res.token, res.user);
-      } else {
-        setError("Login failed. Please try again.");
-      }
-    } catch (err) {
-      setError(err.response?.data?.message || err.message || "Google sign-in failed.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleFacebookLogin = async () => {
-    setError("");
-    setLoading(true);
-    try {
-      const { user, token: idToken } = await signInWithFacebook();
-      const { loginWithFirebaseToken } = await import("../../api/auth.api");
-      const res = await loginWithFirebaseToken(idToken);
-      if (res.token && res.user) {
-        setAuth(res.token, res.user);
-      } else {
-        setError("Login failed. Please try again.");
-      }
-    } catch (err) {
-      setError(err.response?.data?.message || err.message || "Facebook sign-in failed.");
-    } finally {
-      setLoading(false);
-    }
+    fbPromptAsync();
   };
 
   const toggleTheme = () => setTheme(theme === "dark" ? "light" : "dark");
@@ -77,14 +134,17 @@ export default function LandingScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <TouchableOpacity style={styles.themeToggle} onPress={toggleTheme}>
-        <Text style={styles.themeToggleText}>{theme === "dark" ? "☀️ Light" : "🌙 Dark"}</Text>
+        <Text style={styles.themeToggleText}>
+          {theme === "dark" ? "☀️ Light" : "🌙 Dark"}
+        </Text>
       </TouchableOpacity>
+
       <View style={styles.content}>
         <Logo />
 
         <TouchableOpacity
           style={styles.primaryBtn}
-          onPress={handleGetStartedWithPhone}
+          onPress={() => navigation.navigate("Phone")}
           activeOpacity={0.9}
         >
           <Text style={styles.primaryBtnIcon}>📱</Text>
@@ -101,20 +161,23 @@ export default function LandingScreen() {
           <TouchableOpacity
             style={[styles.socialBtn, styles.googleBtn]}
             onPress={handleGoogleLogin}
-            disabled={loading}
+            disabled={loading || !googleRequest}
             activeOpacity={0.8}
           >
             <Text style={styles.socialIcon}>G</Text>
             <Text style={styles.socialLabel}>GOOGLE</Text>
           </TouchableOpacity>
+
           <TouchableOpacity
             style={[styles.socialBtn, styles.facebookBtn]}
             onPress={handleFacebookLogin}
-            disabled={loading}
+            disabled={loading || !fbRequest}
             activeOpacity={0.8}
           >
             <Text style={[styles.socialIcon, styles.facebookIcon]}>f</Text>
-            <Text style={[styles.socialLabel, styles.facebookLabel]}>FACEBOOK</Text>
+            <Text style={[styles.socialLabel, styles.facebookLabel]}>
+              FACEBOOK
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -122,9 +185,8 @@ export default function LandingScreen() {
 
         <View style={styles.footer}>
           <Text style={styles.footerText}>
-            By joining, you agree to our{" "}
-            <Text style={styles.link}>Community Terms</Text> and{" "}
-            <Text style={styles.link}>Safety Guidelines</Text>.
+            By joining, you agree to our <Text style={styles.link}>Terms</Text>{" "}
+            and <Text style={styles.link}>Privacy</Text>.
           </Text>
         </View>
       </View>
@@ -182,7 +244,11 @@ function createStyles(colors) {
       letterSpacing: 0.5,
       marginHorizontal: spacing.sm,
     },
-    socialRow: { flexDirection: "row", gap: spacing.md, marginBottom: spacing.md },
+    socialRow: {
+      flexDirection: "row",
+      gap: spacing.md,
+      marginBottom: spacing.md,
+    },
     socialBtn: {
       flex: 1,
       flexDirection: "row",
@@ -197,7 +263,12 @@ function createStyles(colors) {
     googleBtn: { backgroundColor: colors.surface },
     facebookBtn: { backgroundColor: "#1877f2" },
     socialIcon: { fontSize: 18, fontWeight: "700", color: colors.text },
-    socialLabel: { fontSize: 14, fontWeight: "600", color: colors.text, letterSpacing: 0.5 },
+    socialLabel: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: colors.text,
+      letterSpacing: 0.5,
+    },
     facebookLabel: { color: colors.white },
     facebookIcon: { color: colors.white },
     error: { color: colors.error, fontSize: 13, marginBottom: spacing.sm },
