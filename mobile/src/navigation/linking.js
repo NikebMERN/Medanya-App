@@ -13,7 +13,12 @@ const linking = {
       Main: {
         screens: {
           Feed: "feed",
-          Chat: "chat",
+          Chat: {
+            screens: {
+              Chats: "chat",
+              ChatRoom: "chat/:chatId",
+            },
+          },
           Jobs: "jobs",
           Videos: "videos",
           Live: "live",

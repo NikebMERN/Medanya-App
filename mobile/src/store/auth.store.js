@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import * as SecureStore from "expo-secure-store";
+import { disconnectSocket } from "../realtime/socket";
 
 const TOKEN_KEY = "medanya_jwt";
 const USER_KEY = "medanya_user";
@@ -26,6 +27,7 @@ export const useAuthStore = create((set, get) => ({
   },
 
   logout: async () => {
+    disconnectSocket();
     await persistToken(null);
     await persistUser(null);
     set({ token: null, user: null, isAuthenticated: false });

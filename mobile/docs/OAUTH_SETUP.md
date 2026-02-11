@@ -3,9 +3,9 @@
 The app uses **expo-auth-session** and a **scheme-based redirect** so the browser returns to the app. **Do not use the Firebase auth handler URL** (`https://...firebaseapp.com/__/auth/handler`) as the redirect — that page uses sessionStorage and causes **"Unable to process request due to missing initial state"** in mobile.
 
 - **Google:** `useIdTokenAuthRequest` → we get `id_token` → `signInWithCredential(auth, GoogleAuthProvider.credential(id_token))`.
-- **Facebook:** `useAuthRequest` → we get `access_token` → `signInWithCredential(auth, OAuthProvider.credential({ accessToken }))`.
+- **Facebook:** `useAuthRequest` → we get `access_token` → `signInWithCredential(auth, FacebookAuthProvider.credential(accessToken))`.
 
-**Redirect URI:** The app uses a single redirect URI from `getAppRedirectUri()` (scheme from `app.json`, e.g. `medanya://redirect` or in Expo Go something like `exp://.../--/redirect`). This is printed in the console on the landing screen. Add **that exact URI** in both Google and Facebook; remove the Firebase handler URL if you had added it.
+**Redirect URI:** Use your **app deep link** (e.g. `medanya://redirect`), printed in the console on the landing screen. Add **that exact URI** in both Google Cloud Console and Meta (Facebook) Login settings. **Do not add** `https://.../__/auth/handler` for RN token flow — that causes "missing initial state".
 
 ---
 
@@ -33,10 +33,7 @@ npx expo start -c
 
 1. Open [Google Cloud Console](https://console.cloud.google.com) → **APIs & Services** → **Credentials**.
 2. Open your **OAuth 2.0 Client ID** (Web or iOS/Android as you use).
-3. Under **Authorized redirect URIs** add the redirect URI the app actually uses:
-   - **Development build / standalone:** `<applicationId>:/oauthredirect`  
-     Example: `com.medanya.mobile:/oauthredirect` (use your app’s `Application.applicationId` from `expo-application`).
-   - **Expo Go:** The redirect is an `exp://...` URL (e.g. `exp://192.168.1.1:8081/--/redirect`). It can change (IP/port). Use the exact URI printed in the app console and add it in the console.
+3. Under **Authorized redirect URIs** add your **app deep link** (e.g. `medanya://redirect`). Use the exact URI printed in the app console when you open the landing screen. Do **not** add only the Firebase `__/auth/handler` URL.
 4. Save. Wait a minute and try again.
 
 If you see **redirect_uri_mismatch**, the URI in the request must match **exactly** what you added (no trailing slash, correct scheme and path).
@@ -84,4 +81,6 @@ In `.env` (or app config):
 - `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` – Google OAuth client ID (Web client is fine for Expo when using one ID for all).
 - `EXPO_PUBLIC_FACEBOOK_APP_ID` – Facebook App ID.
 
-Optional: separate `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` / `EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID` (and Facebook equivalents) if you create platform-specific OAuth clients; otherwise the app uses the web client ID for all platforms.
+Optional: `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` / `EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID` for native builds.
+
+**useProxy:** The app calls `promptAsync({ useProxy: false })` (custom dev client / EAS build). If you use **Expo Go** and redirect fails, try `useProxy: true` in the Google/Facebook prompt calls in `LandingScreen.js`.

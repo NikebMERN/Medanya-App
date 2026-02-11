@@ -41,6 +41,8 @@ export default function LandingScreen() {
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   const googleWebClientId = env.googleWebClientId || "";
+  const googleIosClientId = env.googleIosClientId || googleWebClientId;
+  const googleAndroidClientId = env.googleAndroidClientId || googleWebClientId;
   const facebookAppId = env.facebookAppId || "";
   const redirectUri = getAppRedirectUri();
 
@@ -51,15 +53,13 @@ export default function LandingScreen() {
   const [googleRequest, googleResponse, googlePromptAsync] =
     Google.useIdTokenAuthRequest({
       webClientId: googleWebClientId,
-      iosClientId: googleWebClientId,
-      androidClientId: googleWebClientId,
+      iosClientId: googleIosClientId,
+      androidClientId: googleAndroidClientId,
       redirectUri,
     });
 
   const [fbRequest, fbResponse, fbPromptAsync] = Facebook.useAuthRequest({
-    webClientId: facebookAppId,
-    iosClientId: facebookAppId,
-    androidClientId: facebookAppId,
+    clientId: facebookAppId,
     scopes: ["public_profile", "email"],
     redirectUri,
   });
@@ -86,7 +86,8 @@ export default function LandingScreen() {
 
   useEffect(() => {
     if (googleResponse?.type === "success") {
-      const idToken = googleResponse.params?.id_token;
+      const idToken =
+        googleResponse.params?.id_token || googleResponse.authentication?.idToken;
       if (!idToken || lastGoogleSuccessRef.current === googleResponse) return;
       lastGoogleSuccessRef.current = googleResponse;
 
@@ -103,7 +104,8 @@ export default function LandingScreen() {
 
   useEffect(() => {
     if (fbResponse?.type === "success") {
-      const accessToken = fbResponse.params?.access_token;
+      const accessToken =
+        fbResponse.authentication?.accessToken || fbResponse.params?.access_token;
       if (!accessToken || lastFbSuccessRef.current === fbResponse) return;
       lastFbSuccessRef.current = fbResponse;
 
@@ -118,12 +120,12 @@ export default function LandingScreen() {
 
   const handleGoogleLogin = () => {
     setError("");
-    googlePromptAsync();
+    googlePromptAsync({ useProxy: false });
   };
 
   const handleFacebookLogin = () => {
     setError("");
-    fbPromptAsync();
+    fbPromptAsync({ useProxy: false });
   };
 
   const toggleTheme = () => setTheme(theme === "dark" ? "light" : "dark");

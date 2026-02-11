@@ -20,6 +20,8 @@ export const env = {
   firebaseMessagingSenderId: extra.firebaseMessagingSenderId || process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "",
   firebaseAppId: extra.firebaseAppId || process.env.EXPO_PUBLIC_FIREBASE_APP_ID || "",
   googleWebClientId: extra.googleWebClientId || process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || "",
+  googleIosClientId: extra.googleIosClientId || process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || "",
+  googleAndroidClientId: extra.googleAndroidClientId || process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || "",
   facebookAppId: extra.facebookAppId || process.env.EXPO_PUBLIC_FACEBOOK_APP_ID || "",
   cloudinaryCloudName: extra.cloudinaryCloudName || process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME || "",
   cloudinaryUploadPreset: extra.cloudinaryUploadPreset || process.env.EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET || "",

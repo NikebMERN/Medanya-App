@@ -23,8 +23,12 @@ router.post("/users/me/avatar", auth, upload.single("avatar"), controller.upload
 router.delete("/users/me", auth, controller.deleteMe);
 
 router.get("/users/discover", auth, controller.discoverUsers);
+router.get("/users/:id", auth, controller.getPublicProfile);
 router.post("/users/:id/follow", auth, controller.follow);
 router.delete("/users/:id/follow", auth, controller.unfollow);
+router.post("/users/:id/block", auth, controller.blockUser);
+router.delete("/users/:id/block", auth, controller.unblockUser);
+router.get("/users/me/blocked", auth, controller.listBlocked);
 router.get("/users/:id/followers", auth, controller.followers);
 router.get("/users/:id/following", auth, controller.following);
 router.get("/users/me/follow-requests", auth, controller.listFollowRequests);

@@ -4,7 +4,9 @@ const path = require("path");
 const { pool } = require("../config/mysql");
 
 // ER_DUP_FIELDNAME = column already exists (MySQL errno 1060)
+// ER_DUP_KEYNAME = index already exists (MySQL errno 1061)
 const ER_DUP_FIELDNAME = 1060;
+const ER_DUP_KEYNAME = 1061;
 
 function getStatements(sql) {
   return sql
@@ -30,6 +32,8 @@ const runMigrations = async () => {
           } catch (err) {
             if (err.errno === ER_DUP_FIELDNAME) {
               console.log(`⏭️  Skipped (column exists): ${file}`);
+            } else if (err.errno === ER_DUP_KEYNAME) {
+              console.log(`⏭️  Skipped (index exists): ${file}`);
             } else {
               throw err;
             }

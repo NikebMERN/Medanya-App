@@ -13,15 +13,31 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
-    "ios": { "supportsTablet": true },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.medanya.app",
+      "googleServicesFile": "./GoogleService-Info.plist"
+    },
     "android": {
+      "package": "com.medanya.app",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true
     },
-    "web": { "favicon": "./assets/favicon.png" },
-    "plugins": ["expo-web-browser",["expo-image-picker",{"photosPermission":"The app needs access to your photos to let you upload a profile picture."}]]
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-web-browser",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "The app needs access to your photos to let you upload a profile picture."
+        }
+      ]
+    ]
   }
 }

@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "start": "expo start",
+    "update-api-url": "node scripts/update-api-url.js",
+    "start": "node scripts/update-api-url.js && expo start",
     "start:online": "expo start",
     "android": "expo start --offline --android",
     "ios": "expo start --offline --ios",

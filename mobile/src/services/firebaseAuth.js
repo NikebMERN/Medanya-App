@@ -13,8 +13,9 @@ WebBrowser.maybeCompleteAuthSession();
 
 /**
  * Redirect URI for OAuth.
- * 1) If EXPO_PUBLIC_OAUTH_REDIRECT_URI is set (e.g. Firebase handler), use it.
- * 2) Otherwise use app scheme (medanya://redirect) so redirect returns to the app.
+ * 1) EXPO_PUBLIC_OAUTH_REDIRECT_URI (e.g. https://medanya-project.firebaseapp.com/__/auth/handler)
+ * 2) Built from EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN → https://<domain>/__/auth/handler
+ * 3) Otherwise app scheme (medanya://redirect)
  */
 export function getAppRedirectUri() {
   const fromEnv = env.oauthRedirectUri;
@@ -58,7 +59,6 @@ export async function signInWithFacebookCredential(accessToken) {
   if (!isFirebaseConfigured) throw new Error("Firebase not configured.");
   if (!accessToken) throw new Error("Facebook access token is required.");
 
-  // Use FacebookAuthProvider instead of OAuthProvider for better compatibility
   const credential = FacebookAuthProvider.credential(accessToken);
   const userCred = await signInWithCredential(auth, credential);
   const token = await userCred.user.getIdToken();

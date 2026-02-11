@@ -195,13 +195,16 @@ export default function ProfileScreen() {
           </View>
         </View>
         <Text style={styles.displayName}>{displayName}</Text>
-        {bio ? <Text style={styles.bioUnderPhoto}>{bio}</Text> : null}
+        {(user?.phone_number ?? user?.phoneNumber) ? (
+          <Text style={styles.phoneText}>{user.phone_number ?? user.phoneNumber}</Text>
+        ) : null}
         {neighborhood !== "—" && (
           <View style={styles.locationRow}>
             <MaterialIcons name="location-on" size={14} color={colors.textSecondary} />
             <Text style={styles.locationText}>{neighborhood.toUpperCase()}</Text>
           </View>
         )}
+        {bio ? <Text style={styles.bioUnderPhoto}>{bio}</Text> : null}
         {accountPrivate && followRequestCount > 0 && (
           <TouchableOpacity
             style={styles.followRequestsBtn}
@@ -384,6 +387,11 @@ function createStyles(colors) {
       color: colors.text,
       marginBottom: spacing.xs,
       letterSpacing: 0.3,
+    },
+    phoneText: {
+      fontSize: 12,
+      color: colors.textMuted,
+      marginBottom: spacing.sm,
     },
     locationRow: {
       flexDirection: "row",

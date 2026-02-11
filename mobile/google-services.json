@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "12212015536",
+    "project_id": "medanya-project",
+    "storage_bucket": "medanya-project.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:12212015536:android:d728dbaf4ff6e2e8888675",
+        "android_client_info": {
+          "package_name": "app.json"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "12212015536-fi6vq0j53svqrb0k35ggk9l8pkkbouji.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAxsudgNOJwa8ef4SpBrTTAh0x13YlzIso"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "12212015536-fi6vq0j53svqrb0k35ggk9l8pkkbouji.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

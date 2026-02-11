@@ -41,7 +41,12 @@ const authMiddleware = async (req, res, next) => {
             });
         }
 
-        req.user = { id: userId, role: decoded.role, phone_number: decoded.phone ?? decoded.phone_number };
+        req.user = {
+            id: String(userId),
+            userId: String(userId),
+            role: decoded.role,
+            phone_number: decoded.phone ?? decoded.phone_number,
+        };
         return next();
     } catch (err) {
         return res.status(401).json({

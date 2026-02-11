@@ -150,6 +150,42 @@ const discoverUsers = async (req, res) => {
     }
 };
 
+const getPublicProfile = async (req, res) => {
+    try {
+        const user = await service.getPublicProfile(req.user, String(req.params.id));
+        res.json({ success: true, user });
+    } catch (e) {
+        sendErr(res, e);
+    }
+};
+
+const blockUser = async (req, res) => {
+    try {
+        const data = await service.blockUser(req.user, String(req.params.id));
+        res.json({ success: true, ...data });
+    } catch (e) {
+        sendErr(res, e);
+    }
+};
+
+const unblockUser = async (req, res) => {
+    try {
+        const data = await service.unblockUser(req.user, String(req.params.id));
+        res.json({ success: true, ...data });
+    } catch (e) {
+        sendErr(res, e);
+    }
+};
+
+const listBlocked = async (req, res) => {
+    try {
+        const data = await service.listBlocked(req.user, req.query);
+        res.json({ success: true, ...data });
+    } catch (e) {
+        sendErr(res, e);
+    }
+};
+
 const listFollowRequests = async (req, res) => {
     try {
         const data = await service.listFollowRequests(req.user);
@@ -194,4 +230,8 @@ module.exports = {
     acceptFollowRequest,
     rejectFollowRequest,
     discoverUsers,
+    getPublicProfile,
+    blockUser,
+    unblockUser,
+    listBlocked,
 };

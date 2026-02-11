@@ -14,7 +14,6 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useThemeColors } from "../theme/useThemeColors";
 import { useAuthStore } from "../store/auth.store";
 import { useThemeStore } from "../store/theme.store";
-import { useHeaderBack } from "../context/HeaderBackContext";
 import { spacing } from "../theme/spacing";
 
 function canShowBack(navigation) {
@@ -42,15 +41,10 @@ export default function AppHeader({ navigation }) {
   const avatarUrl = user?.avatar_url ?? user?.avatarUrl;
   const displayName = user?.display_name ?? user?.displayName ?? "";
   const accountPrivate = user?.account_private ?? user?.accountPrivate;
-  const { callBack } = useHeaderBack() || {};
   const showBack = navigation ? canShowBack(navigation) : false;
   const [menuVisible, setMenuVisible] = useState(false);
 
   const handleBack = () => {
-    if (callBack) {
-      callBack();
-      return;
-    }
     if (navigation?.dispatch) {
       navigation.dispatch(CommonActions.goBack());
     }
@@ -66,6 +60,21 @@ export default function AppHeader({ navigation }) {
   const handleFollowRequests = () => {
     closeMenu();
     navigation?.navigate("Profile", { screen: "FollowRequests" });
+  };
+
+  const handleCreateGroupChat = () => {
+    closeMenu();
+    navigation?.navigate("Chat", { screen: "CreateGroup" });
+  };
+
+  const handleCreateChannel = () => {
+    closeMenu();
+    navigation?.navigate("Chat", { screen: "CreateChannel" });
+  };
+
+  const handleBlacklist = () => {
+    closeMenu();
+    navigation?.navigate("Profile", { screen: "BlockedUsers" });
   };
 
   const handleToggleTheme = () => {
@@ -135,6 +144,21 @@ export default function AppHeader({ navigation }) {
                 <MaterialIcons name="chevron-right" size={20} color={colors.textSecondary} />
               </TouchableOpacity>
             )}
+            <TouchableOpacity style={styles.menuItem} onPress={handleCreateGroupChat} activeOpacity={0.7}>
+              <MaterialIcons name="group-add" size={22} color={colors.text} />
+              <Text style={styles.menuItemText}>Create a group chat</Text>
+              <MaterialIcons name="chevron-right" size={20} color={colors.textSecondary} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.menuItem} onPress={handleCreateChannel} activeOpacity={0.7}>
+              <MaterialIcons name="campaign" size={22} color={colors.text} />
+              <Text style={styles.menuItemText}>Create a channel</Text>
+              <MaterialIcons name="chevron-right" size={20} color={colors.textSecondary} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.menuItem} onPress={handleBlacklist} activeOpacity={0.7}>
+              <MaterialIcons name="block" size={22} color={colors.text} />
+              <Text style={styles.menuItemText}>Blacklist</Text>
+              <MaterialIcons name="chevron-right" size={20} color={colors.textSecondary} />
+            </TouchableOpacity>
             <TouchableOpacity style={styles.menuItem} onPress={handleToggleTheme} activeOpacity={0.7}>
               <MaterialIcons name={theme === "dark" ? "light-mode" : "dark-mode"} size={22} color={colors.text} />
               <Text style={styles.menuItemText}>{theme === "dark" ? "Light mode" : "Dark mode"}</Text>

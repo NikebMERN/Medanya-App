@@ -3,7 +3,7 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import AppHeader from "../components/AppHeader";
 import AppTabBar from "../components/AppTabBar";
 import FeedScreen from "../screens/home/FeedScreen";
-import ChatListScreen from "../screens/chat/ChatListScreen";
+import ChatStack from "./ChatStack";
 import JobsListScreen from "../screens/jobs/JobsListScreen";
 import VideoFeedScreen from "../screens/videos/VideoFeedScreen";
 import LiveListScreen from "../screens/livestream/LiveListScreen";
@@ -24,7 +24,7 @@ export default function MainTabs() {
       <Tab.Screen name="Jobs" component={JobsListScreen} options={{ title: "Jobs" }} />
       <Tab.Screen name="Videos" component={VideoFeedScreen} options={{ title: "Videos" }} />
       <Tab.Screen name="Live" component={LiveListScreen} options={{ title: "Safety" }} />
-      <Tab.Screen name="Chat" component={ChatListScreen} options={{ title: "Chat" }} />
+      <Tab.Screen name="Chat" component={ChatStack} options={{ title: "Chat" }} />
       <Tab.Screen name="Profile" component={ProfileStack} options={{ title: "Profile" }} />
     </Tab.Navigator>
   );

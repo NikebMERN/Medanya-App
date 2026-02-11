@@ -234,6 +234,62 @@ async function discover(reqUser, query) {
     return followDb.discoverUsers(currentUserId, query);
 }
 
+async function getPublicProfile(reqUser, targetUserId) {
+    const currentUserId = getUserId(reqUser);
+    const targetId = String(targetUserId);
+    if (targetId === currentUserId) throw err("VALIDATION_ERROR", "Use /users/me for own profile");
+    const blockedByMe = await followDb.isBlocked(currentUserId, targetId);
+    const blockedMe = await followDb.isBlocked(targetId, currentUserId);
+    if (blockedByMe || blockedMe) throw err("NOT_FOUND", "User not found");
+    const user = await db.getById(targetId);
+    if (!user || !user.is_active) throw err("NOT_FOUND", "User not found");
+    const [followerCount, followingCount, isFollowing, followsMe] = await Promise.all([
+        followDb.countFollowers(targetId),
+        followDb.countFollowing(targetId),
+        followDb.isFollowing(currentUserId, targetId),
+        followDb.isFollowing(targetId, currentUserId),
+    ]);
+    const out = {
+        id: user.id,
+        display_name: user.display_name,
+        avatar_url: user.avatar_url,
+        neighborhood: user.neighborhood,
+        bio: user.bio,
+        is_verified: user.is_verified,
+        account_private: user.account_private,
+        followerCount,
+        followingCount,
+        isFollowing: !!isFollowing,
+        followsMe: !!followsMe,
+    };
+    if (isFollowing && user.phone_number) out.phone_number = user.phone_number;
+    return out;
+}
+
+async function blockUser(reqUser, targetUserId) {
+    const currentUserId = getUserId(reqUser);
+    const targetId = String(targetUserId);
+    if (targetId === currentUserId) throw err("VALIDATION_ERROR", "Cannot block yourself");
+    const target = await db.getById(targetId);
+    if (!target) throw err("NOT_FOUND", "User not found");
+    await followDb.unfollow(currentUserId, targetId);
+    await followDb.unfollow(targetId, currentUserId);
+    const added = await followDb.block(currentUserId, targetId);
+    return { blocked: true, alreadyBlocked: !added };
+}
+
+async function unblockUser(reqUser, targetUserId) {
+    const currentUserId = getUserId(reqUser);
+    const targetId = String(targetUserId);
+    await followDb.unblock(currentUserId, targetId);
+    return { unblocked: true };
+}
+
+async function listBlocked(reqUser, query) {
+    const currentUserId = getUserId(reqUser);
+    return followDb.listBlocked(currentUserId, query);
+}
+
 module.exports = {
     me,
     updateMe,
@@ -251,4 +307,8 @@ module.exports = {
     acceptFollowRequestById,
     rejectFollowRequestById,
     discover,
+    getPublicProfile,
+    blockUser,
+    unblockUser,
+    listBlocked,
 };
