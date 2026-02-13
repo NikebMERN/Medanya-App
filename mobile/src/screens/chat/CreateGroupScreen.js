@@ -16,6 +16,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
 import { useAuthStore } from "../../store/auth.store";
+import SubScreenHeader from "../../components/SubScreenHeader";
 import * as chatApi from "../../services/chat.api";
 import * as userApi from "../../api/user.api";
 
@@ -133,13 +134,16 @@ export default function CreateGroupScreen() {
     );
   };
 
+  const tabNav = navigation.getParent?.() ?? navigation;
   const listHeader = (
-    <View style={[styles.headerWrap, { paddingTop: insets.top + spacing.sm }]}>
-      <TouchableOpacity style={styles.backRow} onPress={() => navigation.goBack()} activeOpacity={0.8}>
-        <MaterialIcons name="arrow-back" size={24} color={colors.text} />
-        <Text style={styles.backLabel}>Back</Text>
-      </TouchableOpacity>
-      <View style={styles.form}>
+    <View style={styles.headerWrap}>
+      <SubScreenHeader
+        title="Create group"
+        onBack={() => navigation.goBack()}
+        showProfileDropdown
+        navigation={tabNav}
+      />
+      <View style={[styles.form, { paddingHorizontal: spacing.lg }]}>
         <Text style={styles.label}>Group name</Text>
         <TextInput
           style={styles.input}
@@ -193,9 +197,7 @@ export default function CreateGroupScreen() {
 function createStyles(colors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
-    headerWrap: { paddingHorizontal: spacing.lg },
-    backRow: { flexDirection: "row", alignItems: "center", marginBottom: spacing.md, gap: spacing.xs },
-    backLabel: { fontSize: 17, fontWeight: "600", color: colors.text },
+    headerWrap: { marginBottom: spacing.sm },
     form: { paddingBottom: spacing.sm },
     label: { fontSize: 14, fontWeight: "600", color: colors.textMuted, marginBottom: spacing.sm },
     input: {

@@ -12,7 +12,7 @@ import {
   Alert,
   Platform,
 } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
@@ -34,6 +34,7 @@ const SEARCH_SCOPE_PUBLIC = "public";
 
 export default function ChatsScreen() {
   const navigation = useNavigation();
+  const route = useRoute();
   const colors = useThemeColors();
   const styles = createStyles(colors);
 
@@ -43,7 +44,6 @@ export default function ChatsScreen() {
   const [userSearchResults, setUserSearchResults] = useState([]);
   const [userSearchLoading, setUserSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState(null);
-  const [participantProfiles, setParticipantProfiles] = useState({});
 
   const token = useAuthStore((s) => s.token);
   const userId = useAuthStore((s) => s.user?.id ?? s.user?.userId) ?? "";
@@ -53,6 +53,8 @@ export default function ChatsScreen() {
   const setChats = useChatStore((s) => s.setChats);
   const setChatsLoading = useChatStore((s) => s.setChatsLoading);
   const setChatsError = useChatStore((s) => s.setChatsError);
+  const participantProfiles = useChatStore((s) => s.participantProfiles);
+  const setParticipantProfile = useChatStore((s) => s.setParticipantProfile);
 
   const filteredChats = useMemo(() => {
     let list = chats;
@@ -156,7 +158,11 @@ export default function ChatsScreen() {
     loadChats();
   }, [loadChats]);
 
-  // Resolve display names for direct chat participants
+  useEffect(() => {
+    if (route.params?.refresh != null) loadChats();
+  }, [route.params?.refresh, loadChats]);
+
+  // Resolve display names for direct chat participants (stored in chat store so they persist when list reorders)
   useEffect(() => {
     if (!chats?.length || !userId) return;
     let cancelled = false;
@@ -176,24 +182,18 @@ export default function ChatsScreen() {
         .then((data) => {
           if (cancelled) return;
           const u = data?.user ?? data;
-          setParticipantProfiles((prev) => ({
-            ...prev,
-            [idStr]: {
-              displayName: u?.display_name ?? u?.displayName ?? `User ${idStr}`,
-              avatarUrl: u?.avatar_url ?? u?.avatarUrl,
-            },
-          }));
+          setParticipantProfile(otherId, {
+            displayName: u?.display_name ?? u?.displayName ?? `User ${idStr}`,
+            avatarUrl: u?.avatar_url ?? u?.avatarUrl,
+          });
         })
         .catch(() => {
           if (!cancelled)
-            setParticipantProfiles((prev) => ({
-              ...prev,
-              [idStr]: { displayName: `User ${idStr}`, avatarUrl: null },
-            }));
+            setParticipantProfile(otherId, { displayName: `User ${idStr}`, avatarUrl: null });
         });
     });
     return () => { cancelled = true; };
-  }, [chats, userId]);
+  }, [chats, userId, setParticipantProfile]);
 
   useEffect(() => {
     if (token) ensureChatSocket(token);
@@ -342,10 +342,16 @@ export default function ChatsScreen() {
 
   const peopleList = useMemo(() => {
     const me = String(userId);
-    return (userSearchResults || []).filter(
+    let list = (userSearchResults || []).filter(
       (u) => String(u.id ?? u.userId) !== me
     );
-  }, [userSearchResults, userId]);
+    if (searchScope === SEARCH_SCOPE_CONTACTS) {
+      list = list.filter((u) => u.isFollowing && (u.followsMe ?? u.follows_me));
+    } else if (searchScope === SEARCH_SCOPE_PUBLIC) {
+      list = list.filter((u) => !u.isFollowing);
+    }
+    return list;
+  }, [userSearchResults, userId, searchScope]);
 
   const hasSearchQuery = (searchQuery || "").trim().length > 0;
 
@@ -511,15 +517,26 @@ export default function ChatsScreen() {
               : undefined
           }
           ListEmptyComponent={
-            <Text style={styles.emptyText}>
-              {hasSearchQuery
-                ? !userSearchLoading && searchQuery.trim()
-                  ? 'No people found for "' + searchQuery.trim() + '"'
-                  : "Search for people above."
-                : searchQuery.trim() || searchScope !== SEARCH_SCOPE_ALL
-                  ? "No chats match your search."
-                  : "No chats yet. Start a conversation."}
-            </Text>
+            <View style={styles.emptyWrap}>
+              <Text style={styles.emptyText}>
+                {hasSearchQuery
+                  ? !userSearchLoading && searchQuery.trim()
+                    ? 'No people found for "' + searchQuery.trim() + '"'
+                    : "Search for people above."
+                  : searchQuery.trim() || searchScope !== SEARCH_SCOPE_ALL
+                    ? "No chats match your search."
+                    : "No chats yet. Start a conversation or search for a group to join."}
+              </Text>
+              {!hasSearchQuery && !searchQuery.trim() && searchScope === SEARCH_SCOPE_ALL ? (
+                <TouchableOpacity
+                  style={styles.searchGroupBtn}
+                  onPress={() => navigation.navigate("SearchJoinGroup")}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.searchGroupBtnText}>Search & join group</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
           }
           refreshControl={
             <RefreshControl
@@ -738,6 +755,14 @@ function createStyles(colors) {
     },
     retryLabel: { color: colors.white, fontWeight: "600", fontStyle: typography.fontStyle },
     emptyList: { flexGrow: 1, justifyContent: "center", padding: spacing.lg },
-    emptyText: { textAlign: "center", color: colors.textMuted, fontSize: 15, fontStyle: typography.fontStyle },
+    emptyWrap: { alignItems: "center", padding: spacing.lg },
+    emptyText: { textAlign: "center", color: colors.textMuted, fontSize: 15, fontStyle: typography.fontStyle, marginBottom: spacing.md },
+    searchGroupBtn: {
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.lg,
+      backgroundColor: colors.primary,
+      borderRadius: 10,
+    },
+    searchGroupBtnText: { color: colors.white, fontWeight: "600", fontSize: 14 },
   });
 }

@@ -38,8 +38,8 @@ const startDirect = async (req, res) => {
 const createGroup = async (req, res) => {
     try {
         const me = req.user.id ?? req.user.userId;
-        const { groupName, memberIds } = req.body;
-        const chat = await chatService.createGroupChat(me, groupName, memberIds);
+        const { groupName, memberIds, isChannel } = req.body;
+        const chat = await chatService.createGroupChat(me, groupName, memberIds, isChannel);
         return res.json({ success: true, chat });
     } catch (err) {
         return mapError(res, err);
@@ -52,6 +52,28 @@ const listChats = async (req, res) => {
         const { page, limit } = req.query;
         const data = await chatService.listChats(me, { page, limit });
         return res.json({ success: true, ...data });
+    } catch (err) {
+        return mapError(res, err);
+    }
+};
+
+const searchGroups = async (req, res) => {
+    try {
+        const me = req.user.id ?? req.user.userId;
+        const { q, id } = req.query;
+        const data = await chatService.searchGroups(me, { q: q || undefined, id: id || undefined });
+        return res.json({ success: true, ...data });
+    } catch (err) {
+        return mapError(res, err);
+    }
+};
+
+const joinGroup = async (req, res) => {
+    try {
+        const me = req.user.id ?? req.user.userId;
+        const { chatId } = req.params;
+        const chat = await chatService.joinGroup(me, chatId);
+        return res.json({ success: true, chat });
     } catch (err) {
         return mapError(res, err);
     }
@@ -116,13 +138,39 @@ const removeMember = async (req, res) => {
     }
 };
 
+const leaveGroup = async (req, res) => {
+    try {
+        const me = req.user.id ?? req.user.userId;
+        const { chatId } = req.params;
+        await chatService.leaveGroup(me, chatId);
+        return res.json({ success: true });
+    } catch (err) {
+        return mapError(res, err);
+    }
+};
+
+const deleteGroup = async (req, res) => {
+    try {
+        const me = req.user.id ?? req.user.userId;
+        const { chatId } = req.params;
+        await chatService.deleteGroup(me, chatId);
+        return res.json({ success: true });
+    } catch (err) {
+        return mapError(res, err);
+    }
+};
+
 module.exports = {
     startDirect,
     createGroup,
     listChats,
+    searchGroups,
+    joinGroup,
     getChat,
     listMessages,
     setGroupName,
     addMembers,
     removeMember,
+    leaveGroup,
+    deleteGroup,
 };

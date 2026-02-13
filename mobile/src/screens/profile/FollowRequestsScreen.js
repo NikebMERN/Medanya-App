@@ -7,12 +7,14 @@ import {
   FlatList,
   Image,
   ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
+import SubScreenHeader from "../../components/SubScreenHeader";
 import { getFollowRequests, acceptFollowRequest, rejectFollowRequest } from "../../api/user.api";
 
 export default function FollowRequestsScreen() {
@@ -22,10 +24,12 @@ export default function FollowRequestsScreen() {
   const styles = createStyles(colors);
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [actingId, setActingId] = useState(null);
 
-  const load = async () => {
-    setLoading(true);
+  const load = async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true);
+    else setLoading(true);
     try {
       const res = await getFollowRequests();
       setRequests(res?.requests ?? []);
@@ -33,6 +37,7 @@ export default function FollowRequestsScreen() {
       setRequests([]);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -93,13 +98,16 @@ export default function FollowRequestsScreen() {
     );
   };
 
+  const tabNav = navigation.getParent?.() ?? navigation;
   const listHeader = (
-    <View style={[styles.headerWrap, { paddingTop: insets.top + spacing.sm }]}>
-      <TouchableOpacity style={styles.backRow} onPress={() => navigation.goBack()} activeOpacity={0.8}>
-        <MaterialIcons name="arrow-back" size={24} color={colors.text} />
-        <Text style={styles.backLabel}>Back</Text>
-      </TouchableOpacity>
-      <Text style={styles.title}>Follow requests</Text>
+    <View style={styles.headerWrap}>
+      <SubScreenHeader
+        title="Follow requests"
+        onBack={() => navigation.goBack()}
+        showProfileDropdown
+        navigation={tabNav}
+      />
+      <Text style={styles.sectionTitle}>Pending requests</Text>
     </View>
   );
 
@@ -122,6 +130,9 @@ export default function FollowRequestsScreen() {
           renderItem={renderItem}
           ListHeaderComponent={listHeader}
           contentContainerStyle={styles.list}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.primary} />
+          }
         />
       )}
     </View>
@@ -132,14 +143,13 @@ function createStyles(colors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
     center: { flex: 1 },
-    headerWrap: { paddingHorizontal: spacing.lg },
-    backRow: { flexDirection: "row", alignItems: "center", marginBottom: spacing.md, gap: spacing.xs },
-    backLabel: { fontSize: 17, fontWeight: "600", color: colors.text },
-    title: {
-      fontSize: 22,
-      fontWeight: "800",
-      color: colors.text,
-      marginBottom: spacing.lg,
+    headerWrap: { marginBottom: spacing.md },
+    sectionTitle: {
+      fontSize: 15,
+      fontWeight: "600",
+      color: colors.textSecondary,
+      paddingHorizontal: spacing.lg,
+      marginTop: spacing.sm,
     },
     loader: { flex: 1, justifyContent: "center" },
     empty: {

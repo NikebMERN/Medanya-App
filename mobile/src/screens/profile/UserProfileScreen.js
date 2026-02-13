@@ -11,6 +11,7 @@ import {
   Modal,
   Pressable,
   useWindowDimensions,
+  RefreshControl,
 } from "react-native";
 import {
   PinchGestureHandler,
@@ -22,9 +23,19 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
+import SubScreenHeader from "../../components/SubScreenHeader";
 import { useAuthStore } from "../../store/auth.store";
+import * as Contacts from "expo-contacts";
 import * as userApi from "../../api/user.api";
 import * as chatApi from "../../services/chat.api";
+import { ensureChatSocket, sendChatMessage } from "../../realtime/chat.socket";
+import { useAuthStore as useAuthStoreForToken } from "../../store/auth.store";
+
+function formatPhoneDisplay(phone) {
+  if (!phone) return "";
+  const s = String(phone).trim();
+  return s.startsWith("+") ? s : `+${s}`;
+}
 
 export default function UserProfileScreen() {
   const navigation = useNavigation();
@@ -36,6 +47,7 @@ export default function UserProfileScreen() {
   const targetUserId = route.params?.userId ?? route.params?.id;
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
   const [blockLoading, setBlockLoading] = useState(false);
   const [avatarFullScreenVisible, setAvatarFullScreenVisible] = useState(false);
@@ -95,9 +107,10 @@ export default function UserProfileScreen() {
     setTranslateY(baseTranslateYRef.current + translationY);
   };
 
-  const loadProfile = useCallback(async () => {
+  const loadProfile = useCallback(async (isRefresh = false) => {
     if (!targetUserId) return;
-    setLoading(true);
+    if (isRefresh) setRefreshing(true);
+    else setLoading(true);
     try {
       const data = await userApi.getPublicProfile(targetUserId);
       setUser(data?.user ?? data);
@@ -105,6 +118,7 @@ export default function UserProfileScreen() {
       setUser(null);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [targetUserId]);
 
@@ -163,18 +177,83 @@ export default function UserProfileScreen() {
   }, [user, navigation]);
 
   const handleMessage = useCallback(async () => {
-    if (!user?.id || !(user.isFollowing && user.followsMe)) return;
+    const uid = user?.id ?? user?.userId;
+    if (!uid || !(user.isFollowing && user.followsMe)) return;
     try {
-      const chat = await chatApi.startDirect(user.id);
+      const data = await chatApi.startDirect(uid);
+      const chat = data?.chat ?? data;
       const chatId = chat?._id ?? chat?.id;
       if (chatId) {
-        // Navigate to Chat tab then ChatRoom (UserProfile is under Profile tab)
         navigation.navigate("Chat", { screen: "ChatRoom", params: { chatId } });
+      } else {
+        Alert.alert("Error", "Could not start chat.");
       }
     } catch (e) {
       Alert.alert("Error", e?.message || "Could not start chat.");
     }
   }, [user, navigation]);
+
+  const sendContactToUser = useCallback(
+    async (contact) => {
+      if (!contact || !user?.id) return;
+      const uid = user.id ?? user.userId;
+      const phones = (contact.phoneNumbers || []).map((p) => p?.number || p).filter(Boolean);
+      const text = JSON.stringify({ name: contact.name || "", phones });
+      try {
+        const data = await chatApi.startDirect(uid);
+        const chat = data?.chat ?? data;
+        const chatId = chat?._id ?? chat?.id;
+        if (!chatId) {
+          Alert.alert("Error", "Could not start chat.");
+          return;
+        }
+        const token = useAuthStoreForToken.getState().token;
+        if (token) ensureChatSocket(token);
+        sendChatMessage({ chatId, type: "contact", text, mediaUrl: "" }, (ack) => {
+          if (ack?.ok) {
+            navigation.navigate("Chat", { screen: "ChatRoom", params: { chatId } });
+          } else {
+            Alert.alert("Error", "Could not send contact.");
+          }
+        });
+      } catch (e) {
+        Alert.alert("Error", e?.message ?? "Could not send contact.");
+      }
+    },
+    [user, navigation]
+  );
+
+  const handleShareContact = useCallback(async () => {
+    const uid = user?.id ?? user?.userId;
+    if (!uid || !(user.isFollowing && user.followsMe)) return;
+    try {
+      const { status } = await Contacts.requestPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission needed", "Allow contacts access to share a contact with this user.");
+        return;
+      }
+      if (typeof Contacts.presentContactPickerAsync === "function") {
+        const contact = await Contacts.presentContactPickerAsync();
+        if (contact) await sendContactToUser(contact);
+        return;
+      }
+      const { data } = await Contacts.getContactsAsync({ fields: [Contacts.Fields.Name, Contacts.Fields.PhoneNumbers] });
+      if (!data?.length) {
+        Alert.alert("No contacts", "No contacts found.");
+        return;
+      }
+      const names = data.slice(0, 8).map((c) => c.name || "No name");
+      Alert.alert("Share contact", "Pick a contact to share with this user", [
+        { text: "Cancel", style: "cancel" },
+        ...names.map((name, i) => ({
+          text: name,
+          onPress: () => sendContactToUser(data[i]),
+        })),
+      ]);
+    } catch (e) {
+      Alert.alert("Share contact", e?.message ?? "Could not share contact.");
+    }
+  }, [user, sendContactToUser]);
 
   if (loading && !user) {
     return (
@@ -222,12 +301,17 @@ export default function UserProfileScreen() {
     <ScrollView
       style={styles.container}
       contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.sm }]}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={() => loadProfile(true)} tintColor={colors.primary} />
+      }
       showsVerticalScrollIndicator={false}
     >
-      <TouchableOpacity style={styles.backRow} onPress={() => navigation.goBack()} activeOpacity={0.8}>
-        <MaterialIcons name="arrow-back" size={24} color={colors.text} />
-        <Text style={styles.backLabel}>Back</Text>
-      </TouchableOpacity>
+      <SubScreenHeader
+        title={displayName !== "—" ? displayName : "Profile"}
+        onBack={() => navigation.goBack()}
+        showProfileDropdown
+        navigation={navigation.getParent?.() ?? navigation}
+      />
       <View style={styles.headerCard}>
         <View style={styles.headerRow}>
           <TouchableOpacity
@@ -277,14 +361,18 @@ export default function UserProfileScreen() {
           </View>
         </View>
         <Text style={styles.displayName}>{displayName}</Text>
-        <View style={styles.idPhoneRow}>
-          {(user?.id ?? user?.userId) ? (
-            <Text style={styles.phoneText}>ID: {String(user?.id ?? user?.userId)}</Text>
-          ) : null}
-          {(user.phone_number ?? user.phoneNumber) ? (
-            <Text style={styles.phoneText}>{user.phone_number ?? user.phoneNumber}</Text>
-          ) : null}
-        </View>
+        {!(user?.account_private ?? user?.accountPrivate) && (
+          <View style={styles.idPhoneRow}>
+            {(user?.id ?? user?.userId) ? (
+              <Text style={styles.phoneText}>ID: {String(user?.id ?? user?.userId)}</Text>
+            ) : null}
+            {(user.phone_number ?? user.phoneNumber) ? (
+              <Text style={styles.phoneText}>
+                {formatPhoneDisplay(user.phone_number ?? user.phoneNumber)}
+              </Text>
+            ) : null}
+          </View>
+        )}
         {bio ? <Text style={styles.bioUnderPhoto}>{bio}</Text> : null}
         {neighborhood !== "—" && (
           <View style={styles.locationRow}>
@@ -316,10 +404,16 @@ export default function UserProfileScreen() {
       </View>
 
       {isFriend && (
-        <TouchableOpacity style={styles.messageBtn} onPress={handleMessage} activeOpacity={0.8}>
-          <MaterialIcons name="message" size={20} color={colors.white} />
-          <Text style={styles.messageBtnText}>Message</Text>
-        </TouchableOpacity>
+        <View style={styles.messageRow}>
+          <TouchableOpacity style={styles.messageBtn} onPress={handleMessage} activeOpacity={0.8}>
+            <MaterialIcons name="message" size={20} color={colors.white} />
+            <Text style={styles.messageBtnText}>Message</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.shareContactBtn} onPress={handleShareContact} activeOpacity={0.8}>
+            <MaterialIcons name="contacts" size={20} color={colors.primary} />
+            <Text style={styles.shareContactBtnText}>Share contact</Text>
+          </TouchableOpacity>
+        </View>
       )}
 
       <View style={styles.footer} />
@@ -491,7 +585,13 @@ function createStyles(colors) {
     statIcon: { marginBottom: 4 },
     statNumber: { fontSize: 22, fontWeight: "800", color: colors.text, marginBottom: 2 },
     statLabel: { fontSize: 10, fontWeight: "700", color: colors.textSecondary, letterSpacing: 0.5 },
+    messageRow: {
+      flexDirection: "row",
+      gap: spacing.sm,
+      paddingHorizontal: spacing.md,
+    },
     messageBtn: {
+      flex: 1,
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "center",
@@ -501,6 +601,19 @@ function createStyles(colors) {
       backgroundColor: colors.primary,
     },
     messageBtnText: { fontSize: 16, fontWeight: "700", color: colors.white },
+    shareContactBtn: {
+      flex: 1,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+      paddingVertical: spacing.md,
+      borderRadius: 12,
+      borderWidth: 2,
+      borderColor: colors.primary,
+      backgroundColor: "transparent",
+    },
+    shareContactBtnText: { fontSize: 16, fontWeight: "700", color: colors.primary },
     footer: { height: spacing.xxl },
     avatarFullScreenOverlay: {
       flex: 1,

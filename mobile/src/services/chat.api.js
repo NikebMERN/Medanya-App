@@ -34,9 +34,9 @@ export async function startDirect(peerUserId) {
   return data;
 }
 
-export async function createGroup(groupName, memberIds = []) {
+export async function createGroup(groupName, memberIds = [], isChannel = false) {
   const ids = Array.isArray(memberIds) ? memberIds.map((id) => (id != null ? String(id) : id)) : [];
-  const { data } = await client.post("/chats/group", { groupName, memberIds: ids });
+  const { data } = await client.post("/chats/group", { groupName, memberIds: ids, isChannel: !!isChannel });
   return data;
 }
 
@@ -48,5 +48,29 @@ export async function setGroupName(chatId, groupName) {
 export async function addGroupMembers(chatId, memberIds = []) {
   const ids = Array.isArray(memberIds) ? memberIds.map((id) => (id != null ? String(id) : id)) : [];
   const { data } = await client.patch(`/chats/${chatId}/members/add`, { memberIds: ids });
+  return data;
+}
+
+/** Search groups by name (q) or by chat id (id). Returns { groups: [{ id, groupName, participantCount, isMember }] } */
+export async function searchGroups(params = {}) {
+  const { data } = await client.get("/chats/search", { params: { q: params.q, id: params.id } });
+  return data;
+}
+
+/** Join a group by chat id. Returns the chat. */
+export async function joinGroup(chatId) {
+  const { data } = await client.post(`/chats/${chatId}/join`);
+  return data;
+}
+
+/** Leave a group/channel (current user removes themselves). */
+export async function leaveGroup(chatId) {
+  const { data } = await client.post(`/chats/${chatId}/leave`);
+  return data;
+}
+
+/** Delete a group/channel (owner only). Deletes chat and messages. */
+export async function deleteGroup(chatId) {
+  const { data } = await client.delete(`/chats/${chatId}`);
   return data;
 }

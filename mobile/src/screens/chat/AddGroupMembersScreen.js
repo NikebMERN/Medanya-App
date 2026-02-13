@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
+import SubScreenHeader from "../../components/SubScreenHeader";
 import { useAuthStore } from "../../store/auth.store";
 import * as userApi from "../../api/user.api";
 import * as chatApi from "../../services/chat.api";
@@ -120,12 +121,13 @@ export default function AddGroupMembersScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
-        <TouchableOpacity style={styles.backRow} onPress={() => navigation.goBack()} activeOpacity={0.8}>
-          <MaterialIcons name="arrow-back" size={24} color={colors.text} />
-          <Text style={styles.backLabel}>Back</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>Add members</Text>
+      <View style={styles.header}>
+        <SubScreenHeader
+          title="Add members"
+          onBack={() => navigation.goBack()}
+          showProfileDropdown
+          navigation={navigation.getParent?.() ?? navigation}
+        />
       </View>
       {loading ? (
         <View style={styles.center}>

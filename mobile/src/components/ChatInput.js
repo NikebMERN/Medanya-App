@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import {
   View,
   TextInput,
@@ -7,11 +7,16 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
-  ActivityIndicator,
   Alert,
-  ActionSheetIOS,
+  Modal,
+  Pressable,
+  Image,
+  ActivityIndicator,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
+import * as DocumentPicker from "expo-document-picker";
+import * as Location from "expo-location";
+import * as Contacts from "expo-contacts";
 import { Audio } from "expo-av";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useThemeColors } from "../theme/useThemeColors";
@@ -29,13 +34,19 @@ export default function ChatInput({
   onCancelReply,
   editingMessage = null,
   onCancelEdit,
+  onMediaPicked = null,
 }) {
   const colors = useThemeColors();
   const styles = createStyles(colors);
   const [text, setText] = useState("");
   const [uploading, setUploading] = useState(false);
   const [recording, setRecording] = useState(false);
-  const recordingRef = React.useRef(null);
+  const [pendingMedia, setPendingMedia] = useState(null);
+  const [plusMenuVisible, setPlusMenuVisible] = useState(false);
+  const [pollModalVisible, setPollModalVisible] = useState(false);
+  const [pollQuestion, setPollQuestion] = useState("");
+  const [pollOptions, setPollOptions] = useState(["", ""]);
+  const recordingRef = useRef(null);
 
   useEffect(() => {
     if (editingMessage) {
@@ -65,7 +76,8 @@ export default function ChatInput({
   const canSendText = (text || "").trim().length > 0;
 
   const pickMedia = useCallback(async () => {
-    if (disabled || uploading) return;
+    if (disabled || uploading || pendingMedia) return;
+    setPlusMenuVisible(false);
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== "granted") {
@@ -82,21 +94,27 @@ export default function ChatInput({
       const asset = result.assets[0];
       const uri = asset.uri;
       const isVideo = (asset.type ?? asset.mimeType ?? "").toLowerCase().includes("video");
-      const resourceType = isVideo ? "video" : "image";
       const type = isVideo ? "video" : "image";
-
+      const resourceType = isVideo ? "video" : "image";
+      const tempId = onMediaPicked ? onMediaPicked(uri, type) : null;
       setUploading(true);
-      const url = await uploadToCloudinary(uri, resourceType);
-      setUploading(false);
-      if (url) onSend({ type, mediaUrl: url });
+      try {
+        const url = await uploadToCloudinary(uri, resourceType);
+        if (url) {
+          onSend(tempId ? { type, mediaUrl: url, tempId } : { type, mediaUrl: url });
+        }
+      } finally {
+        setUploading(false);
+      }
     } catch (e) {
       setUploading(false);
       Alert.alert("Upload failed", e?.message ?? "Could not upload. Check Cloudinary config.");
     }
-  }, [disabled, uploading, onSend]);
+  }, [disabled, uploading, pendingMedia, onSend, onMediaPicked]);
 
   const takePhoto = useCallback(async () => {
-    if (disabled || uploading) return;
+    if (disabled || uploading || pendingMedia) return;
+    setPlusMenuVisible(false);
     try {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== "granted") {
@@ -110,49 +128,147 @@ export default function ChatInput({
       });
       if (result.canceled || !result.assets?.[0]?.uri) return;
       const uri = result.assets[0].uri;
+      const tempId = onMediaPicked ? onMediaPicked(uri, "image") : null;
       setUploading(true);
-      const url = await uploadToCloudinary(uri, "image");
-      setUploading(false);
-      if (url) onSend({ type: "image", mediaUrl: url });
+      try {
+        const url = await uploadToCloudinary(uri, "image");
+        if (url) onSend(tempId ? { type: "image", mediaUrl: url, tempId } : { type: "image", mediaUrl: url });
+      } finally {
+        setUploading(false);
+      }
     } catch (e) {
+      setPendingMedia(null);
       setUploading(false);
       Alert.alert("Camera error", e?.message ?? "Could not take or upload photo.");
     }
+  }, [disabled, uploading, pendingMedia, onSend, onMediaPicked]);
+
+  const pickFile = useCallback(async () => {
+    if (disabled || uploading) return;
+    setPlusMenuVisible(false);
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: "*/*",
+        copyToCacheDirectory: true,
+        base64: false,
+        multiple: false,
+      });
+      const canceled = result?.canceled === true || result?.type === "cancel";
+      if (canceled || !result?.assets?.[0]?.uri) return;
+      const asset = result.assets[0];
+      const uri = asset.uri;
+      const mime = asset.mimeType || asset.mime || "application/octet-stream";
+      setUploading(true);
+      try {
+        const url = await uploadToCloudinary(uri, "raw", mime);
+        if (url) onSend({ type: "file", mediaUrl: url });
+      } finally {
+        setUploading(false);
+      }
+    } catch (e) {
+      setUploading(false);
+      const msg = e?.message || String(e);
+      const isUserCancel = /cancel/i.test(msg) || msg === "User canceled the document picker.";
+      if (!isUserCancel) {
+        Alert.alert("Could not open files", msg || "Make sure the app has storage permission and try again.");
+      }
+    }
   }, [disabled, uploading, onSend]);
 
-  const showPlusMenu = useCallback(() => {
+  const pickLocation = useCallback(async () => {
     if (disabled || uploading) return;
-    const options = [
-      "Image & Video",
-      "File",
-      "Location",
-      "Poll",
-      "Contact",
-      "Cancel",
-    ];
-    const cancelIndex = 5;
-    if (Platform.OS === "ios" && ActionSheetIOS?.showActionSheetWithOptions) {
-      ActionSheetIOS.showActionSheetWithOptions(
-        { options, cancelButtonIndex: cancelIndex },
-        (i) => {
-          if (i === 0) pickMedia();
-          else if (i === 1) Alert.alert("Coming soon", "File sharing will be available soon.");
-          else if (i === 2) Alert.alert("Coming soon", "Location sharing will be available soon.");
-          else if (i === 3) Alert.alert("Coming soon", "Polls will be available soon.");
-          else if (i === 4) Alert.alert("Coming soon", "Contact sharing will be available soon.");
-        }
-      );
-    } else {
-      Alert.alert("Send", "Choose an option", [
-        { text: "Cancel", style: "cancel" },
-        { text: "Image & Video", onPress: pickMedia },
-        { text: "File", onPress: () => Alert.alert("Coming soon", "File sharing will be available soon.") },
-        { text: "Location", onPress: () => Alert.alert("Coming soon", "Location sharing will be available soon.") },
-        { text: "Poll", onPress: () => Alert.alert("Coming soon", "Polls will be available soon.") },
-        { text: "Contact", onPress: () => Alert.alert("Coming soon", "Contact sharing will be available soon.") },
-      ]);
+    setPlusMenuVisible(false);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission needed", "Allow location access to share your position.");
+        return;
+      }
+      setUploading(true);
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      setUploading(false);
+      const text = JSON.stringify({
+        lat: loc.coords.latitude,
+        lng: loc.coords.longitude,
+      });
+      onSend({ type: "location", text });
+    } catch (e) {
+      setUploading(false);
+      Alert.alert("Location error", e?.message ?? "Could not get location.");
     }
-  }, [disabled, uploading, pickMedia]);
+  }, [disabled, uploading, onSend]);
+
+  const pickContact = useCallback(async () => {
+    if (disabled || uploading) return;
+    setPlusMenuVisible(false);
+    try {
+      const { status } = await Contacts.requestPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission needed", "Allow contacts access to share a contact.");
+        return;
+      }
+      if (typeof Contacts.presentContactPickerAsync === "function") {
+        const contact = await Contacts.presentContactPickerAsync();
+        if (contact) {
+          const phones = (contact.phoneNumbers || []).map((p) => p?.number || p).filter(Boolean);
+          const text = JSON.stringify({ name: contact.name || "", phones });
+          onSend({ type: "contact", text });
+        }
+        return;
+      }
+      const { data } = await Contacts.getContactsAsync({ fields: [Contacts.Fields.Name, Contacts.Fields.PhoneNumbers] });
+      if (!data?.length) {
+        Alert.alert("No contacts", "No contacts found.");
+        return;
+      }
+      const names = data.slice(0, 5).map((c) => c.name || "No name");
+      Alert.alert("Share contact", "Pick a contact", [
+        { text: "Cancel", style: "cancel" },
+        ...names.map((name, i) => ({
+          text: name,
+          onPress: () => {
+            const c = data[i];
+            const phones = (c.phoneNumbers || []).map((p) => p?.number || p).filter(Boolean);
+            onSend({ type: "contact", text: JSON.stringify({ name: c.name || "", phones }) });
+          },
+        })),
+      ]);
+    } catch (e) {
+      Alert.alert("Contacts error", e?.message ?? "Could not access contacts.");
+    }
+  }, [disabled, uploading, onSend]);
+
+  const openPollModal = useCallback(() => {
+    setPlusMenuVisible(false);
+    setPollQuestion("");
+    setPollOptions(["", ""]);
+    setPollModalVisible(true);
+  }, []);
+
+  const sendPoll = useCallback(() => {
+    const q = (pollQuestion || "").trim();
+    const opts = pollOptions.map((o) => (o || "").trim()).filter(Boolean);
+    if (!q || opts.length < 2) {
+      Alert.alert("Poll", "Enter a question and at least 2 options.");
+      return;
+    }
+    const text = JSON.stringify({ question: q, options: opts });
+    onSend({ type: "poll", text });
+    setPollModalVisible(false);
+  }, [pollQuestion, pollOptions, onSend]);
+
+  const openPlusMenu = useCallback(() => {
+    if (disabled || uploading || pendingMedia) return;
+    setPlusMenuVisible(true);
+  }, [disabled, uploading, pendingMedia]);
+
+  const plusMenuOptions = [
+    { key: "media", label: "Image & Video", icon: "photo-library", onPress: pickMedia },
+    { key: "file", label: "File", icon: "folder-open", onPress: pickFile },
+    { key: "location", label: "Location", icon: "location-on", onPress: pickLocation },
+    { key: "poll", label: "Poll", icon: "poll", onPress: openPollModal },
+    { key: "contact", label: "Contact", icon: "contacts", onPress: pickContact },
+  ];
 
   const toggleVoice = useCallback(async () => {
     if (disabled || uploading) return;
@@ -237,17 +353,22 @@ export default function ChatInput({
       )}
       <View style={styles.container}>
         {!isEditMode && (
-          <TouchableOpacity
-            style={styles.iconBtn}
-            onPress={showPlusMenu}
-            disabled={disabled || uploading}
-          >
-            {uploading ? (
-              <ActivityIndicator size="small" color={colors.primary} />
-            ) : (
+          pendingMedia ? (
+            <View style={styles.mediaPreviewWrap}>
+              <Image source={{ uri: pendingMedia.uri }} style={styles.mediaPreviewImg} resizeMode="cover" />
+              <View style={styles.mediaProgressOverlay}>
+                <ActivityIndicator size="small" color={colors.primary} />
+              </View>
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={styles.iconBtn}
+              onPress={openPlusMenu}
+              disabled={disabled || uploading}
+            >
               <MaterialIcons name="add" size={26} color={colors.primary} />
-            )}
-          </TouchableOpacity>
+            </TouchableOpacity>
+          )
         )}
         <TextInput
           style={styles.input}
@@ -290,6 +411,70 @@ export default function ChatInput({
           <Text style={styles.sendLabel}>{isEditMode ? "Save" : "Send"}</Text>
         </TouchableOpacity>
       </View>
+
+      <Modal visible={pollModalVisible} transparent animationType="fade" onRequestClose={() => setPollModalVisible(false)}>
+        <Pressable style={styles.plusMenuOverlay} onPress={() => setPollModalVisible(false)}>
+          <Pressable style={[styles.pollModalBox, { backgroundColor: colors.surface }]} onPress={(e) => e.stopPropagation()}>
+            <Text style={[styles.plusMenuTitle, { color: colors.text }]}>New poll</Text>
+            <TextInput
+              style={[styles.pollInput, { backgroundColor: colors.surfaceLight, color: colors.text }]}
+              placeholder="Question"
+              placeholderTextColor={colors.textMuted}
+              value={pollQuestion}
+              onChangeText={setPollQuestion}
+            />
+            <Text style={[styles.plusMenuLabel, { marginBottom: 4 }]}>Options</Text>
+            {pollOptions.map((opt, i) => (
+              <TextInput
+                key={i}
+                style={[styles.pollInput, { backgroundColor: colors.surfaceLight, color: colors.text }]}
+                placeholder={`Option ${i + 1}`}
+                placeholderTextColor={colors.textMuted}
+                value={pollOptions[i]}
+                onChangeText={(t) => setPollOptions((prev) => prev.map((o, j) => (j === i ? t : o)))}
+              />
+            ))}
+            <TouchableOpacity style={styles.pollAddOpt} onPress={() => setPollOptions((p) => [...p, ""])}>
+              <MaterialIcons name="add" size={20} color={colors.primary} />
+              <Text style={[styles.plusMenuLabel, { color: colors.primary }]}>Add option</Text>
+            </TouchableOpacity>
+            <View style={styles.pollActions}>
+              <TouchableOpacity onPress={() => setPollModalVisible(false)}>
+                <Text style={[styles.plusMenuLabel, { color: colors.textMuted }]}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={sendPoll} style={[styles.sendBtn, { paddingHorizontal: spacing.lg }]}>
+                <Text style={styles.sendLabel}>Send poll</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <Modal
+        visible={plusMenuVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setPlusMenuVisible(false)}
+      >
+        <Pressable style={styles.plusMenuOverlay} onPress={() => setPlusMenuVisible(false)}>
+          <Pressable style={[styles.plusMenuSheet, { backgroundColor: colors.surface }]} onPress={(e) => e.stopPropagation()}>
+            <View style={[styles.plusMenuHandle, { backgroundColor: colors.border }]} />
+            <Text style={[styles.plusMenuTitle, { color: colors.textMuted }]}>Send</Text>
+            {plusMenuOptions.map((opt) => (
+              <TouchableOpacity
+                key={opt.key}
+                style={[styles.plusMenuItem, { borderBottomColor: colors.border }]}
+                onPress={() => { opt.onPress(); }}
+                activeOpacity={0.7}
+              >
+                <MaterialIcons name={opt.icon} size={24} color={colors.primary} />
+                <Text style={[styles.plusMenuLabel, { color: colors.text }]}>{opt.label}</Text>
+                <MaterialIcons name="chevron-right" size={20} color={colors.textMuted} />
+              </TouchableOpacity>
+            ))}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -312,6 +497,92 @@ function createStyles(colors) {
       justifyContent: "center",
       alignItems: "center",
       marginRight: spacing.xs,
+    },
+    mediaPreviewWrap: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      marginRight: spacing.xs,
+      overflow: "hidden",
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    mediaPreviewImg: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      position: "absolute",
+    },
+    mediaProgressOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: "rgba(0,0,0,0.35)",
+      borderRadius: 20,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    plusMenuOverlay: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.4)",
+      justifyContent: "flex-end",
+    },
+    plusMenuSheet: {
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      paddingTop: spacing.sm,
+      paddingBottom: spacing.xl,
+      paddingHorizontal: spacing.md,
+    },
+    plusMenuHandle: {
+      width: 40,
+      height: 4,
+      borderRadius: 2,
+      alignSelf: "center",
+      marginBottom: spacing.md,
+    },
+    plusMenuTitle: {
+      fontSize: 13,
+      fontWeight: "600",
+      marginBottom: spacing.sm,
+      paddingHorizontal: spacing.xs,
+    },
+    plusMenuItem: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.sm,
+      gap: spacing.md,
+      borderBottomWidth: 1,
+    },
+    plusMenuLabel: {
+      flex: 1,
+      fontSize: 16,
+      fontWeight: "500",
+    },
+    pollModalBox: {
+      marginHorizontal: spacing.lg,
+      padding: spacing.lg,
+      borderRadius: 16,
+      maxWidth: 400,
+      alignSelf: "center",
+    },
+    pollInput: {
+      borderRadius: 10,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      fontSize: 16,
+      marginBottom: spacing.sm,
+    },
+    pollAddOpt: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.xs,
+      marginBottom: spacing.md,
+    },
+    pollActions: {
+      flexDirection: "row",
+      justifyContent: "flex-end",
+      alignItems: "center",
+      gap: spacing.md,
     },
     iconBtnRecording: {
       backgroundColor: colors.error + "20",

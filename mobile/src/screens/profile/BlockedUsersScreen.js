@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
+import SubScreenHeader from "../../components/SubScreenHeader";
 import * as userApi from "../../api/user.api";
 
 export default function BlockedUsersScreen() {
@@ -97,13 +98,15 @@ export default function BlockedUsersScreen() {
     );
   };
 
+  const tabNav = navigation.getParent?.() ?? navigation;
   const listHeader = (
-    <View style={[styles.headerWrap, { paddingTop: insets.top + spacing.sm }]}>
-      <TouchableOpacity style={styles.backRow} onPress={() => navigation.goBack()} activeOpacity={0.8}>
-        <MaterialIcons name="arrow-back" size={24} color={colors.text} />
-        <Text style={styles.backLabel}>Back</Text>
-      </TouchableOpacity>
-      <Text style={styles.screenTitle}>Blacklist</Text>
+    <View style={styles.headerWrap}>
+      <SubScreenHeader
+        title="Blacklist"
+        onBack={() => navigation.goBack()}
+        showProfileDropdown
+        navigation={tabNav}
+      />
     </View>
   );
 

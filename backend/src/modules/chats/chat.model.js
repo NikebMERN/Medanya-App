@@ -15,6 +15,7 @@ const ChatSchema = new mongoose.Schema(
 
         // Group-only fields
         groupName: { type: String, trim: true },
+        isChannel: { type: Boolean, default: false },
         admins: { type: [String], default: [] },
         moderators: { type: [String], default: [] },
 

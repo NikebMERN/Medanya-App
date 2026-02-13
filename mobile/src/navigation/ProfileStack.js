@@ -10,10 +10,16 @@ import UserProfileScreen from "../screens/profile/UserProfileScreen";
 
 const Stack = createNativeStackNavigator();
 
+const screenOptions = {
+  headerShown: false,
+  animation: "slide_from_right",
+  gestureEnabled: true,
+};
+
 export default function ProfileStack() {
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="ProfileMain" component={ProfileScreen} />
+    <Stack.Navigator screenOptions={screenOptions}>
+      <Stack.Screen name="ProfileMain" component={ProfileScreen} options={{ animation: "none" }} />
       <Stack.Screen name="EditProfile" component={EditProfileScreen} />
       <Stack.Screen name="FollowRequests" component={FollowRequestsScreen} />
       <Stack.Screen name="BlockedUsers" component={BlockedUsersScreen} />

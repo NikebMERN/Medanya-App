@@ -7,6 +7,8 @@ export const useChatStore = create((set, get) => ({
   chats: [],
   chatsLoading: false,
   chatsError: null,
+  /** Map of userId (string) -> { displayName, avatarUrl } for chat list display; never cleared so names/pics persist when list reorders */
+  participantProfiles: {},
 
   messagesByChatId: {},
   messagesLoading: {},
@@ -94,6 +96,27 @@ export const useChatStore = create((set, get) => ({
       chats: s.chats.map((c) =>
         String(c._id || c.id) === id ? { ...c, ...updates } : c
       ),
+    }));
+  },
+
+  removeChatFromList: (chatId) => {
+    const id = String(chatId);
+    set((s) => ({
+      chats: s.chats.filter((c) => String(c._id || c.id) !== id),
+    }));
+  },
+
+  setParticipantProfile: (userId, profile) => {
+    const id = String(userId);
+    if (!id) return;
+    set((s) => ({
+      participantProfiles: {
+        ...s.participantProfiles,
+        [id]: {
+          displayName: profile?.displayName ?? profile?.display_name ?? `User ${id}`,
+          avatarUrl: profile?.avatarUrl ?? profile?.avatar_url ?? null,
+        },
+      },
     }));
   },
 

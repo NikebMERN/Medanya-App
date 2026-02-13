@@ -1,23 +1,51 @@
-import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import React, { useRef } from "react";
+import { View, Text, StyleSheet, TouchableOpacity, Animated } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useThemeColors } from "../theme/useThemeColors";
 import { spacing } from "../theme/spacing";
 
 const TAB_CONFIG = [
-  { name: "Home", label: "HOME", icon: "home" },
-  { name: "Jobs", label: "JOBS", icon: "work" },
-  { name: "Videos", label: "VIDEOS", icon: "video-library" },
-  { name: "Live", label: "SAFETY", icon: "shield" },
-  { name: "Chat", label: "CHAT", icon: "chat" },
-  { name: "Profile", label: "PROFILE", icon: "person" },
+  { name: "Home", label: "HOME", icon: "home", rootScreen: null },
+  { name: "Jobs", label: "JOBS", icon: "work", rootScreen: null },
+  { name: "Videos", label: "VIDEOS", icon: "video-library", rootScreen: null },
+  { name: "Live", label: "SAFETY", icon: "shield", rootScreen: null },
+  { name: "Chat", label: "CHAT", icon: "chat", rootScreen: "Chats" },
+  { name: "Profile", label: "PROFILE", icon: "person", rootScreen: "ProfileMain" },
 ];
 
 export default function AppTabBar({ state, descriptors, navigation }) {
   const insets = useSafeAreaInsets();
   const colors = useThemeColors();
   const styles = createStyles(colors, insets.bottom);
+  const scaleAnims = useRef({}).current;
+
+  const getScaleAnim = (key) => {
+    if (!scaleAnims[key]) scaleAnims[key] = new Animated.Value(1);
+    return scaleAnims[key];
+  };
+
+  const handleTabPress = (route, globalIndex) => {
+    const isFocused = state.index === globalIndex;
+    const config = TAB_CONFIG[globalIndex];
+    const scale = getScaleAnim(route.key);
+
+    Animated.sequence([
+      Animated.timing(scale, { toValue: 0.88, duration: 80, useNativeDriver: true }),
+      Animated.timing(scale, { toValue: 1, duration: 120, useNativeDriver: true }),
+    ]).start();
+
+    if (isFocused) {
+      const refreshParam = { refresh: Date.now() };
+      if (config?.rootScreen) {
+        navigation.navigate(route.name, { screen: config.rootScreen, params: refreshParam });
+      } else {
+        navigation.navigate(route.name, refreshParam);
+      }
+    } else {
+      navigation.navigate(route.name);
+    }
+  };
 
   const leftTabs = state.routes.slice(0, 3);
   const rightTabs = state.routes.slice(3, 6);
@@ -25,22 +53,28 @@ export default function AppTabBar({ state, descriptors, navigation }) {
   const renderTab = (route, globalIndex) => {
     const isFocused = state.index === globalIndex;
     const config = TAB_CONFIG[globalIndex];
-    const { options } = descriptors[route.key];
+    const scale = getScaleAnim(route.key);
 
     return (
       <TouchableOpacity
         key={route.key}
         style={styles.tab}
-        onPress={() => navigation.navigate(route.name)}
-        activeOpacity={0.7}
+        onPress={() => handleTabPress(route, globalIndex)}
+        activeOpacity={1}
       >
-        <View style={[styles.iconWrap, isFocused && styles.iconWrapActive]}>
+        <Animated.View
+          style={[
+            styles.iconWrap,
+            isFocused && styles.iconWrapActive,
+            { transform: [{ scale }] },
+          ]}
+        >
           <MaterialIcons
             name={config?.icon ?? "circle"}
             size={22}
             color={isFocused ? colors.primary : colors.textSecondary}
           />
-        </View>
+        </Animated.View>
         <Text style={[styles.label, isFocused && styles.labelActive]} numberOfLines={1}>
           {config?.label ?? route.name}
         </Text>

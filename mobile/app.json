@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "mobile",
-    "slug": "mobile",
+    "name": "Medanya",
+    "slug": "medanya",
     "version": "1.0.0",
     "scheme": "medanya",
     "orientation": "portrait",
@@ -11,7 +11,7 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#f2f6ff"
     },
     "ios": {
       "supportsTablet": true,
@@ -23,7 +23,7 @@
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#f2f6ff"
       },
       "edgeToEdgeEnabled": true
     },
@@ -36,6 +36,15 @@
         "expo-image-picker",
         {
           "photosPermission": "The app needs access to your photos to let you upload a profile picture."
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "backgroundColor": "#f2f6ff",
+          "resizeMode": "contain",
+          "imageWidth": 280
         }
       ]
     ]

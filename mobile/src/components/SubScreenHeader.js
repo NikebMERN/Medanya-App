@@ -11,103 +11,67 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useThemeColors } from "../theme/useThemeColors";
-import { typography } from "../theme/typography";
 import { useAuthStore } from "../store/auth.store";
 import { useThemeStore } from "../store/theme.store";
 import { spacing } from "../theme/spacing";
+import { typography } from "../theme/typography";
 
-export default function AppHeader({ navigation, route, focusedRouteName }) {
+/**
+ * Header for sub-screens: back arrow + title (no "Back" text), optional profile pic + dropdown on the right.
+ */
+export default function SubScreenHeader({
+  title,
+  onBack,
+  showProfileDropdown = true,
+  navigation,
+}) {
   const insets = useSafeAreaInsets();
   const colors = useThemeColors();
-  const styles = createStyles(colors, insets.top, insets.bottom);
+  const styles = createStyles(colors, insets.top);
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const theme = useThemeStore((s) => s.theme);
   const setTheme = useThemeStore((s) => s.setTheme);
+  const [menuVisible, setMenuVisible] = useState(false);
   const avatarUrl = user?.avatar_url ?? user?.avatarUrl;
   const displayName = user?.display_name ?? user?.displayName ?? "";
   const accountPrivate = user?.account_private ?? user?.accountPrivate;
-  const [menuVisible, setMenuVisible] = useState(false);
-
-  const handleLogoPress = () => {
-    if (navigation?.navigate) {
-      navigation.navigate("Home");
-    }
-  };
 
   const closeMenu = () => setMenuVisible(false);
 
-  const handleEditProfile = () => {
+  const nav = (tab, screen, params) => {
     closeMenu();
-    navigation?.navigate("Profile", { screen: "EditProfile", params: { user } });
-  };
-
-  const handleFollowRequests = () => {
-    closeMenu();
-    navigation?.navigate("Profile", { screen: "FollowRequests" });
-  };
-
-  const handleCreateGroupChat = () => {
-    closeMenu();
-    navigation?.navigate("Chat", { screen: "CreateGroup" });
-  };
-
-  const handleCreateChannel = () => {
-    closeMenu();
-    navigation?.navigate("Chat", { screen: "CreateChannel" });
-  };
-
-  const handleSearchJoinGroup = () => {
-    closeMenu();
-    navigation?.navigate("Chat", { screen: "SearchJoinGroup" });
-  };
-
-  const handleBlacklist = () => {
-    closeMenu();
-    navigation?.navigate("Profile", { screen: "BlockedUsers" });
-  };
-
-  const handleToggleTheme = () => {
-    setTheme(theme === "dark" ? "light" : "dark");
-    closeMenu();
-  };
-
-  const handleLogout = () => {
-    closeMenu();
-    logout();
+    navigation?.navigate?.(tab, { screen, params });
   };
 
   return (
     <>
       <View style={styles.container}>
-        <View style={styles.left}>
-          <TouchableOpacity style={styles.logoWrap} onPress={handleLogoPress} activeOpacity={0.8}>
-            <View style={styles.logo}>
-              <Text style={styles.logoLetter}>M</Text>
-            </View>
-            <Text style={styles.title}>MEDANYA</Text>
-          </TouchableOpacity>
-        </View>
-        <View style={styles.right}>
-          <TouchableOpacity style={styles.iconBtn} activeOpacity={0.8}>
-            <Text style={styles.playIcon}>▶</Text>
-          </TouchableOpacity>
+        <TouchableOpacity style={styles.backBtn} onPress={onBack} activeOpacity={0.8}>
+          <MaterialIcons name="arrow-back" size={24} color={colors.text} />
+        </TouchableOpacity>
+        <Text style={styles.title} numberOfLines={1}>
+          {title}
+        </Text>
+        {showProfileDropdown ? (
           <TouchableOpacity
-              style={styles.avatarBtn}
-              activeOpacity={0.8}
-              onPress={() => setMenuVisible(true)}
-            >
-              {avatarUrl ? (
-                <Image source={{ uri: avatarUrl }} style={styles.avatar} />
-              ) : (
-                <View style={styles.avatarPlaceholder}>
-                  <Text style={styles.avatarLetter}>
-                    {(displayName || "U").charAt(0).toUpperCase()}
-                  </Text>
-                </View>
-              )}
-            </TouchableOpacity>
-        </View>
+            style={styles.avatarBtn}
+            onPress={() => setMenuVisible(true)}
+            activeOpacity={0.8}
+          >
+            {avatarUrl ? (
+              <Image source={{ uri: avatarUrl }} style={styles.avatar} />
+            ) : (
+              <View style={styles.avatarPlaceholder}>
+                <Text style={styles.avatarLetter}>
+                  {(displayName || "U").charAt(0).toUpperCase()}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.placeholder} />
+        )}
       </View>
 
       <Modal
@@ -119,44 +83,44 @@ export default function AppHeader({ navigation, route, focusedRouteName }) {
         <Pressable style={styles.menuOverlay} onPress={closeMenu}>
           <Pressable style={[styles.menuSheet, { paddingBottom: insets.bottom + spacing.md }]} onPress={(e) => e.stopPropagation()}>
             <View style={styles.menuHandle} />
-            <TouchableOpacity style={styles.menuItem} onPress={handleEditProfile} activeOpacity={0.7}>
+            <TouchableOpacity style={styles.menuItem} onPress={() => nav("Profile", "EditProfile", { user })} activeOpacity={0.7}>
               <MaterialIcons name="edit" size={22} color={colors.text} />
               <Text style={styles.menuItemText}>Edit profile</Text>
               <MaterialIcons name="chevron-right" size={20} color={colors.textSecondary} />
             </TouchableOpacity>
             {accountPrivate && (
-              <TouchableOpacity style={styles.menuItem} onPress={handleFollowRequests} activeOpacity={0.7}>
+              <TouchableOpacity style={styles.menuItem} onPress={() => nav("Profile", "FollowRequests")} activeOpacity={0.7}>
                 <MaterialIcons name="people-outline" size={22} color={colors.text} />
                 <Text style={styles.menuItemText}>Follow requests</Text>
                 <MaterialIcons name="chevron-right" size={20} color={colors.textSecondary} />
               </TouchableOpacity>
             )}
-            <TouchableOpacity style={styles.menuItem} onPress={handleCreateGroupChat} activeOpacity={0.7}>
+            <TouchableOpacity style={styles.menuItem} onPress={() => nav("Chat", "CreateGroup")} activeOpacity={0.7}>
               <MaterialIcons name="group-add" size={22} color={colors.text} />
               <Text style={styles.menuItemText}>Create a group chat</Text>
               <MaterialIcons name="chevron-right" size={20} color={colors.textSecondary} />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.menuItem} onPress={handleCreateChannel} activeOpacity={0.7}>
+            <TouchableOpacity style={styles.menuItem} onPress={() => nav("Chat", "CreateChannel")} activeOpacity={0.7}>
               <MaterialIcons name="campaign" size={22} color={colors.text} />
               <Text style={styles.menuItemText}>Create a channel</Text>
               <MaterialIcons name="chevron-right" size={20} color={colors.textSecondary} />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.menuItem} onPress={handleSearchJoinGroup} activeOpacity={0.7}>
+            <TouchableOpacity style={styles.menuItem} onPress={() => nav("Chat", "SearchJoinGroup")} activeOpacity={0.7}>
               <MaterialIcons name="search" size={22} color={colors.text} />
               <Text style={styles.menuItemText}>Search & join group</Text>
               <MaterialIcons name="chevron-right" size={20} color={colors.textSecondary} />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.menuItem} onPress={handleBlacklist} activeOpacity={0.7}>
+            <TouchableOpacity style={styles.menuItem} onPress={() => nav("Profile", "BlockedUsers")} activeOpacity={0.7}>
               <MaterialIcons name="block" size={22} color={colors.text} />
               <Text style={styles.menuItemText}>Blacklist</Text>
               <MaterialIcons name="chevron-right" size={20} color={colors.textSecondary} />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.menuItem} onPress={handleToggleTheme} activeOpacity={0.7}>
+            <TouchableOpacity style={styles.menuItem} onPress={() => { setTheme(theme === "dark" ? "light" : "dark"); closeMenu(); }} activeOpacity={0.7}>
               <MaterialIcons name={theme === "dark" ? "light-mode" : "dark-mode"} size={22} color={colors.text} />
               <Text style={styles.menuItemText}>{theme === "dark" ? "Light mode" : "Dark mode"}</Text>
               <MaterialIcons name="chevron-right" size={20} color={colors.textSecondary} />
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.menuItem, styles.menuItemDanger]} onPress={handleLogout} activeOpacity={0.7}>
+            <TouchableOpacity style={[styles.menuItem, styles.menuItemDanger]} onPress={() => { closeMenu(); logout(); }} activeOpacity={0.7}>
               <MaterialIcons name="logout" size={22} color={colors.error || "#e53935"} />
               <Text style={[styles.menuItemText, styles.menuItemTextDanger]}>Log out</Text>
             </TouchableOpacity>
@@ -167,7 +131,7 @@ export default function AppHeader({ navigation, route, focusedRouteName }) {
   );
 }
 
-function createStyles(colors, paddingTop, paddingBottom = 0) {
+function createStyles(colors, paddingTop) {
   return StyleSheet.create({
     container: {
       flexDirection: "row",
@@ -180,54 +144,21 @@ function createStyles(colors, paddingTop, paddingBottom = 0) {
       borderBottomWidth: 1,
       borderBottomColor: colors.border,
     },
-    left: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: spacing.sm,
-    },
-    logoWrap: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: spacing.sm,
-    },
-    logo: {
-      width: 36,
-      height: 36,
-      borderRadius: 10,
-      backgroundColor: colors.primary,
+    backBtn: {
+      width: 44,
+      height: 44,
       justifyContent: "center",
       alignItems: "center",
-    },
-    logoLetter: {
-      fontSize: 18,
-      fontWeight: "800",
-      color: colors.white,
-      fontStyle: typography.fontStyle,
+      marginLeft: -spacing.xs,
     },
     title: {
+      flex: 1,
       fontSize: 18,
-      fontWeight: "800",
+      fontWeight: "700",
       color: colors.text,
-      letterSpacing: 0.5,
+      textAlign: "center",
+      marginHorizontal: spacing.sm,
       fontStyle: typography.fontStyle,
-    },
-    right: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: spacing.sm,
-    },
-    iconBtn: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      backgroundColor: colors.surface,
-      justifyContent: "center",
-      alignItems: "center",
-    },
-    playIcon: {
-      fontSize: 12,
-      color: colors.text,
-      marginLeft: 2,
     },
     avatarBtn: {
       width: 40,
@@ -254,6 +185,7 @@ function createStyles(colors, paddingTop, paddingBottom = 0) {
       color: colors.text,
       fontStyle: typography.fontStyle,
     },
+    placeholder: { width: 40, height: 40 },
     menuOverlay: {
       flex: 1,
       backgroundColor: "rgba(0,0,0,0.5)",
@@ -290,12 +222,7 @@ function createStyles(colors, paddingTop, paddingBottom = 0) {
       color: colors.text,
       fontStyle: typography.fontStyle,
     },
-    menuItemDanger: {
-      borderBottomWidth: 0,
-      marginTop: spacing.sm,
-    },
-    menuItemTextDanger: {
-      color: colors.error || "#e53935",
-    },
+    menuItemDanger: { borderBottomWidth: 0, marginTop: spacing.sm },
+    menuItemTextDanger: { color: colors.error || "#e53935" },
   });
 }

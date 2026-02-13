@@ -16,6 +16,12 @@ router.post("/group", chatController.createGroup);
 // GET /chats
 router.get("/", chatController.listChats);
 
+// GET /chats/search?q=name or ?id=chatId (must be before /:chatId)
+router.get("/search", chatController.searchGroups);
+
+// POST /chats/:chatId/join (join a group by id)
+router.post("/:chatId/join", chatController.joinGroup);
+
 // GET /chats/:chatId
 router.get("/:chatId", chatController.getChat);
 
@@ -30,5 +36,11 @@ router.patch("/:chatId/members/add", chatController.addMembers);
 
 // PATCH /chats/:chatId/members/remove (admin/mod)
 router.patch("/:chatId/members/remove", chatController.removeMember);
+
+// POST /chats/:chatId/leave (member leaves group/channel)
+router.post("/:chatId/leave", chatController.leaveGroup);
+
+// DELETE /chats/:chatId (owner only - deletes group/channel)
+router.delete("/:chatId", chatController.deleteGroup);
 
 module.exports = router;

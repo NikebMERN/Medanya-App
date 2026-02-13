@@ -8,6 +8,7 @@ import {
   Image,
   ActivityIndicator,
   TextInput,
+  RefreshControl,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -15,6 +16,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useThemeColors } from "../../theme/useThemeColors";
 import { typography } from "../../theme/typography";
 import { spacing } from "../../theme/spacing";
+import SubScreenHeader from "../../components/SubScreenHeader";
 import { useAuthStore } from "../../store/auth.store";
 import { getFollowing } from "../../api/user.api";
 import { useDebounce } from "../../hooks/useDebounce";
@@ -36,10 +38,12 @@ export default function FollowingListScreen() {
   const debouncedQ = useDebounce(searchQuery.trim(), DEBOUNCE_MS);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true);
+    else setLoading(true);
     setError(null);
     try {
       const res = await getFollowing(userId, { limit: PAGE_LIMIT, q: debouncedQ || undefined });
@@ -56,6 +60,7 @@ export default function FollowingListScreen() {
       setUsers([]);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [userId, debouncedQ]);
 
@@ -90,7 +95,7 @@ export default function FollowingListScreen() {
         <View style={styles.body}>
           <Text style={styles.name} numberOfLines={1}>{name}</Text>
           <Text style={styles.meta} numberOfLines={1}>
-            ID: {item.id}{phone ? ` · ${phone}` : ""}
+            ID: {item.id}{phone ? ` · ${phone.trim().startsWith("+") ? phone : `+${phone}`}` : ""}
           </Text>
         </View>
         <MaterialIcons name="chevron-right" size={22} color={colors.textMuted} />
@@ -98,12 +103,15 @@ export default function FollowingListScreen() {
     );
   };
 
+  const tabNav = navigation.getParent?.() ?? navigation;
   const listHeader = (
-    <View style={[styles.headerWrap, { paddingTop: insets.top + spacing.sm }]}>
-      <TouchableOpacity style={styles.backRow} onPress={() => navigation.goBack()} activeOpacity={0.8}>
-        <MaterialIcons name="arrow-back" size={24} color={colors.text} />
-        <Text style={styles.backLabel}>Back</Text>
-      </TouchableOpacity>
+    <View style={styles.headerWrap}>
+      <SubScreenHeader
+        title="Following"
+        onBack={() => navigation.goBack()}
+        showProfileDropdown
+        navigation={tabNav}
+      />
       <View style={styles.searchWrap}>
         <MaterialIcons name="search" size={22} color={colors.textMuted} />
         <TextInput
@@ -142,6 +150,9 @@ export default function FollowingListScreen() {
           ListHeaderComponent={listHeader}
           contentContainerStyle={users.length === 0 ? styles.emptyList : undefined}
           ListEmptyComponent={<Text style={styles.emptyText}>No following found</Text>}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.primary} />
+          }
         />
       )}
     </View>

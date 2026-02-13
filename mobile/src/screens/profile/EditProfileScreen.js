@@ -18,6 +18,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import Button from "../../components/ui/Button";
 import Input from "../../components/ui/Input";
+import SubScreenHeader from "../../components/SubScreenHeader";
 import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
 import { useAuthStore } from "../../store/auth.store";
@@ -314,22 +315,23 @@ export default function EditProfileScreen() {
   };
 
   const insets = useSafeAreaInsets();
+  const tabNav = navigation.getParent?.() ?? navigation;
   return (
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
+      <SubScreenHeader
+        title="Edit profile"
+        onBack={() => navigation.goBack()}
+        showProfileDropdown
+        navigation={tabNav}
+      />
       <ScrollView
-        contentContainerStyle={[styles.scroll, { paddingTop: insets.top + spacing.sm }]}
+        contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <TouchableOpacity style={styles.backRow} onPress={() => navigation.goBack()} activeOpacity={0.8}>
-          <MaterialIcons name="arrow-back" size={24} color={colors.text} />
-          <Text style={styles.backLabel}>Back</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>Edit Profile</Text>
-
         <TouchableOpacity
           style={styles.avatarWrap}
           onPress={pickImage}
@@ -466,6 +468,7 @@ function createStyles(colors) {
     scroll: {
       flexGrow: 1,
       paddingHorizontal: spacing.lg,
+      paddingTop: spacing.md,
       paddingBottom: spacing.xl,
     },
     backRow: {

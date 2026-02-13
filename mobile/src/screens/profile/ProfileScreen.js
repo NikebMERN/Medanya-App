@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -10,13 +10,14 @@ import {
   Modal,
   Pressable,
   useWindowDimensions,
+  RefreshControl,
 } from "react-native";
 import {
   PinchGestureHandler,
   PanGestureHandler,
   State,
 } from "react-native-gesture-handler";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect, useRoute } from "@react-navigation/native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useAuthStore } from "../../store/auth.store";
 import { useThemeStore } from "../../store/theme.store";
@@ -27,6 +28,7 @@ import { getMe, getFollowRequests } from "../../api/user.api";
 
 export default function ProfileScreen() {
   const navigation = useNavigation();
+  const route = useRoute();
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const theme = useThemeStore((s) => s.theme);
@@ -34,6 +36,7 @@ export default function ProfileScreen() {
   const { user: storeUser, logout } = useAuthStore();
   const [user, setUser] = useState(storeUser);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [followRequestCount, setFollowRequestCount] = useState(0);
   const [avatarFullScreenVisible, setAvatarFullScreenVisible] = useState(false);
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
@@ -124,18 +127,24 @@ export default function ProfileScreen() {
     storeUser?.email,
   ]);
 
-  useEffect(() => {
+  const fetchFollowRequestCount = useCallback(async () => {
     const accountPrivate = user?.account_private ?? user?.accountPrivate;
     if (!accountPrivate) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await getFollowRequests();
-        if (!cancelled && res?.requests?.length !== undefined) setFollowRequestCount(res.requests.length);
-      } catch (_) {}
-    })();
-    return () => { cancelled = true; };
+    try {
+      const res = await getFollowRequests();
+      setFollowRequestCount(res?.requests?.length ?? 0);
+    } catch (_) {}
   }, [user?.id, user?.account_private, user?.accountPrivate]);
+
+  useEffect(() => {
+    fetchFollowRequestCount();
+  }, [fetchFollowRequestCount]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchFollowRequestCount();
+    }, [fetchFollowRequestCount])
+  );
 
   const displayName = user?.display_name ?? user?.displayName ?? "—";
   const neighborhood = user?.neighborhood ?? "—";
@@ -151,6 +160,20 @@ export default function ProfileScreen() {
     navigation.navigate("EditProfile", { user });
   };
 
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      const res = await getMe();
+      if (res?.user) setUser(res.user);
+      await fetchFollowRequestCount();
+    } catch (_) {}
+    setRefreshing(false);
+  }, [fetchFollowRequestCount]);
+
+  useEffect(() => {
+    if (route.params?.refresh != null) onRefresh();
+  }, [route.params?.refresh, onRefresh]);
+
   if (loading) {
     return (
       <View style={styles.container}>
@@ -165,6 +188,9 @@ export default function ProfileScreen() {
       style={styles.container}
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
+      }
     >
       {/* Profile header card - gradient style */}
       <View style={styles.headerCard}>
@@ -211,7 +237,11 @@ export default function ProfileScreen() {
             <Text style={styles.phoneText}>ID: {String(user?.id ?? user?.userId)}</Text>
           ) : null}
           {(user?.phone_number ?? user?.phoneNumber) ? (
-            <Text style={styles.phoneText}>{user.phone_number ?? user.phoneNumber}</Text>
+            <Text style={styles.phoneText}>
+              {String(user.phone_number ?? user.phoneNumber).trim().startsWith("+")
+                ? (user.phone_number ?? user.phoneNumber)
+                : `+${user.phone_number ?? user.phoneNumber}`}
+            </Text>
           ) : null}
         </View>
         {neighborhood !== "—" && (

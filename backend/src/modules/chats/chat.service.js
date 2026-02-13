@@ -101,7 +101,7 @@ async function startDirectChat(currentUserId, peerUserId) {
     }
 }
 
-async function createGroupChat(currentUserId, groupName, memberIds = []) {
+async function createGroupChat(currentUserId, groupName, memberIds = [], isChannel = false) {
     const me = toIdString(currentUserId);
     if (!me) {
         const err = new Error("FORBIDDEN");
@@ -139,6 +139,7 @@ async function createGroupChat(currentUserId, groupName, memberIds = []) {
         participants,
         createdBy: me,
         groupName: cleanName,
+        isChannel: !!isChannel,
         admins: [me],
         moderators: [],
         lastMessageAt: new Date(),
@@ -274,6 +275,56 @@ async function removeGroupMember(currentUserId, chatId, memberId) {
     return true;
 }
 
+async function leaveGroup(currentUserId, chatId) {
+    const me = toIdString(currentUserId);
+    const chat = await getChatById(chatId);
+    if (!chat) {
+        const err = new Error("INVALID_CHAT");
+        err.code = "INVALID_CHAT";
+        throw err;
+    }
+    if (chat.type !== "group") {
+        const err = new Error("VALIDATION_ERROR");
+        err.code = "VALIDATION_ERROR";
+        throw err;
+    }
+    if (!isParticipant(chat, me)) {
+        const err = new Error("FORBIDDEN");
+        err.code = "FORBIDDEN";
+        throw err;
+    }
+    chat.participants = (chat.participants || []).filter((id) => id !== me);
+    chat.admins = (chat.admins || []).filter((id) => id !== me);
+    chat.moderators = (chat.moderators || []).filter((id) => id !== me);
+    await chat.save();
+    return true;
+}
+
+async function deleteGroup(currentUserId, chatId) {
+    const me = toIdString(currentUserId);
+    const chat = await getChatById(chatId);
+    if (!chat) {
+        const err = new Error("INVALID_CHAT");
+        err.code = "INVALID_CHAT";
+        throw err;
+    }
+    if (chat.type !== "group") {
+        const err = new Error("VALIDATION_ERROR");
+        err.code = "VALIDATION_ERROR";
+        throw err;
+    }
+    const createdBy = toIdString(chat.createdBy);
+    if (createdBy !== me) {
+        const err = new Error("FORBIDDEN");
+        err.code = "FORBIDDEN";
+        err.message = "Only the group owner can delete the group";
+        throw err;
+    }
+    await Message.deleteMany({ chatId: chat._id });
+    await Chat.deleteOne({ _id: chat._id });
+    return true;
+}
+
 async function setGroupName(currentUserId, chatId, groupName) {
     const me = toIdString(currentUserId);
     const chat = await getChatById(chatId);
@@ -319,9 +370,15 @@ async function sendMessage(
         err.code = "FORBIDDEN";
         throw err;
     }
+    if (chat.isChannel && !isGroupAdmin(chat, me)) {
+        const err = new Error("FORBIDDEN");
+        err.code = "FORBIDDEN";
+        err.message = "Only the channel owner can send messages";
+        throw err;
+    }
 
     const msgType = String(type || "");
-    if (!["text", "image", "video", "voice"].includes(msgType)) {
+    if (!["text", "image", "video", "voice", "file", "location", "poll", "contact"].includes(msgType)) {
         const err = new Error("VALIDATION_ERROR");
         err.code = "VALIDATION_ERROR";
         throw err;
@@ -335,7 +392,14 @@ async function sendMessage(
         err.code = "VALIDATION_ERROR";
         throw err;
     }
-    if (msgType !== "text" && !bodyUrl.trim()) {
+    const needsMedia = ["image", "video", "voice", "file"].includes(msgType);
+    const needsText = ["location", "poll", "contact"].includes(msgType);
+    if (needsMedia && !bodyUrl.trim()) {
+        const err = new Error("VALIDATION_ERROR");
+        err.code = "VALIDATION_ERROR";
+        throw err;
+    }
+    if (needsText && !bodyText.trim()) {
         const err = new Error("VALIDATION_ERROR");
         err.code = "VALIDATION_ERROR";
         throw err;
@@ -347,8 +411,8 @@ async function sendMessage(
         chatId: chat._id,
         senderId: me,
         type: msgType,
-        text: msgType === "text" ? bodyText : "",
-        mediaUrl: msgType === "text" ? "" : bodyUrl,
+        text: ["text", "location", "poll", "contact"].includes(msgType) ? bodyText : "",
+        mediaUrl: needsMedia ? bodyUrl : "",
         deliveredAt: createdAt,
         readBy: [{ userId: me, readAt: createdAt }],
         readByUserIds: [me],
@@ -363,7 +427,17 @@ async function sendMessage(
                 ? "📷 Image"
                 : msgType === "video"
                     ? "🎥 Video"
-                    : "🎙️ Voice";
+                    : msgType === "voice"
+                        ? "🎙️ Voice"
+                        : msgType === "file"
+                            ? "📎 File"
+                            : msgType === "location"
+                                ? "📍 Location"
+                                : msgType === "poll"
+                                    ? "📊 Poll"
+                                    : msgType === "contact"
+                                        ? "👤 Contact"
+                                        : "Message";
     await chat.save();
 
     return message.toObject();
@@ -420,6 +494,84 @@ async function listMessages(currentUserId, { chatId, cursor, limit }) {
     return { messages: items, nextCursor };
 }
 
+const SEARCH_GROUPS_LIMIT = 30;
+
+async function searchGroups(currentUserId, { q, id } = {}) {
+    const me = toIdString(currentUserId);
+    if (!me) {
+        const err = new Error("FORBIDDEN");
+        err.code = "FORBIDDEN";
+        throw err;
+    }
+    if (id) {
+        const chat = await getChatLean(id);
+        if (!chat || chat.type !== "group") return { groups: [] };
+        const participantCount = (chat.participants || []).length;
+        const isMember = chat.participants.includes(me);
+        return {
+            groups: [
+                {
+                    _id: chat._id,
+                    id: String(chat._id),
+                    groupName: chat.groupName || "Group",
+                    participantCount,
+                    isMember,
+                },
+            ],
+        };
+    }
+    const searchStr = (q && String(q).trim()) || "";
+    if (!searchStr || searchStr.length < 2) return { groups: [] };
+    const regex = new RegExp(searchStr.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+    const items = await Chat.find({
+        type: "group",
+        groupName: regex,
+    })
+        .sort({ lastMessageAt: -1 })
+        .limit(SEARCH_GROUPS_LIMIT)
+        .lean();
+    const groups = items.map((c) => {
+        const participantCount = (c.participants || []).length;
+        const isMember = (c.participants || []).includes(me);
+        return {
+            _id: c._id,
+            id: String(c._id),
+            groupName: c.groupName || "Group",
+            participantCount,
+            isMember,
+        };
+    });
+    return { groups };
+}
+
+async function joinGroup(currentUserId, chatId) {
+    const me = toIdString(currentUserId);
+    const chat = await getChatById(chatId);
+    if (!chat) {
+        const err = new Error("INVALID_CHAT");
+        err.code = "INVALID_CHAT";
+        throw err;
+    }
+    if (chat.type !== "group") {
+        const err = new Error("VALIDATION_ERROR");
+        err.code = "VALIDATION_ERROR";
+        err.message = "Not a group chat";
+        throw err;
+    }
+    if (isParticipant(chat, me)) {
+        return chat.toObject ? chat.toObject() : chat;
+    }
+    const participants = [...(chat.participants || []), me];
+    if (participants.length > MAX_GROUP_SIZE) {
+        const err = new Error("GROUP_TOO_LARGE");
+        err.code = "GROUP_TOO_LARGE";
+        throw err;
+    }
+    chat.participants = participants;
+    await chat.save();
+    return chat.toObject ? chat.toObject() : chat;
+}
+
 async function markMessagesRead(currentUserId, { chatId, messageIds = [] }) {
     const me = toIdString(currentUserId);
     const chat = await getChatLean(chatId);
@@ -472,8 +624,12 @@ module.exports = {
     createGroupChat,
     listChats,
     getChatMeta,
+    searchGroups,
+    joinGroup,
     addGroupMembers,
     removeGroupMember,
+    leaveGroup,
+    deleteGroup,
     setGroupName,
     sendMessage,
     listMessages,
