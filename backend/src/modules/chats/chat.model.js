@@ -15,9 +15,16 @@ const ChatSchema = new mongoose.Schema(
 
         // Group-only fields
         groupName: { type: String, trim: true },
+        groupAvatarUrl: { type: String, default: "" },
         isChannel: { type: Boolean, default: false },
         admins: { type: [String], default: [] },
         moderators: { type: [String], default: [] },
+        // Group: when true, any member can edit group name and avatar
+        membersCanEditProfile: { type: Boolean, default: false },
+        // Channel: when true, members can send messages
+        membersCanSendMessages: { type: Boolean, default: false },
+        // Channel: when true, members can edit channel name and avatar
+        membersCanEditChannel: { type: Boolean, default: false },
 
         // Metadata
         lastMessageAt: { type: Date },

@@ -28,8 +28,23 @@ router.get("/:chatId", chatController.getChat);
 // GET /chats/:chatId/messages
 router.get("/:chatId/messages", chatController.listMessages);
 
-// PATCH /chats/:chatId/groupName (admin only in group)
+// DELETE /chats/:chatId/messages/:messageId (delete for everyone; sender or admin)
+router.delete("/:chatId/messages/:messageId", chatController.deleteMessageForAll);
+
+// PATCH /chats/:chatId/messages/:messageId/hide (delete for me only)
+router.patch("/:chatId/messages/:messageId/hide", chatController.deleteMessageForMe);
+
+// POST /chats/:chatId/messages/:messageId/vote (vote on poll, body: { optionIndex: number })
+router.post("/:chatId/messages/:messageId/vote", chatController.votePoll);
+
+// PATCH /chats/:chatId/groupName (admin or member if permission granted)
 router.patch("/:chatId/groupName", chatController.setGroupName);
+
+// PATCH /chats/:chatId/groupAvatar (admin or member if permission granted)
+router.patch("/:chatId/groupAvatar", chatController.setGroupAvatar);
+
+// PATCH /chats/:chatId/permissions (owner/admin only)
+router.patch("/:chatId/permissions", chatController.setGroupPermissions);
 
 // PATCH /chats/:chatId/members/add (admin/mod)
 router.patch("/:chatId/members/add", chatController.addMembers);

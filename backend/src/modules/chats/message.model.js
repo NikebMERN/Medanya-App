@@ -22,7 +22,7 @@ const MessageSchema = new mongoose.Schema(
 
         type: {
             type: String,
-            enum: ["text", "image", "video", "voice", "file", "location", "poll", "contact"],
+            enum: ["text", "image", "video", "voice", "file", "location", "poll", "contact", "profile"],
             required: true,
         },
 
@@ -36,6 +36,20 @@ const MessageSchema = new mongoose.Schema(
 
         // Internal helper to enforce unique read receipts per user
         readByUserIds: { type: [String], default: [] },
+
+        // "Delete for me": hide this message for these user ids
+        deletedForUserIds: { type: [String], default: [] },
+
+        // Poll votes: [{ userId: String, optionIndex: Number }], one vote per user (last wins if changed)
+        pollVotes: {
+            type: [
+                {
+                    userId: { type: String, required: true },
+                    optionIndex: { type: Number, required: true },
+                },
+            ],
+            default: [],
+        },
     },
     { timestamps: true },
 );

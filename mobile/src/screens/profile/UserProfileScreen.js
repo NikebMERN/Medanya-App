@@ -25,11 +25,11 @@ import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
 import SubScreenHeader from "../../components/SubScreenHeader";
 import { useAuthStore } from "../../store/auth.store";
-import * as Contacts from "expo-contacts";
 import * as userApi from "../../api/user.api";
 import * as chatApi from "../../services/chat.api";
 import { ensureChatSocket, sendChatMessage } from "../../realtime/chat.socket";
 import { useAuthStore as useAuthStoreForToken } from "../../store/auth.store";
+import { useChatStore } from "../../store/chat.store";
 
 function formatPhoneDisplay(phone) {
   if (!phone) return "";
@@ -51,6 +51,9 @@ export default function UserProfileScreen() {
   const [followLoading, setFollowLoading] = useState(false);
   const [blockLoading, setBlockLoading] = useState(false);
   const [avatarFullScreenVisible, setAvatarFullScreenVisible] = useState(false);
+  const [shareProfileVisible, setShareProfileVisible] = useState(false);
+  const [shareProfileSelected, setShareProfileSelected] = useState({});
+  const [shareProfileSending, setShareProfileSending] = useState(false);
   const [zoomScale, setZoomScale] = useState(1);
   const [translateX, setTranslateX] = useState(0);
   const [translateY, setTranslateY] = useState(0);
@@ -59,6 +62,9 @@ export default function UserProfileScreen() {
   const baseTranslateYRef = useRef(0);
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
+  const chats = useChatStore((s) => s.chats);
+  const setChats = useChatStore((s) => s.setChats);
+  const participantProfiles = useChatStore((s) => s.participantProfiles);
 
   const MIN_ZOOM = 1;
   const MAX_ZOOM = 4;
@@ -193,67 +199,84 @@ export default function UserProfileScreen() {
     }
   }, [user, navigation]);
 
-  const sendContactToUser = useCallback(
-    async (contact) => {
-      if (!contact || !user?.id) return;
-      const uid = user.id ?? user.userId;
-      const phones = (contact.phoneNumbers || []).map((p) => p?.number || p).filter(Boolean);
-      const text = JSON.stringify({ name: contact.name || "", phones });
-      try {
-        const data = await chatApi.startDirect(uid);
-        const chat = data?.chat ?? data;
-        const chatId = chat?._id ?? chat?.id;
-        if (!chatId) {
-          Alert.alert("Error", "Could not start chat.");
-          return;
-        }
-        const token = useAuthStoreForToken.getState().token;
-        if (token) ensureChatSocket(token);
-        sendChatMessage({ chatId, type: "contact", text, mediaUrl: "" }, (ack) => {
-          if (ack?.ok) {
-            navigation.navigate("Chat", { screen: "ChatRoom", params: { chatId } });
-          } else {
-            Alert.alert("Error", "Could not send contact.");
-          }
-        });
-      } catch (e) {
-        Alert.alert("Error", e?.message ?? "Could not send contact.");
-      }
-    },
-    [user, navigation]
-  );
+  const shareChatsSorted = useMemo(() => {
+    const list = [...(chats || [])];
+    return list.sort((a, b) => new Date(b.lastMessageAt || 0) - new Date(a.lastMessageAt || 0));
+  }, [chats]);
 
-  const handleShareContact = useCallback(async () => {
-    const uid = user?.id ?? user?.userId;
-    if (!uid || !(user.isFollowing && user.followsMe)) return;
+  const openShareProfileModal = useCallback(async () => {
+    setShareProfileVisible(true);
+    setShareProfileSelected({});
     try {
-      const { status } = await Contacts.requestPermissionsAsync();
-      if (status !== "granted") {
-        Alert.alert("Permission needed", "Allow contacts access to share a contact with this user.");
-        return;
-      }
-      if (typeof Contacts.presentContactPickerAsync === "function") {
-        const contact = await Contacts.presentContactPickerAsync();
-        if (contact) await sendContactToUser(contact);
-        return;
-      }
-      const { data } = await Contacts.getContactsAsync({ fields: [Contacts.Fields.Name, Contacts.Fields.PhoneNumbers] });
-      if (!data?.length) {
-        Alert.alert("No contacts", "No contacts found.");
-        return;
-      }
-      const names = data.slice(0, 8).map((c) => c.name || "No name");
-      Alert.alert("Share contact", "Pick a contact to share with this user", [
-        { text: "Cancel", style: "cancel" },
-        ...names.map((name, i) => ({
-          text: name,
-          onPress: () => sendContactToUser(data[i]),
-        })),
-      ]);
-    } catch (e) {
-      Alert.alert("Share contact", e?.message ?? "Could not share contact.");
+      const res = await chatApi.listChats({ limit: 100 });
+      if (res?.chats?.length) setChats(res.chats);
+    } catch (_) {}
+  }, [setChats]);
+
+  const getShareChatTitle = useCallback((c) => {
+    if (c.type === "group") return c.groupName || "Group";
+    const otherId = (c.participants || []).find((p) => String(p) !== String(userId));
+    if (!otherId) return "Direct chat";
+    const profile = participantProfiles[String(otherId)];
+    return profile?.displayName ?? `User ${otherId}`;
+  }, [userId, participantProfiles]);
+
+  const getShareChatAvatarUrl = useCallback((c) => {
+    if (c.type === "group") return null;
+    const otherId = (c.participants || []).find((p) => String(p) !== String(userId));
+    return otherId ? participantProfiles[String(otherId)]?.avatarUrl : null;
+  }, [userId, participantProfiles]);
+
+  const toggleShareChat = useCallback((chatId) => {
+    setShareProfileSelected((prev) => ({ ...prev, [chatId]: !prev[chatId] }));
+  }, []);
+
+  const handleShareProfileToChats = useCallback(async () => {
+    const uid = user?.id ?? user?.userId;
+    if (!uid) return;
+    const selectedIds = Object.keys(shareProfileSelected).filter((id) => shareProfileSelected[id]);
+    if (selectedIds.length === 0) {
+      Alert.alert("Select chats", "Select at least one chat to share this profile to.");
+      return;
     }
-  }, [user, sendContactToUser]);
+    const accountPrivate = !!(user?.account_private ?? user?.accountPrivate);
+    const profilePayload = {
+      userId: uid,
+      id: uid,
+      displayName: user?.display_name ?? user?.displayName ?? "User",
+      avatarUrl: user?.avatar_url ?? user?.avatarUrl ?? "",
+      accountPrivate: accountPrivate,
+    };
+    if (!accountPrivate) {
+      if (user?.id ?? user?.userId) profilePayload.id = String(user?.id ?? user?.userId);
+      const phone = user?.phone_number ?? user?.phoneNumber ?? "";
+      if (phone) profilePayload.phone = phone.trim().startsWith("+") ? phone.trim() : `+${phone.trim()}`;
+    }
+    const text = JSON.stringify(profilePayload);
+    setShareProfileSending(true);
+    const token = useAuthStoreForToken.getState().token;
+    if (token) ensureChatSocket(token);
+    let done = 0;
+    let failed = 0;
+    const total = selectedIds.length;
+    selectedIds.forEach((chatId) => {
+      sendChatMessage({ chatId, type: "profile", text, mediaUrl: "" }, (ack) => {
+        if (ack?.ok) done++;
+        else failed++;
+        if (done + failed === total) {
+          setShareProfileSending(false);
+          setShareProfileVisible(false);
+          setShareProfileSelected({});
+          if (done > 0) {
+            Alert.alert("Shared", `Profile shared to ${done} chat${done !== 1 ? "s" : ""}.${failed > 0 ? ` ${failed} failed.` : ""}`);
+            if (done === 1) navigation.navigate("Chat", { screen: "ChatRoom", params: { chatId: selectedIds[0] } });
+          } else {
+            Alert.alert("Error", "Could not share profile to any chat.");
+          }
+        }
+      });
+    });
+  }, [user, shareProfileSelected, navigation]);
 
   if (loading && !user) {
     return (
@@ -409,9 +432,9 @@ export default function UserProfileScreen() {
             <MaterialIcons name="message" size={20} color={colors.white} />
             <Text style={styles.messageBtnText}>Message</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.shareContactBtn} onPress={handleShareContact} activeOpacity={0.8}>
-            <MaterialIcons name="contacts" size={20} color={colors.primary} />
-            <Text style={styles.shareContactBtnText}>Share contact</Text>
+          <TouchableOpacity style={styles.shareContactBtn} onPress={openShareProfileModal} activeOpacity={0.8}>
+            <MaterialIcons name="share" size={20} color={colors.primary} />
+            <Text style={styles.shareContactBtnText}>Share profile</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -471,6 +494,66 @@ export default function UserProfileScreen() {
         >
           <MaterialIcons name="close" size={28} color={colors.white} />
         </TouchableOpacity>
+      </Pressable>
+    </Modal>
+
+    <Modal visible={shareProfileVisible} transparent animationType="slide" onRequestClose={() => !shareProfileSending && setShareProfileVisible(false)}>
+      <Pressable style={styles.shareProfileOverlay} onPress={() => !shareProfileSending && setShareProfileVisible(false)}>
+        <Pressable style={[styles.shareProfileSheet, { backgroundColor: colors.surface, paddingBottom: insets.bottom + spacing.md }]} onPress={(e) => e.stopPropagation()}>
+          <View style={[styles.shareProfileHandle, { backgroundColor: colors.border }]} />
+          <Text style={[styles.shareProfileTitle, { color: colors.text }]}>Share profile to</Text>
+          <Text style={[styles.shareProfileSub, { color: colors.textMuted }]}>Select one or more chats</Text>
+          <ScrollView style={styles.shareProfileList} keyboardShouldPersistTaps="handled">
+            {shareChatsSorted.length === 0 ? (
+              <Text style={[styles.shareProfileEmpty, { color: colors.textMuted }]}>No chats yet</Text>
+            ) : (
+              shareChatsSorted.map((c) => {
+                const cid = c._id || c.id;
+                const title = getShareChatTitle(c);
+                const subtitle = c.lastMessagePreview || "No message yet";
+                const avatarUrl = getShareChatAvatarUrl(c);
+                const selected = !!shareProfileSelected[String(cid)];
+                return (
+                  <TouchableOpacity
+                    key={cid}
+                    style={[styles.shareProfileItem, { borderBottomColor: colors.border }]}
+                    onPress={() => toggleShareChat(String(cid))}
+                    activeOpacity={0.7}
+                  >
+                    {avatarUrl ? (
+                      <Image source={{ uri: avatarUrl }} style={styles.shareProfileAvatar} />
+                    ) : (
+                      <View style={[styles.shareProfileAvatar, styles.shareProfileAvatarPlaceholder]}>
+                        <Text style={styles.shareProfileAvatarLetter}>{title.charAt(0).toUpperCase()}</Text>
+                      </View>
+                    )}
+                    <View style={styles.shareProfileItemBody}>
+                      <Text style={[styles.shareProfileItemText, { color: colors.text }]} numberOfLines={1}>{title}</Text>
+                      <Text style={[styles.shareProfileItemSub, { color: colors.textMuted }]} numberOfLines={1}>{subtitle}</Text>
+                    </View>
+                    <MaterialIcons name={selected ? "check-circle" : "radio-button-unchecked"} size={26} color={selected ? colors.primary : colors.textMuted} />
+                  </TouchableOpacity>
+                );
+              })
+            )}
+          </ScrollView>
+          <View style={styles.shareProfileActions}>
+            <TouchableOpacity style={styles.shareProfileCancelBtn} onPress={() => setShareProfileVisible(false)} disabled={shareProfileSending}>
+              <Text style={[styles.shareProfileCancelText, { color: colors.textMuted }]}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.shareProfileSendBtn, { backgroundColor: colors.primary }]}
+              onPress={handleShareProfileToChats}
+              disabled={shareProfileSending || Object.values(shareProfileSelected).every((v) => !v)}
+            >
+              {shareProfileSending ? (
+                <ActivityIndicator size="small" color={colors.white} />
+              ) : (
+                <Text style={styles.shareProfileSendText}>Share</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </Pressable>
       </Pressable>
     </Modal>
   </>
@@ -643,5 +726,60 @@ function createStyles(colors) {
       justifyContent: "center",
       alignItems: "center",
     },
+    shareProfileOverlay: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.4)",
+      justifyContent: "flex-end",
+    },
+    shareProfileSheet: {
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      paddingTop: spacing.sm,
+      paddingHorizontal: spacing.md,
+      maxHeight: "80%",
+    },
+    shareProfileHandle: {
+      width: 40,
+      height: 4,
+      borderRadius: 2,
+      alignSelf: "center",
+      marginBottom: spacing.md,
+    },
+    shareProfileTitle: { fontSize: 18, fontWeight: "700", marginBottom: 4 },
+    shareProfileSub: { fontSize: 13, marginBottom: spacing.md },
+    shareProfileList: { maxHeight: 320, marginBottom: spacing.md },
+    shareProfileEmpty: { paddingVertical: spacing.lg, textAlign: "center" },
+    shareProfileItem: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingVertical: spacing.md,
+      gap: spacing.sm,
+      borderBottomWidth: 1,
+    },
+    shareProfileAvatar: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+    },
+    shareProfileAvatarPlaceholder: {
+      backgroundColor: colors.primary,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    shareProfileAvatarLetter: { color: colors.white, fontSize: 18, fontWeight: "700" },
+    shareProfileItemBody: { flex: 1, minWidth: 0 },
+    shareProfileItemText: { fontSize: 16, fontWeight: "600" },
+    shareProfileItemSub: { fontSize: 13, marginTop: 2 },
+    shareProfileActions: { flexDirection: "row", justifyContent: "flex-end", alignItems: "center", gap: spacing.md },
+    shareProfileCancelBtn: { paddingVertical: spacing.sm, paddingHorizontal: spacing.sm },
+    shareProfileCancelText: { fontSize: 16 },
+    shareProfileSendBtn: {
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.lg,
+      borderRadius: 12,
+      minWidth: 100,
+      alignItems: "center",
+    },
+    shareProfileSendText: { fontSize: 16, fontWeight: "700", color: colors.white },
   });
 }

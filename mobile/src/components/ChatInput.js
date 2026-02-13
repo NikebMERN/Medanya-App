@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from "react";
+import React, { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import {
   View,
   TextInput,
@@ -37,7 +37,7 @@ export default function ChatInput({
   onMediaPicked = null,
 }) {
   const colors = useThemeColors();
-  const styles = createStyles(colors);
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [text, setText] = useState("");
   const [uploading, setUploading] = useState(false);
   const [recording, setRecording] = useState(false);
@@ -415,19 +415,23 @@ export default function ChatInput({
       <Modal visible={pollModalVisible} transparent animationType="fade" onRequestClose={() => setPollModalVisible(false)}>
         <Pressable style={styles.plusMenuOverlay} onPress={() => setPollModalVisible(false)}>
           <Pressable style={[styles.pollModalBox, { backgroundColor: colors.surface }]} onPress={(e) => e.stopPropagation()}>
-            <Text style={[styles.plusMenuTitle, { color: colors.text }]}>New poll</Text>
+            <View style={styles.pollModalHeader}>
+              <MaterialIcons name="poll" size={24} color={colors.primary} />
+              <Text style={[styles.pollModalTitle, { color: colors.text }]}>New poll</Text>
+            </View>
+            <Text style={[styles.pollModalLabel, { color: colors.textMuted }]}>Question</Text>
             <TextInput
-              style={[styles.pollInput, { backgroundColor: colors.surfaceLight, color: colors.text }]}
-              placeholder="Question"
+              style={[styles.pollInput, { backgroundColor: colors.surfaceLight, color: colors.text, borderColor: colors.border }]}
+              placeholder="Ask a question..."
               placeholderTextColor={colors.textMuted}
               value={pollQuestion}
               onChangeText={setPollQuestion}
             />
-            <Text style={[styles.plusMenuLabel, { marginBottom: 4 }]}>Options</Text>
+            <Text style={[styles.pollModalLabel, { color: colors.textMuted, marginTop: spacing.md }]}>Options (at least 2)</Text>
             {pollOptions.map((opt, i) => (
               <TextInput
                 key={i}
-                style={[styles.pollInput, { backgroundColor: colors.surfaceLight, color: colors.text }]}
+                style={[styles.pollInput, { backgroundColor: colors.surfaceLight, color: colors.text, borderColor: colors.border }]}
                 placeholder={`Option ${i + 1}`}
                 placeholderTextColor={colors.textMuted}
                 value={pollOptions[i]}
@@ -435,14 +439,14 @@ export default function ChatInput({
               />
             ))}
             <TouchableOpacity style={styles.pollAddOpt} onPress={() => setPollOptions((p) => [...p, ""])}>
-              <MaterialIcons name="add" size={20} color={colors.primary} />
-              <Text style={[styles.plusMenuLabel, { color: colors.primary }]}>Add option</Text>
+              <MaterialIcons name="add-circle-outline" size={22} color={colors.primary} />
+              <Text style={[styles.plusMenuLabel, { color: colors.primary, fontWeight: "600" }]}>Add option</Text>
             </TouchableOpacity>
             <View style={styles.pollActions}>
-              <TouchableOpacity onPress={() => setPollModalVisible(false)}>
+              <TouchableOpacity style={styles.pollCancelBtn} onPress={() => setPollModalVisible(false)}>
                 <Text style={[styles.plusMenuLabel, { color: colors.textMuted }]}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={sendPoll} style={[styles.sendBtn, { paddingHorizontal: spacing.lg }]}>
+              <TouchableOpacity onPress={sendPoll} style={[styles.sendBtn, styles.pollSendBtn]}>
                 <Text style={styles.sendLabel}>Send poll</Text>
               </TouchableOpacity>
             </View>
@@ -561,12 +565,22 @@ function createStyles(colors) {
     pollModalBox: {
       marginHorizontal: spacing.lg,
       padding: spacing.lg,
-      borderRadius: 16,
+      borderRadius: 20,
       maxWidth: 400,
       alignSelf: "center",
+      width: "100%",
     },
+    pollModalHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.sm,
+      marginBottom: spacing.md,
+    },
+    pollModalTitle: { fontSize: 18, fontWeight: "700" },
+    pollModalLabel: { fontSize: 13, fontWeight: "600", marginBottom: 6 },
     pollInput: {
-      borderRadius: 10,
+      borderRadius: 12,
+      borderWidth: 1,
       paddingHorizontal: spacing.md,
       paddingVertical: spacing.sm,
       fontSize: 16,
@@ -575,15 +589,19 @@ function createStyles(colors) {
     pollAddOpt: {
       flexDirection: "row",
       alignItems: "center",
-      gap: spacing.xs,
+      gap: spacing.sm,
       marginBottom: spacing.md,
+      paddingVertical: spacing.sm,
     },
     pollActions: {
       flexDirection: "row",
       justifyContent: "flex-end",
       alignItems: "center",
       gap: spacing.md,
+      marginTop: spacing.sm,
     },
+    pollCancelBtn: { paddingVertical: spacing.sm, paddingHorizontal: spacing.sm },
+    pollSendBtn: { paddingHorizontal: spacing.lg },
     iconBtnRecording: {
       backgroundColor: colors.error + "20",
     },

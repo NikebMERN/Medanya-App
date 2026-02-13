@@ -1,4 +1,4 @@
-import React, { useRef } from "react";
+import React, { useRef, useMemo } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, Animated } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
@@ -17,7 +17,7 @@ const TAB_CONFIG = [
 export default function AppTabBar({ state, descriptors, navigation }) {
   const insets = useSafeAreaInsets();
   const colors = useThemeColors();
-  const styles = createStyles(colors, insets.bottom);
+  const styles = useMemo(() => createStyles(colors, insets.bottom), [colors, insets.bottom]);
   const scaleAnims = useRef({}).current;
 
   const getScaleAnim = (key) => {

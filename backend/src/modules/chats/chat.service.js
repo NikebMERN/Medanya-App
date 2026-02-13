@@ -2,6 +2,7 @@
 const mongoose = require("mongoose");
 const Chat = require("./chat.model");
 const Message = require("./message.model");
+const followDb = require("../users/follow.mysql");
 
 const MAX_GROUP_SIZE = 200;
 const MAX_LIMIT = 50;
@@ -42,6 +43,13 @@ function isGroupMod(chat, userId) {
 
 function canManageGroup(chat, userId) {
     return isGroupAdmin(chat, userId) || isGroupMod(chat, userId);
+}
+
+function canEditGroupProfile(chat, userId) {
+    const uid = toIdString(userId);
+    if (isGroupAdmin(chat, uid) || isGroupMod(chat, uid)) return true;
+    if (chat.isChannel) return !!(chat.membersCanEditChannel);
+    return !!(chat.membersCanEditProfile);
 }
 
 function encodeCursor(obj) {
@@ -165,6 +173,14 @@ async function listChats(currentUserId, { page = 1, limit = 20 } = {}) {
     const l = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 50);
     const skip = (p - 1) * l;
 
+    let blockedIds = [];
+    try {
+        blockedIds = await followDb.getBlockedUserIds(me);
+    } catch (_) {
+        // ignore if user_blocks table missing or MySQL unavailable
+    }
+    const blockedSet = new Set(blockedIds.map((id) => String(id)));
+
     const [items, total] = await Promise.all([
         Chat.find({ participants: me })
             .sort({ lastMessageAt: -1, updatedAt: -1 })
@@ -174,7 +190,13 @@ async function listChats(currentUserId, { page = 1, limit = 20 } = {}) {
         Chat.countDocuments({ participants: me }),
     ]);
 
-    return { page: p, limit: l, total, chats: items };
+    const filtered = items.filter((chat) => {
+        if (chat.type !== "direct") return true;
+        const other = (chat.participants || []).find((pid) => String(pid) !== me);
+        return !other || !blockedSet.has(String(other));
+    });
+
+    return { page: p, limit: l, total, chats: filtered };
 }
 
 async function getChatMeta(currentUserId, chatId) {
@@ -338,9 +360,15 @@ async function setGroupName(currentUserId, chatId, groupName) {
         err.code = "VALIDATION_ERROR";
         throw err;
     }
-    if (!isGroupAdmin(chat, me)) {
+    if (!isParticipant(chat, me)) {
         const err = new Error("FORBIDDEN");
         err.code = "FORBIDDEN";
+        throw err;
+    }
+    if (!canEditGroupProfile(chat, me)) {
+        const err = new Error("FORBIDDEN");
+        err.code = "FORBIDDEN";
+        err.message = "You don't have permission to edit the name";
         throw err;
     }
     const cleanName = String(groupName || "").trim();
@@ -350,6 +378,61 @@ async function setGroupName(currentUserId, chatId, groupName) {
         throw err;
     }
     chat.groupName = cleanName;
+    await chat.save();
+    return true;
+}
+
+async function setGroupAvatar(currentUserId, chatId, avatarUrl) {
+    const me = toIdString(currentUserId);
+    const chat = await getChatById(chatId);
+    if (!chat) {
+        const err = new Error("INVALID_CHAT");
+        err.code = "INVALID_CHAT";
+        throw err;
+    }
+    if (chat.type !== "group") {
+        const err = new Error("VALIDATION_ERROR");
+        err.code = "VALIDATION_ERROR";
+        throw err;
+    }
+    if (!isParticipant(chat, me)) {
+        const err = new Error("FORBIDDEN");
+        err.code = "FORBIDDEN";
+        throw err;
+    }
+    if (!canEditGroupProfile(chat, me)) {
+        const err = new Error("FORBIDDEN");
+        err.code = "FORBIDDEN";
+        err.message = "You don't have permission to change the group photo";
+        throw err;
+    }
+    chat.groupAvatarUrl = String(avatarUrl || "").trim();
+    await chat.save();
+    return true;
+}
+
+async function setGroupPermissions(currentUserId, chatId, payload) {
+    const me = toIdString(currentUserId);
+    const chat = await getChatById(chatId);
+    if (!chat) {
+        const err = new Error("INVALID_CHAT");
+        err.code = "INVALID_CHAT";
+        throw err;
+    }
+    if (chat.type !== "group") {
+        const err = new Error("VALIDATION_ERROR");
+        err.code = "VALIDATION_ERROR";
+        throw err;
+    }
+    if (toIdString(chat.createdBy) !== me && !isGroupAdmin(chat, me)) {
+        const err = new Error("FORBIDDEN");
+        err.code = "FORBIDDEN";
+        err.message = "Only the owner or admin can change permissions";
+        throw err;
+    }
+    if (payload.membersCanEditProfile !== undefined) chat.membersCanEditProfile = !!payload.membersCanEditProfile;
+    if (payload.membersCanSendMessages !== undefined) chat.membersCanSendMessages = !!payload.membersCanSendMessages;
+    if (payload.membersCanEditChannel !== undefined) chat.membersCanEditChannel = !!payload.membersCanEditChannel;
     await chat.save();
     return true;
 }
@@ -370,7 +453,7 @@ async function sendMessage(
         err.code = "FORBIDDEN";
         throw err;
     }
-    if (chat.isChannel && !isGroupAdmin(chat, me)) {
+    if (chat.isChannel && !isGroupAdmin(chat, me) && !chat.membersCanSendMessages) {
         const err = new Error("FORBIDDEN");
         err.code = "FORBIDDEN";
         err.message = "Only the channel owner can send messages";
@@ -378,7 +461,7 @@ async function sendMessage(
     }
 
     const msgType = String(type || "");
-    if (!["text", "image", "video", "voice", "file", "location", "poll", "contact"].includes(msgType)) {
+    if (!["text", "image", "video", "voice", "file", "location", "poll", "contact", "profile"].includes(msgType)) {
         const err = new Error("VALIDATION_ERROR");
         err.code = "VALIDATION_ERROR";
         throw err;
@@ -393,7 +476,7 @@ async function sendMessage(
         throw err;
     }
     const needsMedia = ["image", "video", "voice", "file"].includes(msgType);
-    const needsText = ["location", "poll", "contact"].includes(msgType);
+    const needsText = ["location", "poll", "contact", "profile"].includes(msgType);
     if (needsMedia && !bodyUrl.trim()) {
         const err = new Error("VALIDATION_ERROR");
         err.code = "VALIDATION_ERROR";
@@ -411,7 +494,7 @@ async function sendMessage(
         chatId: chat._id,
         senderId: me,
         type: msgType,
-        text: ["text", "location", "poll", "contact"].includes(msgType) ? bodyText : "",
+        text: ["text", "location", "poll", "contact", "profile"].includes(msgType) ? bodyText : "",
         mediaUrl: needsMedia ? bodyUrl : "",
         deliveredAt: createdAt,
         readBy: [{ userId: me, readAt: createdAt }],
@@ -437,7 +520,9 @@ async function sendMessage(
                                     ? "📊 Poll"
                                     : msgType === "contact"
                                         ? "👤 Contact"
-                                        : "Message";
+                                        : msgType === "profile"
+                                            ? "👤 Profile"
+                                            : "Message";
     await chat.save();
 
     return message.toObject();
@@ -462,6 +547,7 @@ async function listMessages(currentUserId, { chatId, cursor, limit }) {
     const decoded = cursor ? decodeCursor(cursor) : null;
 
     const query = { chatId: chat._id };
+    query.deletedForUserIds = { $ne: me };
 
     // cursor pagination: createdAt desc, _id desc
     if (decoded && decoded.createdAt && decoded.id) {
@@ -491,7 +577,170 @@ async function listMessages(currentUserId, { chatId, cursor, limit }) {
     // Return in chronological order for UI convenience
     items.reverse();
 
-    return { messages: items, nextCursor };
+    // Enrich poll messages with vote counts and current user's vote
+    const enriched = items.map((m) => {
+        if (m.type !== "poll" || !m.pollVotes) return m;
+        let options = [];
+        try {
+            const parsed = JSON.parse(m.text || "{}");
+            options = Array.isArray(parsed.options) ? parsed.options : [];
+        } catch (_) {}
+        const votes = m.pollVotes || [];
+        const optionCounts = options.map((_, idx) => votes.filter((v) => v.optionIndex === idx).length);
+        const totalVotes = optionCounts.reduce((s, c) => s + c, 0);
+        const myVote = votes.find((v) => String(v.userId) === me);
+        return {
+            ...m,
+            pollOptionCounts: optionCounts,
+            pollTotalVotes: totalVotes,
+            pollUserVote: myVote ? myVote.optionIndex : null,
+        };
+    });
+
+    return { messages: enriched, nextCursor };
+}
+
+async function deleteMessageForAll(currentUserId, chatId, messageId) {
+    const me = toIdString(currentUserId);
+    const chat = await getChatLean(chatId);
+    if (!chat) {
+        const err = new Error("INVALID_CHAT");
+        err.code = "INVALID_CHAT";
+        throw err;
+    }
+    if (!isParticipant(chat, me)) {
+        const err = new Error("FORBIDDEN");
+        err.code = "FORBIDDEN";
+        throw err;
+    }
+    const msg = await Message.findOne({ _id: messageId, chatId: chat._id }).lean();
+    if (!msg) {
+        const err = new Error("INVALID_MESSAGE");
+        err.code = "INVALID_MESSAGE";
+        throw err;
+    }
+    const isSender = toIdString(msg.senderId) === me;
+    const canDelete = isSender || (chat.type === "group" && isGroupAdmin(chat, me));
+    if (!canDelete) {
+        const err = new Error("FORBIDDEN");
+        err.code = "FORBIDDEN";
+        err.message = "Only the sender or group admin can delete for everyone";
+        throw err;
+    }
+    await Message.deleteOne({ _id: messageId, chatId: chat._id });
+
+    // Update chat's last message preview to the new latest message (or clear)
+    const nextMsg = await Message.findOne({ chatId: chat._id, deletedForUserIds: { $ne: me } })
+        .sort({ createdAt: -1, _id: -1 })
+        .lean();
+    if (nextMsg) {
+        const preview =
+            nextMsg.type === "text"
+                ? (nextMsg.text || "").slice(0, 80)
+                : nextMsg.type === "image"
+                    ? "📷 Image"
+                    : nextMsg.type === "video"
+                        ? "🎥 Video"
+                        : nextMsg.type === "voice"
+                            ? "🎙️ Voice"
+                            : nextMsg.type === "file"
+                                ? "📎 File"
+                                : nextMsg.type === "location"
+                                    ? "📍 Location"
+                                    : nextMsg.type === "poll"
+                                        ? "📊 Poll"
+                                        : nextMsg.type === "contact"
+                                            ? "👤 Contact"
+                                            : nextMsg.type === "profile"
+                                                ? "👤 Profile"
+                                                : "Message";
+        await Chat.updateOne(
+            { _id: chat._id },
+            { $set: { lastMessageAt: nextMsg.createdAt, lastMessagePreview: preview } }
+        );
+    } else {
+        await Chat.updateOne(
+            { _id: chat._id },
+            { $set: { lastMessageAt: null, lastMessagePreview: "" } }
+        );
+    }
+    return true;
+}
+
+async function deleteMessageForMe(currentUserId, chatId, messageId) {
+    const me = toIdString(currentUserId);
+    const chat = await getChatLean(chatId);
+    if (!chat) {
+        const err = new Error("INVALID_CHAT");
+        err.code = "INVALID_CHAT";
+        throw err;
+    }
+    if (!isParticipant(chat, me)) {
+        const err = new Error("FORBIDDEN");
+        err.code = "FORBIDDEN";
+        throw err;
+    }
+    const msg = await Message.findOne({ _id: messageId, chatId: chat._id });
+    if (!msg) {
+        const err = new Error("INVALID_MESSAGE");
+        err.code = "INVALID_MESSAGE";
+        throw err;
+    }
+    const deletedFor = msg.deletedForUserIds || [];
+    if (deletedFor.includes(me)) return true;
+    msg.deletedForUserIds = [...deletedFor, me];
+    await msg.save();
+    return true;
+}
+
+async function votePoll(currentUserId, chatId, messageId, optionIndex) {
+    const me = toIdString(currentUserId);
+    const chat = await getChatLean(chatId);
+    if (!chat) {
+        const err = new Error("INVALID_CHAT");
+        err.code = "INVALID_CHAT";
+        throw err;
+    }
+    if (!isParticipant(chat, me)) {
+        const err = new Error("FORBIDDEN");
+        err.code = "FORBIDDEN";
+        throw err;
+    }
+    const msg = await Message.findOne({ _id: messageId, chatId: chat._id });
+    if (!msg) {
+        const err = new Error("INVALID_MESSAGE");
+        err.code = "INVALID_MESSAGE";
+        throw err;
+    }
+    if (msg.type !== "poll") {
+        const err = new Error("VALIDATION_ERROR");
+        err.code = "VALIDATION_ERROR";
+        err.message = "Message is not a poll";
+        throw err;
+    }
+    let options = [];
+    try {
+        const parsed = JSON.parse(msg.text || "{}");
+        options = Array.isArray(parsed.options) ? parsed.options : [];
+    } catch (_) {}
+    const idx = parseInt(optionIndex, 10);
+    if (Number.isNaN(idx) || idx < 0 || idx >= options.length) {
+        const err = new Error("VALIDATION_ERROR");
+        err.code = "VALIDATION_ERROR";
+        err.message = "Invalid option index";
+        throw err;
+    }
+    const votes = (msg.pollVotes || []).filter((v) => String(v.userId) !== me);
+    votes.push({ userId: me, optionIndex: idx });
+    msg.pollVotes = votes;
+    await msg.save();
+    const optionCounts = options.map((_, i) => votes.filter((v) => v.optionIndex === i).length);
+    const totalVotes = optionCounts.reduce((s, c) => s + c, 0);
+    return {
+        pollOptionCounts: optionCounts,
+        pollTotalVotes: totalVotes,
+        pollUserVote: idx,
+    };
 }
 
 const SEARCH_GROUPS_LIMIT = 30;
@@ -631,7 +880,12 @@ module.exports = {
     leaveGroup,
     deleteGroup,
     setGroupName,
+    setGroupAvatar,
+    setGroupPermissions,
     sendMessage,
     listMessages,
     markMessagesRead,
+    deleteMessageForAll,
+    deleteMessageForMe,
+    votePoll,
 };

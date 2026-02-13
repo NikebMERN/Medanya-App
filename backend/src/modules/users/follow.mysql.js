@@ -287,6 +287,16 @@ async function listBlocked(blockerId, { page = 1, limit = 50 } = {}) {
     return { page: p, limit: l, total: c.total, users: rows };
 }
 
+/** Returns array of user ids that blockerId has blocked (for filtering chat lists). */
+async function getBlockedUserIds(blockerId) {
+    if (!blockerId) return [];
+    const [rows] = await pool.query(
+        `SELECT blocked_id FROM user_blocks WHERE blocker_id = ?`,
+        [blockerId],
+    );
+    return rows.map((r) => String(r.blocked_id));
+}
+
 module.exports = {
     follow,
     unfollow,
@@ -306,4 +316,5 @@ module.exports = {
     unblock,
     isBlocked,
     listBlocked,
+    getBlockedUserIds,
 };

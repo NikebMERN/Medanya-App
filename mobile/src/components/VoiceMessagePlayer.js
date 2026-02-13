@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Audio } from "expo-av";
 import { MaterialIcons } from "@expo/vector-icons";
@@ -14,7 +14,7 @@ const SPEEDS = [1, 1.5, 2];
  */
 export default function VoiceMessagePlayer({ mediaUrl, isOwn, createdAt }) {
   const colors = useThemeColors();
-  const styles = createStyles(colors, isOwn);
+  const styles = useMemo(() => createStyles(colors, isOwn), [colors, isOwn]);
   const [playing, setPlaying] = useState(false);
   const [positionMillis, setPositionMillis] = useState(0);
   const [durationMillis, setDurationMillis] = useState(0);

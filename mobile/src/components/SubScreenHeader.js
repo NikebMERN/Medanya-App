@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   View,
   Text,
@@ -27,7 +27,7 @@ export default function SubScreenHeader({
 }) {
   const insets = useSafeAreaInsets();
   const colors = useThemeColors();
-  const styles = createStyles(colors, insets.top);
+  const styles = useMemo(() => createStyles(colors, insets.top), [colors, insets.top]);
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const theme = useThemeStore((s) => s.theme);

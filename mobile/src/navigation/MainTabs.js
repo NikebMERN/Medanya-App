@@ -17,11 +17,15 @@ export default function MainTabs() {
     <Tab.Navigator
       tabBar={(props) => <AppTabBar {...props} />}
       screenOptions={{
+        lazy: false,
         headerShown: true,
         header: ({ navigation, route }) => {
-        const focusedRouteName = getFocusedRouteNameFromRoute(route);
-        return <AppHeader navigation={navigation} route={route} focusedRouteName={focusedRouteName} />;
-      },
+          const focusedRouteName = getFocusedRouteNameFromRoute(route) ?? route.name;
+          const isChatSub = route.name === "Chat" && focusedRouteName !== "Chats";
+          const isProfileSub = route.name === "Profile" && focusedRouteName !== "ProfileMain";
+          if (isChatSub || isProfileSub) return null;
+          return <AppHeader navigation={navigation} route={route} focusedRouteName={focusedRouteName} />;
+        },
       }}
     >
       <Tab.Screen name="Home" component={FeedScreen} options={{ title: "MEDANYA" }} />
@@ -33,11 +37,7 @@ export default function MainTabs() {
         component={ChatStack}
         options={({ route }) => {
           const routeName = getFocusedRouteNameFromRoute(route) ?? "Chats";
-          const isRoot = routeName === "Chats";
-          return {
-            title: "Chat",
-            headerShown: isRoot,
-          };
+          return { title: "Chat", headerShown: routeName === "Chats" };
         }}
       />
       <Tab.Screen
@@ -45,10 +45,7 @@ export default function MainTabs() {
         component={ProfileStack}
         options={({ route }) => {
           const routeName = getFocusedRouteNameFromRoute(route) ?? "ProfileMain";
-          return {
-            title: "Profile",
-            headerShown: routeName === "ProfileMain",
-          };
+          return { title: "Profile", headerShown: routeName === "ProfileMain" };
         }}
       />
     </Tab.Navigator>

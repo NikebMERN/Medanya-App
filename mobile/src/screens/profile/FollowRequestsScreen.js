@@ -21,7 +21,7 @@ export default function FollowRequestsScreen() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const colors = useThemeColors();
-  const styles = createStyles(colors);
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);

@@ -30,10 +30,8 @@ export async function getMe() {
 export async function uploadAvatarAndSave(uri) {
   const { uploadToCloudinary } = await import("../utils/env");
   const hostedUrl = await uploadToCloudinary(uri, "image");
-  console.log("[uploadAvatarAndSave] Cloudinary hosted URL:", hostedUrl);
   if (!hostedUrl) throw new Error("Could not get image URL from Cloudinary");
   const data = await updateMe({ avatarUrl: hostedUrl });
-  console.log("[uploadAvatarAndSave] Backend response user.avatar_url:", data?.user?.avatar_url, "user:", data?.user);
   return data;
 }
 

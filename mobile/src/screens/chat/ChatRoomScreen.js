@@ -15,6 +15,8 @@ import {
   TextInput,
   Pressable,
   ScrollView,
+  Switch,
+  useWindowDimensions,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -30,13 +32,16 @@ import {
   ensureChatSocket,
   joinChatRoom,
   sendChatMessage,
-  onChatMessageNew,
-  offChatMessageNew,
 } from "../../realtime/chat.socket";
 import { MaterialIcons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
 import ChatMessage from "../../components/ChatMessage";
 import ChatInput from "../../components/ChatInput";
 import { useThemeStore } from "../../store/theme.store";
+import { uploadToCloudinary } from "../../utils/env";
+import * as MediaLibrary from "expo-media-library";
+import * as FileSystem from "expo-file-system";
+import * as Sharing from "expo-sharing";
 
 const PAGE_SIZE = 20;
 
@@ -44,7 +49,7 @@ export default function ChatRoomScreen() {
   const route = useRoute();
   const navigation = useNavigation();
   const colors = useThemeColors();
-  const styles = createStyles(colors);
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const chatId = route.params?.chatId;
   const chatIdStr = String(chatId || "");
@@ -66,11 +71,13 @@ export default function ChatRoomScreen() {
   const removeOptimistic = useChatStore((s) => s.removeOptimistic);
   const updateChatInList = useChatStore((s) => s.updateChatInList);
   const removeChatFromList = useChatStore((s) => s.removeChatFromList);
+  const addBlockedUserId = useChatStore((s) => s.addBlockedUserId);
   const clearMessages = useChatStore((s) => s.clearMessages);
   const removeMessage = useChatStore((s) => s.removeMessage);
   const updateMessage = useChatStore((s) => s.updateMessage);
+  const setCurrentChatId = useChatStore((s) => s.setCurrentChatId);
+  const markChatAsRead = useChatStore((s) => s.markChatAsRead);
 
-  const handleNewMessageRef = useRef(null);
   const listRef = useRef(null);
 
   const [canMessage, setCanMessage] = useState(null);
@@ -83,23 +90,37 @@ export default function ChatRoomScreen() {
   const [chatParticipants, setChatParticipants] = useState([]);
   const [memberProfiles, setMemberProfiles] = useState({});
   const [isChannel, setIsChannel] = useState(false);
+  const [groupAvatarUrl, setGroupAvatarUrl] = useState("");
+  const [membersCanEditProfile, setMembersCanEditProfile] = useState(false);
+  const [membersCanSendMessages, setMembersCanSendMessages] = useState(false);
+  const [membersCanEditChannel, setMembersCanEditChannel] = useState(false);
   const [groupInfoVisible, setGroupInfoVisible] = useState(false);
   const [groupInfoTab, setGroupInfoTab] = useState("members");
-  const [zoomImageUri, setZoomImageUri] = useState(null);
+  const [zoomGalleryOpen, setZoomGalleryOpen] = useState(false);
+  const [zoomGalleryInitialIndex, setZoomGalleryInitialIndex] = useState(0);
   const [editGroupNameVisible, setEditGroupNameVisible] = useState(false);
   const [editGroupNameValue, setEditGroupNameValue] = useState("");
+  const [groupPhotoUploading, setGroupPhotoUploading] = useState(false);
+  const [chatSegmentIndex, setChatSegmentIndex] = useState(0);
+  const chatScrollRef = useRef(null);
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const [replyTo, setReplyTo] = useState(null);
   const [editingMessage, setEditingMessage] = useState(null);
   const [profileMenuVisible, setProfileMenuVisible] = useState(false);
   const [forwardMessage, setForwardMessage] = useState(null);
   const insets = useSafeAreaInsets();
   const chats = useChatStore((s) => s.chats);
+  const blockedUserIds = useChatStore((s) => s.blockedUserIds) || [];
   const currentUser = useAuthStore((s) => s.user);
   const currentUserAvatarUrl = currentUser?.avatar_url ?? currentUser?.avatarUrl;
   const currentUserDisplayName = currentUser?.display_name ?? currentUser?.displayName;
   const NICKNAME_KEY = (id) => `chat_nickname_${id}`;
   const isGroupOwner = chatType === "group" && chatCreatedBy && String(chatCreatedBy) === String(userId);
-  const canSendInChannel = !isChannel || isGroupOwner;
+  const canEditGroupProfile = isGroupOwner || (isChannel ? membersCanEditChannel : membersCanEditProfile);
+  const canSendInChannel = !isChannel || isGroupOwner || membersCanSendMessages;
+  const peerIsBlocked = peerUser?.id != null && blockedUserIds.includes(String(peerUser.id));
+  const peerDisplayName = peerIsBlocked ? "medanya_user" : (peerUser?.displayName || "User");
+  const peerAvatarUrl = peerIsBlocked ? null : (peerUser?.avatarUrl ?? null);
 
   useEffect(() => {
     if (chatType !== "group" || !chatParticipants.length) return;
@@ -140,8 +161,12 @@ export default function ChatRoomScreen() {
             setPeerUser({
               id: null,
               displayName: chat?.groupName || "Group",
-              avatarUrl: null,
+              avatarUrl: chat?.groupAvatarUrl || null,
             });
+            setGroupAvatarUrl(chat?.groupAvatarUrl || "");
+            setMembersCanEditProfile(!!chat?.membersCanEditProfile);
+            setMembersCanSendMessages(!!chat?.membersCanSendMessages);
+            setMembersCanEditChannel(!!chat?.membersCanEditChannel);
           }
           return;
         }
@@ -187,10 +212,16 @@ export default function ChatRoomScreen() {
         if (cursor) {
           prependMessages(chatId, list, next, hasMoreNext);
         } else {
-          setMessages(chatId, list, next, hasMoreNext);
+          const state = useChatStore.getState();
+          const current = state.messagesByChatId[String(chatId)] || [];
+          const pending = current.filter((m) => m.pendingTempId || m.uploading);
+          setMessages(chatId, [...list, ...pending], next, hasMoreNext);
         }
       } catch {
-        setMessages(chatId, [], null, false);
+        const state = useChatStore.getState();
+        const current = state.messagesByChatId[String(chatId)] || [];
+        const pending = current.filter((m) => m.pendingTempId || m.uploading);
+        setMessages(chatId, pending.length ? pending : [], null, false);
       } finally {
         setMessagesLoading(chatId, false);
       }
@@ -200,62 +231,34 @@ export default function ChatRoomScreen() {
 
   useEffect(() => {
     if (!chatId) return;
-    clearMessages(chatId);
     loadHistory(null);
   }, [chatId]);
 
   useEffect(() => {
+    if (!chatId) return;
+    setCurrentChatId(chatId);
+    markChatAsRead(chatId);
+    return () => setCurrentChatId(null);
+  }, [chatId, setCurrentChatId, markChatAsRead]);
+
+  useEffect(() => {
     if (!chatId || !token) return;
     ensureChatSocket(token);
-    joinChatRoom(chatId, (ack) => {
-      if (ack?.ok && ack.messages?.length) {
-        ack.messages.forEach((m) => appendMessage(chatId, m));
-      }
-    });
-  }, [chatId, token]);
-
-  useEffect(() => {
-    if (!chatId) return;
     const socket = getSocket();
     if (!socket) return;
-    const onConnect = () => joinChatRoom(chatId);
-    socket.on("connect", onConnect);
-    return () => socket.off("connect", onConnect);
-  }, [chatId]);
-
-  useEffect(() => {
-    if (!chatId) return;
-    const handler = (message) => {
-      const msgChatId = String(message.chatId || message.chat);
-      if (msgChatId !== String(chatId)) return;
-      // Don't append our own message — we already have it from optimistic + replaceOptimistic
-      if (String(message.senderId) === String(userId)) return;
-      appendMessage(chatId, message);
-      const preview =
-        message.type === "text"
-          ? (message.text || "").slice(0, 80)
-          : message.type === "image"
-            ? "📷 Image"
-            : message.type === "video"
-              ? "🎥 Video"
-              : "🎙️ Voice";
-      updateChatInList(chatId, {
-        lastMessageAt: message.createdAt,
-        lastMessagePreview: preview,
-      });
+    const ack = (res) => {
+      if (res?.ok && res.messages?.length) {
+        res.messages.forEach((m) => appendMessage(chatId, m));
+      }
     };
-    handleNewMessageRef.current = handler;
-    onChatMessageNew(handler);
-    return () => {
-      offChatMessageNew(handler);
-    };
-  }, [chatId, userId, appendMessage, updateChatInList]);
-
-  useEffect(() => {
-    return () => {
-      offChatMessageNew(handleNewMessageRef.current);
-    };
-  }, []);
+    if (socket.connected) {
+      joinChatRoom(chatId, ack);
+    } else {
+      const once = () => joinChatRoom(chatId, ack);
+      socket.once("connect", once);
+      return () => socket.off("connect", once);
+    }
+  }, [chatId, token, appendMessage]);
 
   const onMediaPicked = useCallback(
     (uri, type) => {
@@ -294,7 +297,7 @@ export default function ChatRoomScreen() {
       const text = (typeof payload === "string" ? payload : payload?.text) ?? "";
       const mediaUrl = typeof payload === "object" ? (payload?.mediaUrl ?? "") : "";
       const existingTempId = typeof payload === "object" ? payload?.tempId : null;
-      const hasContent = type === "text" ? text.trim() : mediaUrl || (["location", "poll", "contact"].includes(type) && text.trim());
+      const hasContent = type === "text" ? text.trim() : mediaUrl || (["location", "poll", "contact", "profile"].includes(type) && text.trim());
       if (!hasContent) return;
       setReplyTo(null);
 
@@ -319,7 +322,7 @@ export default function ChatRoomScreen() {
         {
           chatId,
           type,
-          text: ["text", "location", "poll", "contact"].includes(type) ? (text || "").trim() : "",
+          text: ["text", "location", "poll", "contact", "profile"].includes(type) ? (text || "").trim() : "",
           mediaUrl: ["image", "video", "voice", "file"].includes(type) ? mediaUrl : "",
         },
         (ack) => {
@@ -329,13 +332,13 @@ export default function ChatRoomScreen() {
               chatId,
               senderId: userId,
               type,
-              text: ["text", "location", "poll", "contact"].includes(type) ? (text || "").trim() : "",
+              text: ["text", "location", "poll", "contact", "profile"].includes(type) ? (text || "").trim() : "",
               mediaUrl: ["image", "video", "voice", "file"].includes(type) ? mediaUrl : "",
               createdAt: ack.createdAt,
               pending: false,
             });
             const preview =
-              type === "text" ? (text.trim().slice(0, 80)) : type === "image" ? "📷 Image" : type === "video" ? "🎥 Video" : type === "voice" ? "🎙️ Voice" : type === "file" ? "📎 File" : type === "location" ? "📍 Location" : type === "poll" ? "📊 Poll" : type === "contact" ? "👤 Contact" : "Message";
+              type === "text" ? (text.trim().slice(0, 80)) : type === "image" ? "📷 Image" : type === "video" ? "🎥 Video" : type === "voice" ? "🎙️ Voice" : type === "file" ? "📎 File" : type === "location" ? "📍 Location" : type === "poll" ? "📊 Poll" : type === "contact" ? "👤 Contact" : type === "profile" ? "👤 Profile" : "Message";
             updateChatInList(chatId, { lastMessageAt: ack.createdAt, lastMessagePreview: preview });
           } else {
             removeOptimistic(chatId, tempId);
@@ -355,6 +358,20 @@ export default function ChatRoomScreen() {
     if (!peerUser?.id || String(peerUser.id) === String(userId)) return;
     navigation.navigate("UserProfile", { userId: peerUser.id });
   }, [peerUser, userId, navigation]);
+
+  const onProfilePress = useCallback((msg) => {
+    let uid = msg?.userId;
+    if (uid == null && msg?.type === "profile" && msg?.text) {
+      try {
+        const p = JSON.parse(msg.text);
+        uid = p.userId ?? p.id;
+      } catch (_) {}
+    }
+    if (uid) {
+      setGroupInfoVisible(false);
+      navigation.navigate("UserProfile", { userId: String(uid) });
+    }
+  }, [navigation]);
 
   useEffect(() => {
     if (!peerUser?.id || chatType !== "direct") return;
@@ -395,9 +412,10 @@ export default function ChatRoomScreen() {
 
   const onBlockPeer = useCallback(async () => {
     if (!peerUser?.id) return;
+    const name = peerDisplayName || "this user";
     Alert.alert(
       "Block",
-      `Block ${peerUser.displayName || "this user"}? They won't be able to message you or see your profile.`,
+      `Block ${name}? They won't be able to message you or see your profile.`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -406,6 +424,7 @@ export default function ChatRoomScreen() {
           onPress: async () => {
             try {
               await userApi.blockUser(peerUser.id);
+              addBlockedUserId(peerUser.id);
               navigation.navigate("Chat", { screen: "Chats" });
             } catch (e) {
               Alert.alert("Error", e?.message || "Could not block.");
@@ -414,7 +433,7 @@ export default function ChatRoomScreen() {
         },
       ]
     );
-  }, [peerUser, navigation]);
+  }, [peerUser, peerDisplayName, navigation, addBlockedUserId]);
 
   const onUnfollowPeer = useCallback(async () => {
     if (!peerUser?.id) return;
@@ -435,19 +454,133 @@ export default function ChatRoomScreen() {
     setNicknameInput("");
   }, [peerUser?.id, nicknameInput]);
 
+  const updateChatPreviewFromMessages = useCallback(
+    (msgs) => {
+      if (!chatId) return;
+      const list = (msgs || []).filter((m) => !m.pending);
+      const last = list.length > 0 ? list[list.length - 1] : null;
+      if (!last) {
+        updateChatInList(chatId, { lastMessagePreview: "", lastMessageAt: null });
+        return;
+      }
+      const type = last.type || "text";
+      const preview =
+        type === "text"
+          ? (last.text || "").slice(0, 80)
+          : type === "image"
+            ? "📷 Image"
+            : type === "video"
+              ? "🎥 Video"
+              : type === "voice"
+                ? "🎙️ Voice"
+                : type === "file"
+                  ? "📎 File"
+                  : type === "location"
+                    ? "📍 Location"
+                    : type === "poll"
+                      ? "📊 Poll"
+                      : type === "contact"
+                        ? "👤 Contact"
+                        : type === "profile"
+                          ? "👤 Profile"
+                          : "Message";
+      updateChatInList(chatId, { lastMessagePreview: preview, lastMessageAt: last.createdAt });
+    },
+    [chatId, updateChatInList]
+  );
+
+  const handleDeleteForAll = useCallback(
+    async (msgId) => {
+      if (!msgId || !chatId) return;
+      try {
+        await chatApi.deleteMessageForAll(chatId, msgId);
+        removeMessage(chatId, msgId);
+        const remaining = useChatStore.getState().messagesByChatId[String(chatId)] || [];
+        updateChatPreviewFromMessages(remaining);
+      } catch (e) {
+        Alert.alert("Error", e?.response?.data?.error?.message || e?.message || "Could not delete for everyone.");
+      }
+    },
+    [chatId, removeMessage, updateChatPreviewFromMessages]
+  );
+
+  const handleDeleteForMe = useCallback(
+    async (msgId) => {
+      if (!msgId || !chatId) return;
+      try {
+        await chatApi.deleteMessageForMe(chatId, msgId);
+        removeMessage(chatId, msgId);
+        const remaining = useChatStore.getState().messagesByChatId[String(chatId)] || [];
+        updateChatPreviewFromMessages(remaining);
+      } catch (e) {
+        Alert.alert("Error", e?.response?.data?.error?.message || e?.message || "Could not delete for you.");
+      }
+    },
+    [chatId, removeMessage, updateChatPreviewFromMessages]
+  );
+
+  const onVotePoll = useCallback(
+    async (messageId, optionIndex) => {
+      if (!chatId) return;
+      try {
+        const data = await chatApi.votePoll(chatId, messageId, optionIndex);
+        updateMessage(chatId, messageId, {
+          pollOptionCounts: data.pollOptionCounts,
+          pollTotalVotes: data.pollTotalVotes,
+          pollUserVote: data.pollUserVote,
+        });
+      } catch (e) {
+        Alert.alert("Error", e?.response?.data?.error?.message || e?.message || "Could not vote.");
+      }
+    },
+    [chatId, updateMessage]
+  );
+
+  const handleSaveMedia = useCallback(async (mediaUrl, type) => {
+    if (!mediaUrl) return;
+    try {
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission needed", "Allow access to save to your gallery.");
+        return;
+      }
+      const ext = type === "image" ? "jpg" : type === "video" ? "mp4" : "file";
+      const filename = `${FileSystem.cacheDirectory}save_${Date.now()}.${ext}`;
+      const { uri: localUri } = await FileSystem.downloadAsync(mediaUrl, filename);
+      if (type === "image" || type === "video") {
+        await MediaLibrary.saveToLibraryAsync(localUri);
+        Alert.alert("Saved", type === "image" ? "Image saved to gallery." : "Video saved to gallery.");
+      } else {
+        const canShare = await Sharing.isAvailableAsync();
+        if (canShare) {
+          await Sharing.shareAsync(localUri, { mimeType: "application/octet-stream", dialogTitle: "Save file" });
+        } else {
+          Alert.alert("Saved", "File saved. You can open it from the app cache.");
+        }
+      }
+    } catch (e) {
+      Alert.alert("Error", e?.message || "Could not save.");
+    }
+  }, []);
+
   const showMessageActions = useCallback(
     (message) => {
       const msgId = message._id || message.id || message.pendingTempId;
       const isOwnMsg = String(message.senderId) === String(userId);
       const isText = message.type === "text";
+      const hasMedia = (message.type === "image" || message.type === "video" || message.type === "file") && (message.mediaUrl || message.media_url);
+      const mediaUrl = message.mediaUrl || message.media_url;
+      const mediaType = message.type;
       if (isOwnMsg) {
-        const options = ["Delete all", "Delete for me", "Reply", "Forward", isText ? "Edit" : null, "Cancel"].filter(Boolean);
+        const options = ["Delete all", "Delete for me", "Reply", "Forward", hasMedia ? "Save" : null, isText ? "Edit" : null, "Cancel"].filter(Boolean);
         const cancelIdx = options.length - 1;
         const run = (i) => {
           if (i === cancelIdx) return;
-          if (options[i] === "Delete all" || options[i] === "Delete for me") removeMessage(chatId, msgId);
+          if (options[i] === "Delete all") handleDeleteForAll(msgId);
+          else if (options[i] === "Delete for me") handleDeleteForMe(msgId);
           else if (options[i] === "Reply") setReplyTo(message);
           else if (options[i] === "Forward") setForwardMessage(message);
+          else if (options[i] === "Save") handleSaveMedia(mediaUrl, mediaType);
           else if (options[i] === "Edit") setEditingMessage(message);
         };
         if (Platform.OS === "ios" && ActionSheetIOS?.showActionSheetWithOptions) {
@@ -455,34 +588,38 @@ export default function ChatRoomScreen() {
         } else {
           Alert.alert("Message", null, [
             { text: "Cancel", style: "cancel" },
-            { text: "Delete all", onPress: () => removeMessage(chatId, msgId) },
-            { text: "Delete for me", onPress: () => removeMessage(chatId, msgId) },
+            { text: "Delete all", onPress: () => handleDeleteForAll(msgId) },
+            { text: "Delete for me", onPress: () => handleDeleteForMe(msgId) },
             { text: "Reply", onPress: () => setReplyTo(message) },
             { text: "Forward", onPress: () => setForwardMessage(message) },
+            ...(hasMedia ? [{ text: "Save", onPress: () => handleSaveMedia(mediaUrl, mediaType) }] : []),
             ...(isText ? [{ text: "Edit", onPress: () => setEditingMessage(message) }] : []),
           ]);
         }
       } else {
-        const options = ["Delete for me", "Reply", "Forward", "Cancel"];
-        const cancelIdx = 3;
+        const options = ["Delete for me", "Reply", "Forward", hasMedia ? "Save" : null, "Cancel"].filter(Boolean);
+        const cancelIdx = options.length - 1;
         const run = (i) => {
-          if (i === 0) removeMessage(chatId, msgId);
-          else if (i === 1) setReplyTo(message);
-          else if (i === 2) setForwardMessage(message);
+          if (i === cancelIdx) return;
+          if (options[i] === "Delete for me") handleDeleteForMe(msgId);
+          else if (options[i] === "Reply") setReplyTo(message);
+          else if (options[i] === "Forward") setForwardMessage(message);
+          else if (options[i] === "Save") handleSaveMedia(mediaUrl, mediaType);
         };
         if (Platform.OS === "ios" && ActionSheetIOS?.showActionSheetWithOptions) {
           ActionSheetIOS.showActionSheetWithOptions({ options, cancelButtonIndex: cancelIdx }, run);
         } else {
           Alert.alert("Message", null, [
             { text: "Cancel", style: "cancel" },
-            { text: "Delete for me", onPress: () => removeMessage(chatId, msgId) },
+            { text: "Delete for me", onPress: () => handleDeleteForMe(msgId) },
             { text: "Reply", onPress: () => setReplyTo(message) },
             { text: "Forward", onPress: () => setForwardMessage(message) },
+            ...(hasMedia ? [{ text: "Save", onPress: () => handleSaveMedia(mediaUrl, mediaType) }] : []),
           ]);
         }
       }
     },
-    [chatId, userId, removeMessage]
+    [chatId, userId, removeMessage, handleDeleteForAll, handleDeleteForMe, handleSaveMedia]
   );
 
   const forwardToChat = useCallback(
@@ -553,7 +690,9 @@ export default function ChatRoomScreen() {
         avatarUrl={avatarUrlForSender}
         seen={isOwn && readByPeer}
         onLongPress={showMessageActions}
-        onMediaPress={(uri) => setZoomImageUri(uri)}
+        onMediaPress={(uri) => openZoomGallery(uri)}
+        onProfilePress={onProfilePress}
+        onVotePoll={onVotePoll}
         isGroupChat={chatType === "group"}
       />
     );
@@ -590,17 +729,17 @@ export default function ChatRoomScreen() {
       >
         {peerUser ? (
           <>
-            {peerUser.avatarUrl ? (
-              <Image source={{ uri: peerUser.avatarUrl }} style={styles.chatHeaderAvatar} />
+            {peerAvatarUrl ? (
+              <Image source={{ uri: peerAvatarUrl }} style={styles.chatHeaderAvatar} />
             ) : (
               <View style={styles.chatHeaderAvatarPlaceholder}>
                 <Text style={styles.chatHeaderAvatarLetter}>
-                  {(peerUser.displayName || "?").charAt(0).toUpperCase()}
+                  {(peerDisplayName || "?").charAt(0).toUpperCase()}
                 </Text>
               </View>
             )}
             <Text style={styles.chatHeaderName} numberOfLines={1}>
-              {peerNickname || peerUser.displayName}
+              {peerNickname || peerDisplayName}
             </Text>
           </>
         ) : (
@@ -655,6 +794,18 @@ export default function ChatRoomScreen() {
     );
   }, [messages]);
 
+  const imageOnlyItems = useMemo(() => mediaItems.filter((m) => m.type === "image"), [mediaItems]);
+
+  const openZoomGallery = useCallback((uriOrIndex) => {
+    if (typeof uriOrIndex === "number") {
+      setZoomGalleryInitialIndex(Math.max(0, Math.min(uriOrIndex, imageOnlyItems.length - 1)));
+    } else {
+      const idx = imageOnlyItems.findIndex((m) => m.mediaUrl === uriOrIndex);
+      setZoomGalleryInitialIndex(idx >= 0 ? idx : 0);
+    }
+    setZoomGalleryOpen(true);
+  }, [imageOnlyItems]);
+
   const nicknameModal = (
     <Modal visible={nicknameModalVisible} transparent animationType="fade">
       <Pressable style={styles.modalOverlay} onPress={() => setNicknameModalVisible(false)}>
@@ -690,6 +841,31 @@ export default function ChatRoomScreen() {
           </TouchableOpacity>
           <Text style={styles.groupInfoTitle}>{peerUser?.displayName || "Group"}</Text>
         </View>
+        <View style={styles.groupInfoAvatarSection}>
+          <TouchableOpacity
+            onPress={canEditGroupProfile && !groupPhotoUploading ? changeGroupPhoto : undefined}
+            style={styles.groupInfoAvatarWrap}
+            disabled={!canEditGroupProfile || groupPhotoUploading}
+          >
+            {(peerUser?.avatarUrl || groupAvatarUrl) ? (
+              <Image source={{ uri: peerUser?.avatarUrl || groupAvatarUrl }} style={styles.groupInfoAvatar} />
+            ) : (
+              <View style={[styles.groupInfoAvatar, styles.groupInfoAvatarPlaceholder]}>
+                <Text style={styles.groupInfoAvatarLetter}>{(peerUser?.displayName || "G").charAt(0).toUpperCase()}</Text>
+              </View>
+            )}
+            {groupPhotoUploading && (
+              <View style={styles.groupInfoAvatarOverlay}>
+                <ActivityIndicator size="small" color={colors.white} />
+              </View>
+            )}
+            {canEditGroupProfile && !groupPhotoUploading && (
+              <View style={styles.groupInfoAvatarEditBadge}>
+                <MaterialIcons name="camera-alt" size={18} color={colors.white} />
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
         <View style={styles.groupInfoTabs}>
           <TouchableOpacity
             style={[styles.groupInfoTab, groupInfoTab === "members" && styles.groupInfoTabActive]}
@@ -704,18 +880,30 @@ export default function ChatRoomScreen() {
             <Text style={[styles.groupInfoTabText, groupInfoTab === "media" && styles.groupInfoTabTextActive]}>Media</Text>
           </TouchableOpacity>
         </View>
-        {isGroupOwner && (
-          <View style={styles.groupInfoActions}>
-            <TouchableOpacity
-              style={styles.groupInfoActionBtn}
-              onPress={() => {
-                setEditGroupNameValue(peerUser?.displayName || "");
-                setEditGroupNameVisible(true);
-              }}
-            >
-              <MaterialIcons name="edit" size={20} color={colors.primary} />
-              <Text style={styles.groupInfoActionText}>Edit name</Text>
-            </TouchableOpacity>
+        <View style={styles.groupInfoActions}>
+          {canEditGroupProfile && (
+            <>
+              <TouchableOpacity
+                style={styles.groupInfoActionBtn}
+                onPress={() => {
+                  setEditGroupNameValue(peerUser?.displayName || "");
+                  setEditGroupNameVisible(true);
+                }}
+              >
+                <MaterialIcons name="edit" size={20} color={colors.primary} />
+                <Text style={styles.groupInfoActionText}>Edit name</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.groupInfoActionBtn}
+                onPress={changeGroupPhoto}
+                disabled={groupPhotoUploading}
+              >
+                <MaterialIcons name="photo-camera" size={20} color={colors.primary} />
+                <Text style={styles.groupInfoActionText}>{groupPhotoUploading ? "Uploading…" : "Change photo"}</Text>
+              </TouchableOpacity>
+            </>
+          )}
+          {isGroupOwner && (
             <TouchableOpacity
               style={styles.groupInfoActionBtn}
               onPress={() => {
@@ -726,19 +914,45 @@ export default function ChatRoomScreen() {
               <MaterialIcons name="person-add" size={20} color={colors.primary} />
               <Text style={styles.groupInfoActionText}>Add member</Text>
             </TouchableOpacity>
+          )}
+        </View>
+        {isGroupOwner && (
+          <View style={styles.groupInfoPermissions}>
+            <Text style={styles.groupInfoPermissionsTitle}>Permissions</Text>
+            {!isChannel && (
+              <View style={styles.groupInfoPermissionRow}>
+                <Text style={styles.groupInfoPermissionLabel}>Members can edit name & photo</Text>
+                <Switch
+                  value={membersCanEditProfile}
+                  onValueChange={(v) => setPermission("membersCanEditProfile", v)}
+                  trackColor={{ false: colors.border, true: colors.primary }}
+                  thumbColor={colors.white}
+                />
+              </View>
+            )}
+            {isChannel && (
+              <>
+                <View style={styles.groupInfoPermissionRow}>
+                  <Text style={styles.groupInfoPermissionLabel}>Members can send messages</Text>
+                  <Switch
+                    value={membersCanSendMessages}
+                    onValueChange={(v) => setPermission("membersCanSendMessages", v)}
+                    trackColor={{ false: colors.border, true: colors.primary }}
+                    thumbColor={colors.white}
+                  />
+                </View>
+                <View style={styles.groupInfoPermissionRow}>
+                  <Text style={styles.groupInfoPermissionLabel}>Members can edit channel name & photo</Text>
+                  <Switch
+                    value={membersCanEditChannel}
+                    onValueChange={(v) => setPermission("membersCanEditChannel", v)}
+                    trackColor={{ false: colors.border, true: colors.primary }}
+                    thumbColor={colors.white}
+                  />
+                </View>
+              </>
+            )}
           </View>
-        )}
-        {!isGroupOwner && (
-          <TouchableOpacity
-            style={styles.groupInfoActionBtn}
-            onPress={() => {
-              setGroupInfoVisible(false);
-              navigation.navigate("Chat", { screen: "AddGroupMembers", params: { chatId } });
-            }}
-          >
-            <MaterialIcons name="person-add" size={20} color={colors.primary} />
-            <Text style={styles.groupInfoActionText}>Add member</Text>
-          </TouchableOpacity>
         )}
         <ScrollView style={styles.groupInfoScroll} contentContainerStyle={styles.groupInfoScrollContent}>
           {groupInfoTab === "members" && !isChannel && (
@@ -911,7 +1125,7 @@ export default function ChatRoomScreen() {
                   <TouchableOpacity
                     key={(m._id || m.id || i) + (m.createdAt || "")}
                     style={styles.mediaThumb}
-                    onPress={() => m.type === "image" && m.mediaUrl && setZoomImageUri(m.mediaUrl)}
+                    onPress={() => m.type === "image" && m.mediaUrl && openZoomGallery(m.mediaUrl)}
                   >
                     {m.type === "image" && m.mediaUrl ? (
                       <Image source={{ uri: m.mediaUrl }} style={styles.mediaThumbImage} resizeMode="cover" />
@@ -935,21 +1149,28 @@ export default function ChatRoomScreen() {
   );
 
   const imageZoomModal = (
-    <Modal visible={!!zoomImageUri} transparent animationType="fade">
+    <Modal visible={zoomGalleryOpen} transparent animationType="fade">
       <View style={styles.zoomOverlay}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={() => setZoomImageUri(null)} />
-        {zoomImageUri ? (
-          <ScrollView
-            style={styles.zoomScrollView}
-            contentContainerStyle={styles.zoomScrollContent}
-            {...(Platform.OS === "ios" ? { maximumZoomScale: 4, minimumZoomScale: 1, centerContent: true } : {})}
+        <Pressable style={StyleSheet.absoluteFill} onPress={() => setZoomGalleryOpen(false)} />
+        {imageOnlyItems.length > 0 ? (
+          <FlatList
+            data={imageOnlyItems}
+            keyExtractor={(item, idx) => (item._id || item.id || idx) + (item.mediaUrl || "")}
+            horizontal
+            pagingEnabled
             showsHorizontalScrollIndicator={false}
-            showsVerticalScrollIndicator={false}
-          >
-            <Image source={{ uri: zoomImageUri }} style={styles.zoomImage} resizeMode="contain" />
-          </ScrollView>
+            initialScrollIndex={Math.min(zoomGalleryInitialIndex, Math.max(0, imageOnlyItems.length - 1))}
+            initialNumToRender={imageOnlyItems.length}
+            getItemLayout={(_, index) => ({ length: windowWidth, offset: windowWidth * index, index })}
+            style={styles.zoomGalleryList}
+            renderItem={({ item }) => (
+              <View style={[styles.zoomGalleryPage, { width: windowWidth, height: windowHeight }]}>
+                <Image source={{ uri: item.mediaUrl }} style={styles.zoomImage} resizeMode="contain" />
+              </View>
+            )}
+          />
         ) : null}
-        <TouchableOpacity style={styles.zoomClose} onPress={() => setZoomImageUri(null)} activeOpacity={0.8}>
+        <TouchableOpacity style={styles.zoomClose} onPress={() => setZoomGalleryOpen(false)} activeOpacity={0.8}>
           <MaterialIcons name="close" size={28} color={colors.white} />
         </TouchableOpacity>
       </View>
@@ -965,9 +1186,52 @@ export default function ChatRoomScreen() {
       setEditGroupNameVisible(false);
       setGroupInfoVisible(false);
     } catch (e) {
-      Alert.alert("Error", e?.message || "Could not update name.");
+      Alert.alert("Error", e?.response?.data?.error?.message || e?.message || "Could not update name.");
     }
   }, [chatId, editGroupNameValue]);
+
+  const changeGroupPhoto = useCallback(async () => {
+    if (!chatId || !canEditGroupProfile || groupPhotoUploading) return;
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission needed", "Allow access to photos to set group photo.");
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions?.Images ?? "images",
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+      if (result.canceled || !result.assets?.[0]?.uri) return;
+      const uri = result.assets[0].uri;
+      setGroupPhotoUploading(true);
+      const url = await uploadToCloudinary(uri, "image");
+      if (url) {
+        await chatApi.setGroupAvatar(chatId, url);
+        setGroupAvatarUrl(url);
+        setPeerUser((p) => (p ? { ...p, avatarUrl: url } : p));
+      }
+    } catch (e) {
+      Alert.alert("Error", e?.message ?? "Could not update photo.");
+    } finally {
+      setGroupPhotoUploading(false);
+    }
+  }, [chatId, canEditGroupProfile, groupPhotoUploading]);
+
+  const setPermission = useCallback(async (key, value) => {
+    if (!chatId || !isGroupOwner) return;
+    const payload = { [key]: value };
+    try {
+      await chatApi.setGroupPermissions(chatId, payload);
+      if (key === "membersCanEditProfile") setMembersCanEditProfile(value);
+      if (key === "membersCanSendMessages") setMembersCanSendMessages(value);
+      if (key === "membersCanEditChannel") setMembersCanEditChannel(value);
+    } catch (e) {
+      Alert.alert("Error", e?.response?.data?.error?.message || e?.message || "Could not update permission.");
+    }
+  }, [chatId, isGroupOwner]);
 
   const editGroupNameModal = (
     <Modal visible={editGroupNameVisible} transparent animationType="fade">
@@ -1109,51 +1373,117 @@ export default function ChatRoomScreen() {
       {profileMenuModal}
       {forwardModal}
       {chatHeaderBar}
-      {messagesLoading && messages.length === 0 ? (
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color={colors.primary} />
-        </View>
-      ) : (
-        <FlatList
-          ref={listRef}
-          data={displayItems}
-          keyExtractor={(item) => item.key}
-          renderItem={renderItem}
-          inverted
-          onEndReached={loadMore}
-          onEndReachedThreshold={0.3}
-          ListFooterComponent={
-            messagesLoading && messages.length > 0 ? (
-              <View style={styles.loader}>
-                <ActivityIndicator size="small" color={colors.primary} />
-              </View>
-            ) : null
-          }
-          ListEmptyComponent={
-            <View style={styles.empty}>
-              <Text style={styles.emptyText}>No message yet</Text>
+      <View style={styles.chatSegmentBar}>
+        <TouchableOpacity
+          style={[styles.chatSegmentTab, chatSegmentIndex === 0 && styles.chatSegmentTabActive]}
+          onPress={() => {
+            setChatSegmentIndex(0);
+            chatScrollRef.current?.scrollTo({ x: 0, animated: true });
+          }}
+        >
+          <MaterialIcons name="chat" size={20} color={chatSegmentIndex === 0 ? colors.primary : colors.textMuted} />
+          <Text style={[styles.chatSegmentLabel, chatSegmentIndex === 0 && styles.chatSegmentLabelActive]}>Chat</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.chatSegmentTab, chatSegmentIndex === 1 && styles.chatSegmentTabActive]}
+          onPress={() => {
+            setChatSegmentIndex(1);
+            chatScrollRef.current?.scrollTo({ x: windowWidth, animated: true });
+          }}
+        >
+          <MaterialIcons name="photo-library" size={20} color={chatSegmentIndex === 1 ? colors.primary : colors.textMuted} />
+          <Text style={[styles.chatSegmentLabel, chatSegmentIndex === 1 && styles.chatSegmentLabelActive]}>Photos & Videos</Text>
+        </TouchableOpacity>
+      </View>
+      <ScrollView
+        ref={chatScrollRef}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        onMomentumScrollEnd={(e) => {
+          const i = Math.round(e.nativeEvent.contentOffset.x / windowWidth);
+          setChatSegmentIndex(i);
+        }}
+        style={styles.chatSegmentScroll}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={[styles.chatSegmentPage, { width: windowWidth }]}>
+          {messagesLoading && messages.length === 0 ? (
+            <View style={styles.center}>
+              <ActivityIndicator size="large" color={colors.primary} />
             </View>
-          }
-        />
-      )}
-      {canMessage === false && (
-        <View style={styles.mutualBanner}>
-          <Text style={styles.mutualBannerText}>
-            You need to follow each other to message. Follow them from their profile first.
-          </Text>
+          ) : (
+            <FlatList
+              ref={listRef}
+              data={displayItems}
+              keyExtractor={(item) => item.key}
+              renderItem={renderItem}
+              inverted
+              onEndReached={loadMore}
+              onEndReachedThreshold={0.3}
+              ListFooterComponent={
+                messagesLoading && messages.length > 0 ? (
+                  <View style={styles.loader}>
+                    <ActivityIndicator size="small" color={colors.primary} />
+                  </View>
+                ) : null
+              }
+              ListEmptyComponent={
+                <View style={styles.empty}>
+                  <Text style={styles.emptyText}>No message yet</Text>
+                </View>
+              }
+            />
+          )}
+          {canMessage === false && (
+            <View style={styles.mutualBanner}>
+              <Text style={styles.mutualBannerText}>
+                You need to follow each other to message. Follow them from their profile first.
+              </Text>
+            </View>
+          )}
+          {canSendInChannel && (
+            <ChatInput
+              onSend={handleSend}
+              disabled={!token || canMessage === false}
+              replyTo={replyTo}
+              onCancelReply={() => setReplyTo(null)}
+              editingMessage={editingMessage}
+              onCancelEdit={() => setEditingMessage(null)}
+              onMediaPicked={onMediaPicked}
+            />
+          )}
         </View>
-      )}
-      {canSendInChannel && (
-        <ChatInput
-          onSend={handleSend}
-          disabled={!token || canMessage === false}
-          replyTo={replyTo}
-          onCancelReply={() => setReplyTo(null)}
-          editingMessage={editingMessage}
-          onCancelEdit={() => setEditingMessage(null)}
-          onMediaPicked={onMediaPicked}
-        />
-      )}
+        <View style={[styles.chatSegmentPage, { width: windowWidth }]}>
+          <ScrollView contentContainerStyle={styles.mediaPageContent}>
+            {mediaItems.length === 0 ? (
+              <Text style={styles.mediaEmpty}>No photos or videos yet</Text>
+            ) : (
+              <View style={styles.mediaGrid}>
+                {mediaItems.map((m, i) => (
+                  <TouchableOpacity
+                    key={(m._id || m.id || i) + (m.createdAt || "")}
+                    style={styles.mediaThumb}
+                    onPress={() => m.type === "image" && m.mediaUrl && openZoomGallery(m.mediaUrl)}
+                  >
+                    {m.type === "image" && m.mediaUrl ? (
+                      <Image source={{ uri: m.mediaUrl }} style={styles.mediaThumbImage} resizeMode="cover" />
+                    ) : m.type === "video" && m.mediaUrl ? (
+                      <View style={styles.mediaThumbPlaceholder}>
+                        <MaterialIcons name="videocam" size={32} color={colors.textMuted} />
+                      </View>
+                    ) : m.type === "voice" ? (
+                      <View style={styles.mediaThumbPlaceholder}>
+                        <MaterialIcons name="mic" size={32} color={colors.textMuted} />
+                      </View>
+                    ) : null}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </ScrollView>
+        </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
@@ -1301,6 +1631,57 @@ function createStyles(colors) {
       fontSize: 14,
       textAlign: "center",
     },
+    chatSegmentBar: {
+      flexDirection: "row",
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    chatSegmentTab: {
+      flex: 1,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: spacing.xs,
+      paddingVertical: spacing.sm,
+    },
+    chatSegmentTabActive: {
+      borderBottomWidth: 2,
+      borderBottomColor: colors.primary,
+    },
+    chatSegmentLabel: { fontSize: 15, color: colors.textMuted },
+    chatSegmentLabelActive: { color: colors.primary, fontWeight: "600" },
+    chatSegmentScroll: { flex: 1 },
+    chatSegmentPage: { flex: 1 },
+    mediaPageContent: {
+      padding: spacing.md,
+      paddingBottom: spacing.xl * 2,
+    },
+    mediaGrid: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: spacing.sm,
+    },
+    mediaThumb: {
+      width: "31%",
+      aspectRatio: 1,
+      borderRadius: 8,
+      overflow: "hidden",
+      backgroundColor: colors.border,
+    },
+    mediaThumbImage: { width: "100%", height: "100%" },
+    mediaThumbPlaceholder: {
+      width: "100%",
+      height: "100%",
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    mediaEmpty: {
+      color: colors.textMuted,
+      fontSize: 15,
+      textAlign: "center",
+      paddingVertical: spacing.xl,
+    },
     modalOverlay: {
       flex: 1,
       backgroundColor: "rgba(0,0,0,0.5)",
@@ -1357,6 +1738,13 @@ function createStyles(colors) {
     },
     groupInfoClose: { padding: spacing.sm, marginRight: spacing.sm },
     groupInfoTitle: { flex: 1, fontSize: 18, fontWeight: "700", color: colors.text },
+    groupInfoAvatarSection: { alignItems: "center", paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border },
+    groupInfoAvatarWrap: { position: "relative" },
+    groupInfoAvatar: { width: 88, height: 88, borderRadius: 44 },
+    groupInfoAvatarPlaceholder: { backgroundColor: colors.primary, justifyContent: "center", alignItems: "center" },
+    groupInfoAvatarLetter: { fontSize: 36, fontWeight: "700", color: colors.white },
+    groupInfoAvatarOverlay: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, borderRadius: 44, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", alignItems: "center" },
+    groupInfoAvatarEditBadge: { position: "absolute", bottom: 0, right: 0, width: 28, height: 28, borderRadius: 14, backgroundColor: colors.primary, justifyContent: "center", alignItems: "center" },
     groupInfoTabs: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: colors.border },
     groupInfoTab: { flex: 1, paddingVertical: spacing.md, alignItems: "center" },
     groupInfoTabActive: { borderBottomWidth: 2, borderBottomColor: colors.primary },
@@ -1371,6 +1759,10 @@ function createStyles(colors) {
       paddingHorizontal: spacing.md,
     },
     groupInfoActionText: { fontSize: 15, color: colors.primary, fontWeight: "600" },
+    groupInfoPermissions: { paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border },
+    groupInfoPermissionsTitle: { fontSize: 14, fontWeight: "700", color: colors.textMuted, marginBottom: spacing.sm },
+    groupInfoPermissionRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: spacing.sm },
+    groupInfoPermissionLabel: { flex: 1, fontSize: 15, color: colors.text, marginRight: spacing.sm },
     groupInfoScroll: { flex: 1 },
     groupInfoScrollContent: { padding: spacing.md, paddingBottom: spacing.xxl },
     membersList: { gap: spacing.sm },
@@ -1423,6 +1815,8 @@ function createStyles(colors) {
       justifyContent: "center",
       alignItems: "center",
     },
+    zoomGalleryList: { flex: 1 },
+    zoomGalleryPage: { justifyContent: "center", alignItems: "center" },
     zoomScrollView: { flex: 1, width: "100%" },
     zoomScrollContent: { flexGrow: 1, justifyContent: "center", alignItems: "center" },
     zoomImage: { width: "100%", height: "100%", minWidth: 200, minHeight: 200 },

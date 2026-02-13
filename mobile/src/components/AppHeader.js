@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   View,
   Text,
@@ -19,7 +19,7 @@ import { spacing } from "../theme/spacing";
 export default function AppHeader({ navigation, route, focusedRouteName }) {
   const insets = useSafeAreaInsets();
   const colors = useThemeColors();
-  const styles = createStyles(colors, insets.top, insets.bottom);
+  const styles = useMemo(() => createStyles(colors, insets.top, insets.bottom), [colors, insets.top, insets.bottom]);
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const theme = useThemeStore((s) => s.theme);
@@ -113,7 +113,7 @@ export default function AppHeader({ navigation, route, focusedRouteName }) {
       <Modal
         visible={menuVisible}
         transparent
-        animationType="fade"
+        animationType="none"
         onRequestClose={closeMenu}
       >
         <Pressable style={styles.menuOverlay} onPress={closeMenu}>

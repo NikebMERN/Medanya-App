@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   View,
   Text,
@@ -24,7 +24,7 @@ export default function AddGroupMembersScreen() {
   const route = useRoute();
   const insets = useSafeAreaInsets();
   const colors = useThemeColors();
-  const styles = createStyles(colors);
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const chatId = route.params?.chatId;
   const userId = useAuthStore((s) => s.user?.id ?? s.user?.userId) ?? "";

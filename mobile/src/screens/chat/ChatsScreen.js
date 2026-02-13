@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback, useMemo, useState } from "react";
+import React, { useEffect, useCallback, useMemo, useState, useRef } from "react";
 import {
   View,
   Text,
@@ -11,13 +11,17 @@ import {
   Image,
   Alert,
   Platform,
+  Modal,
+  Pressable,
+  Animated,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
 import { useDebounce } from "../../hooks/useDebounce";
-import { useChatStore } from "../../store/chat.store";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useChatStore, HIDDEN_CHATS_KEY } from "../../store/chat.store";
 import { useAuthStore } from "../../store/auth.store";
 import * as chatApi from "../../services/chat.api";
 import * as userApi from "../../api/user.api";
@@ -36,7 +40,7 @@ export default function ChatsScreen() {
   const navigation = useNavigation();
   const route = useRoute();
   const colors = useThemeColors();
-  const styles = createStyles(colors);
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const [searchQuery, setSearchQuery] = useState("");
   const debouncedSearchTerm = useDebounce(searchQuery.trim(), SEARCH_DEBOUNCE_MS);
@@ -55,6 +59,17 @@ export default function ChatsScreen() {
   const setChatsError = useChatStore((s) => s.setChatsError);
   const participantProfiles = useChatStore((s) => s.participantProfiles);
   const setParticipantProfile = useChatStore((s) => s.setParticipantProfile);
+  const removeChatFromList = useChatStore((s) => s.removeChatFromList);
+  const setHiddenChatIds = useChatStore((s) => s.setHiddenChatIds);
+  const addHiddenChatId = useChatStore((s) => s.addHiddenChatId);
+  const hiddenChatIds = useChatStore((s) => s.hiddenChatIds);
+  const setBlockedUserIds = useChatStore((s) => s.setBlockedUserIds);
+  const addBlockedUserId = useChatStore((s) => s.addBlockedUserId);
+  const blockedUserIds = useChatStore((s) => s.blockedUserIds);
+  const unreadByChatId = useChatStore((s) => s.unreadByChatId) || {};
+
+  const [chatMenuChatId, setChatMenuChatId] = useState(null);
+  const chatMenuAnim = useRef(new Animated.Value(0)).current;
 
   const filteredChats = useMemo(() => {
     let list = chats;
@@ -67,14 +82,14 @@ export default function ChatsScreen() {
     if (!q) return list;
     return list.filter((chat) => {
       const isGroup = chat.type === "group";
-      const title = isGroup ? (chat.groupName || "Group") : getOtherDisplayName(chat, userId, participantProfiles);
+      const title = isGroup ? (chat.groupName || "Group") : getOtherDisplayName(chat, userId, participantProfiles, blockedUserIds);
       const subtitle = chat.lastMessagePreview || "";
       return (
         title.toLowerCase().includes(q) ||
         subtitle.toLowerCase().includes(q)
       );
     });
-  }, [chats, searchQuery, searchScope, userId, participantProfiles]);
+  }, [chats, searchQuery, searchScope, userId, participantProfiles, blockedUserIds]);
 
   useEffect(() => {
     if (!debouncedSearchTerm) {
@@ -86,10 +101,6 @@ export default function ChatsScreen() {
     let cancelled = false;
     setUserSearchLoading(true);
     setSearchError(null);
-    console.log("[ChatsScreen] discover request:", {
-      q: debouncedSearchTerm,
-      limit: USER_SEARCH_LIMIT,
-    });
     userApi
       .discoverUsers({ q: debouncedSearchTerm, limit: USER_SEARCH_LIMIT })
       .then((data) => {
@@ -102,20 +113,10 @@ export default function ChatsScreen() {
           seen.add(id);
           return true;
         });
-        console.log("[ChatsScreen] discover response:", {
-          total: data?.total,
-          returned: users.length,
-          unique: unique.length,
-          sample: unique.slice(0, 5).map((u) => ({
-            id: u.id ?? u.userId,
-            display_name: u.display_name ?? u.displayName,
-          })),
-        });
         setUserSearchResults(unique);
       })
       .catch((err) => {
         if (cancelled) return;
-        console.log("[ChatsScreen] discover error:", err?.response?.data || err?.message || err);
         const raw = err?.response?.data?.error?.message || err?.message || "Search failed";
         const isNetworkError =
           !err?.response &&
@@ -135,6 +136,20 @@ export default function ChatsScreen() {
     };
   }, [debouncedSearchTerm]);
 
+  useEffect(() => {
+    let mounted = true;
+    AsyncStorage.getItem(HIDDEN_CHATS_KEY)
+      .then((raw) => {
+        if (!mounted) return;
+        try {
+          const ids = raw ? JSON.parse(raw) : [];
+          if (Array.isArray(ids)) setHiddenChatIds(ids);
+        } catch (_) {}
+      })
+      .catch(() => {});
+    return () => { mounted = false; };
+  }, [setHiddenChatIds]);
+
   const loadChats = useCallback(async () => {
     setChatsLoading(true);
     setChatsError(null);
@@ -153,6 +168,19 @@ export default function ChatsScreen() {
       setChatsLoading(false);
     }
   }, [setChats, setChatsLoading, setChatsError]);
+
+  // Load blocked users in background so chat list and profile pics show immediately
+  useEffect(() => {
+    let cancelled = false;
+    userApi
+      .getBlockedUsers({ limit: 200 })
+      .then((data) => {
+        if (!cancelled && Array.isArray(data?.users))
+          setBlockedUserIds(data.users.map((u) => String(u.id ?? u.userId)));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [setBlockedUserIds]);
 
   useEffect(() => {
     loadChats();
@@ -198,6 +226,100 @@ export default function ChatsScreen() {
   useEffect(() => {
     if (token) ensureChatSocket(token);
   }, [token]);
+
+  const menuChat = useMemo(
+    () => (chatMenuChatId ? filteredChats.find((c) => String(c._id || c.id) === String(chatMenuChatId)) : null),
+    [chatMenuChatId, filteredChats]
+  );
+  const menuOtherId = menuChat?.type === "direct"
+    ? (menuChat.participants || []).find((p) => String(p) !== String(userId))
+    : null;
+  const menuDisplayName = menuOtherId
+    ? ((blockedUserIds || []).includes(String(menuOtherId)) ? "medanya_user" : (participantProfiles[String(menuOtherId)]?.displayName ?? `User ${menuOtherId}`))
+    : "";
+
+  useEffect(() => {
+    if (chatMenuChatId) {
+      chatMenuAnim.setValue(0);
+      Animated.spring(chatMenuAnim, {
+        toValue: 1,
+        useNativeDriver: true,
+        tension: 80,
+        friction: 10,
+      }).start();
+    }
+  }, [chatMenuChatId, chatMenuAnim]);
+
+  const closeChatMenu = useCallback(() => {
+    Animated.timing(chatMenuAnim, {
+      toValue: 0,
+      duration: 150,
+      useNativeDriver: true,
+    }).start(() => setChatMenuChatId(null));
+  }, [chatMenuAnim]);
+
+  const onMenuUnfollow = useCallback(async () => {
+    if (!menuOtherId) return;
+    closeChatMenu();
+    try {
+      await userApi.unfollowUser(menuOtherId);
+      loadChats();
+    } catch (e) {
+      Alert.alert("Error", e?.message || "Could not unfollow.");
+    }
+  }, [menuOtherId, closeChatMenu, loadChats]);
+
+  const onMenuBlock = useCallback(() => {
+    const name = menuDisplayName || "this user";
+    const otherId = menuOtherId;
+    const cid = chatMenuChatId;
+    closeChatMenu();
+    Alert.alert(
+      "Block user",
+      `Block ${name}? They won't be able to message you or see your profile.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Block",
+          style: "destructive",
+          onPress: async () => {
+            if (!otherId || !cid) return;
+            try {
+              await userApi.blockUser(otherId);
+              addBlockedUserId(otherId);
+              removeChatFromList(cid);
+              loadChats();
+            } catch (e) {
+              Alert.alert("Error", e?.message || "Could not block user.");
+            }
+          },
+        },
+      ]
+    );
+  }, [menuOtherId, menuDisplayName, chatMenuChatId, closeChatMenu, loadChats, removeChatFromList, addBlockedUserId]);
+
+  const onMenuDeleteChat = useCallback(() => {
+    const cid = chatMenuChatId;
+    closeChatMenu();
+    Alert.alert(
+      "Delete chat",
+      "Remove this conversation from your chat list?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            if (!cid) return;
+            const next = addHiddenChatId(cid);
+            try {
+              await AsyncStorage.setItem(HIDDEN_CHATS_KEY, JSON.stringify(next));
+            } catch (_) {}
+          },
+        },
+      ]
+    );
+  }, [chatMenuChatId, closeChatMenu, addHiddenChatId]);
 
   const openUserProfile = useCallback(
     (user) => {
@@ -303,28 +425,40 @@ export default function ChatsScreen() {
 
   const renderItem = ({ item }) => {
     const chatId = item._id || item.id;
+    const chatIdStr = String(chatId);
     const isGroup = item.type === "group";
     const title = isGroup
       ? item.groupName || "Group"
-      : getOtherDisplayName(item, userId, participantProfiles);
+      : getOtherDisplayName(item, userId, participantProfiles, blockedUserIds);
     const subtitle = item.lastMessagePreview || "No message yet";
     const otherId = !isGroup && (item.participants || []).find((p) => String(p) !== String(userId));
+    const isBlocked = otherId && (blockedUserIds || []).includes(String(otherId));
     const profile = otherId ? participantProfiles[String(otherId)] : null;
-    const avatarUrl = profile?.avatarUrl;
+    const avatarUrl = isBlocked ? null : profile?.avatarUrl;
+    const unread = Math.max(0, Number(unreadByChatId[chatIdStr]) || 0);
 
     return (
       <TouchableOpacity
         style={styles.row}
         onPress={() => navigation.navigate("ChatRoom", { chatId })}
+        onLongPress={() => !isGroup && setChatMenuChatId(chatId)}
         activeOpacity={0.7}
+        delayLongPress={400}
       >
-        {avatarUrl ? (
-          <Image source={{ uri: avatarUrl }} style={styles.chatRowAvatar} />
-        ) : (
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{title.charAt(0).toUpperCase()}</Text>
-          </View>
-        )}
+        <View style={styles.rowAvatarWrap}>
+          {avatarUrl ? (
+            <Image source={{ uri: avatarUrl }} style={styles.chatRowAvatar} />
+          ) : (
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>{title.charAt(0).toUpperCase()}</Text>
+            </View>
+          )}
+          {unread > 0 && (
+            <View style={styles.unreadBadge}>
+              <Text style={styles.unreadCount} numberOfLines={1}>{unread > 99 ? "99+" : unread}</Text>
+            </View>
+          )}
+        </View>
         <View style={styles.body}>
           <Text style={styles.title} numberOfLines={1}>
             {title}
@@ -547,14 +681,49 @@ export default function ChatsScreen() {
           }
         />
       )}
+
+      <Modal visible={!!chatMenuChatId} transparent animationType="fade" onRequestClose={closeChatMenu}>
+        <Pressable style={styles.chatMenuOverlay} onPress={closeChatMenu}>
+          <Pressable onPress={() => {}} style={styles.chatMenuDropdownWrap}>
+            <Animated.View
+              style={[
+                styles.chatMenuDropdown,
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: colors.border,
+                  opacity: chatMenuAnim,
+                  transform: [
+                    { translateY: chatMenuAnim.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) },
+                    { scale: chatMenuAnim.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] }) },
+                  ],
+                },
+              ]}
+            >
+            <TouchableOpacity style={styles.chatMenuItem} onPress={onMenuUnfollow} activeOpacity={0.7}>
+              <MaterialIcons name="person-remove" size={22} color={colors.text} />
+              <Text style={[styles.chatMenuItemText, { color: colors.text }]}>Unfollow</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.chatMenuItem} onPress={onMenuBlock} activeOpacity={0.7}>
+              <MaterialIcons name="block" size={22} color={colors.error || "#dc2626"} />
+              <Text style={[styles.chatMenuItemText, { color: colors.error || "#dc2626" }]}>Block</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.chatMenuItem} onPress={onMenuDeleteChat} activeOpacity={0.7}>
+              <MaterialIcons name="delete-outline" size={22} color={colors.text} />
+              <Text style={[styles.chatMenuItemText, { color: colors.text }]}>Delete chat</Text>
+            </TouchableOpacity>
+          </Animated.View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
 
-function getOtherDisplayName(chat, currentUserId, participantProfiles = {}) {
+function getOtherDisplayName(chat, currentUserId, participantProfiles = {}, blockedUserIds = []) {
   const participants = chat.participants || [];
   const otherId = participants.find((p) => String(p) !== String(currentUserId));
   if (!otherId) return "Chat";
+  if (blockedUserIds.includes(String(otherId))) return "medanya_user";
   const profile = participantProfiles[String(otherId)];
   return profile?.displayName ?? `User ${otherId}`;
 }
@@ -730,12 +899,32 @@ function createStyles(colors) {
       alignItems: "center",
       marginRight: spacing.md,
     },
+    rowAvatarWrap: {
+      position: "relative",
+      marginRight: spacing.md,
+    },
     chatRowAvatar: {
       width: 48,
       height: 48,
       borderRadius: 24,
       backgroundColor: colors.surfaceLight,
-      marginRight: spacing.md,
+    },
+    unreadBadge: {
+      position: "absolute",
+      top: -2,
+      right: -2,
+      minWidth: 20,
+      height: 20,
+      borderRadius: 10,
+      backgroundColor: "#3b82f6",
+      justifyContent: "center",
+      alignItems: "center",
+      paddingHorizontal: 6,
+    },
+    unreadCount: {
+      color: "#fff",
+      fontSize: 11,
+      fontWeight: "700",
     },
     avatarText: { color: colors.white, fontSize: 18, fontWeight: "600" },
     body: { flex: 1, minWidth: 0 },
@@ -764,5 +953,29 @@ function createStyles(colors) {
       borderRadius: 10,
     },
     searchGroupBtnText: { color: colors.white, fontWeight: "600", fontSize: 14 },
+    chatMenuOverlay: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.4)",
+      justifyContent: "center",
+      alignItems: "center",
+      padding: spacing.lg,
+    },
+    chatMenuDropdownWrap: { width: "100%", maxWidth: 280, alignItems: "center" },
+    chatMenuDropdown: {
+      width: "100%",
+      maxWidth: 280,
+      borderRadius: 16,
+      borderWidth: 1,
+      overflow: "hidden",
+      paddingVertical: spacing.xs,
+    },
+    chatMenuItem: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.sm,
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.lg,
+    },
+    chatMenuItemText: { fontSize: 16, fontWeight: "500" },
   });
 }

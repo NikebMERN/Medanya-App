@@ -16,8 +16,6 @@ const SPLASH_LOGO = require("./assets/logo.jpeg");
 // Keep native splash visible until we call hideAsync (call as early as possible)
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
-const SPLASH_MIN_MS = 3500;
-
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: { retry: 1, staleTime: 60 * 1000 },
@@ -46,22 +44,11 @@ export default function App() {
 
   useEffect(() => {
     if (!ready) return;
-    const t = setTimeout(() => {
-      setSplashDone(true);
-      SplashScreen.hideAsync().catch(() => {});
-    }, SPLASH_MIN_MS);
-    return () => clearTimeout(t);
+    SplashScreen.hideAsync().catch(() => {});
+    setSplashDone(true);
   }, [ready]);
 
-  if (!ready || !splashDone) {
-    return (
-      <View style={{ flex: 1, backgroundColor: "#f2f6ff" }}>
-        <StatusBar style="dark" />
-        <AppSplashScreen logoSource={SPLASH_LOGO} />
-      </View>
-    );
-  }
-
+  // Render full app immediately so it can mount and preload; splash overlay stays on top until ready.
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
@@ -70,6 +57,12 @@ export default function App() {
           <RootNavigator />
         </QueryClientProvider>
       </SafeAreaProvider>
+      {(!ready || !splashDone) && (
+        <View style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, backgroundColor: "#f2f6ff", zIndex: 9999 }}>
+          <StatusBar style="dark" />
+          <AppSplashScreen logoSource={SPLASH_LOGO} />
+        </View>
+      )}
     </GestureHandlerRootView>
   );
 }

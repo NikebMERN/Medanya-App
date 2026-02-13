@@ -16,9 +16,7 @@ export function connectSocket(token) {
     disconnectSocket();
     return null;
   }
-  if (socket?.connected) {
-    return socket;
-  }
+  if (socket) return socket;
   const url = (env.socketUrl || env.apiUrl || "").replace(/\/+$/, "");
   if (!url) return null;
   socket = io(url, {

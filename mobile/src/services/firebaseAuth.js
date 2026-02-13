@@ -38,11 +38,10 @@ export function getAppRedirectUri() {
  * Log the redirect URI (add this exact URL in Google & Facebook consoles).
  */
 export function logExpoAuthProxyUrl() {
-  const uri = getAppRedirectUri();
-  console.log("─────────────────────────────────────────────────────────");
-  console.log("OAuth redirect URI (add in Google & Facebook consoles):");
-  console.log(uri);
-  console.log("─────────────────────────────────────────────────────────");
+  if (typeof __DEV__ !== "undefined" && __DEV__) {
+    const uri = getAppRedirectUri();
+    console.log("OAuth redirect URI (add in Google & Facebook consoles):", uri);
+  }
 }
 
 export async function signInWithGoogleCredential(idToken) {

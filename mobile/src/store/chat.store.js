@@ -3,19 +3,74 @@
  */
 import { create } from "zustand";
 
+export const HIDDEN_CHATS_KEY = "@medanya_hidden_chat_ids";
+
 export const useChatStore = create((set, get) => ({
   chats: [],
   chatsLoading: false,
   chatsError: null,
+  /** Chat IDs the user has "deleted" (hidden from list). Persist to AsyncStorage. */
+  hiddenChatIds: [],
+  /** User IDs the current user has blocked; used to show "medanya_user" and no avatar for them. */
+  blockedUserIds: [],
   /** Map of userId (string) -> { displayName, avatarUrl } for chat list display; never cleared so names/pics persist when list reorders */
   participantProfiles: {},
+
+  /** Chat ID of the room currently open (null when on list). Used to avoid incrementing unread for the open room. */
+  currentChatId: null,
+  /** Map of chatId (string) -> unread count (number). Incremented when a message arrives and we're not in that room. */
+  unreadByChatId: {},
+
+  setCurrentChatId: (chatId) => set({ currentChatId: chatId ? String(chatId) : null }),
+  markChatAsRead: (chatId) => {
+    const id = String(chatId);
+    set((s) => ({
+      unreadByChatId: { ...s.unreadByChatId, [id]: 0 },
+    }));
+  },
+  incrementUnread: (chatId) => {
+    const id = String(chatId);
+    set((s) => {
+      const prev = s.unreadByChatId[id] ?? 0;
+      return { unreadByChatId: { ...s.unreadByChatId, [id]: prev + 1 } };
+    });
+  },
 
   messagesByChatId: {},
   messagesLoading: {},
   nextCursorByChatId: {},
   hasMoreByChatId: {},
 
-  setChats: (chats) => set({ chats: chats || [], chatsError: null }),
+  setChats: (chats) => {
+    const list = chats || [];
+    const hidden = new Set((get().hiddenChatIds || []).map(String));
+    const filtered = list.filter((c) => !hidden.has(String(c._id || c.id)));
+    set({ chats: filtered, chatsError: null });
+  },
+  setHiddenChatIds: (ids) => {
+    const next = ids || [];
+    const hidden = new Set(next.map(String));
+    set((s) => ({
+      hiddenChatIds: next,
+      chats: (s.chats || []).filter((c) => !hidden.has(String(c._id || c.id))),
+    }));
+  },
+  addHiddenChatId: (chatId) => {
+    const id = String(chatId);
+    const next = [...new Set([...(get().hiddenChatIds || []).map(String), id])];
+    set({
+      hiddenChatIds: next,
+      chats: (get().chats || []).filter((c) => String(c._id || c.id) !== id),
+    });
+    return next;
+  },
+  setBlockedUserIds: (ids) => set({ blockedUserIds: ids || [] }),
+  addBlockedUserId: (userId) => {
+    const id = String(userId);
+    const next = [...new Set([...(get().blockedUserIds || []).map(String), id])];
+    set({ blockedUserIds: next });
+    return next;
+  },
   setChatsLoading: (loading) => set({ chatsLoading: loading }),
   setChatsError: (err) => set({ chatsError: err, chatsLoading: false }),
 

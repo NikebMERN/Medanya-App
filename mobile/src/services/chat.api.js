@@ -74,3 +74,33 @@ export async function deleteGroup(chatId) {
   const { data } = await client.delete(`/chats/${chatId}`);
   return data;
 }
+
+/** Delete message for everyone (sender or group admin). */
+export async function deleteMessageForAll(chatId, messageId) {
+  const { data } = await client.delete(`/chats/${chatId}/messages/${messageId}`);
+  return data;
+}
+
+/** Hide message for current user only. */
+export async function deleteMessageForMe(chatId, messageId) {
+  const { data } = await client.patch(`/chats/${chatId}/messages/${messageId}/hide`);
+  return data;
+}
+
+/** Set group/channel avatar URL (owner or member if permission granted). */
+export async function setGroupAvatar(chatId, groupAvatarUrl) {
+  const { data } = await client.patch(`/chats/${chatId}/groupAvatar`, { groupAvatarUrl });
+  return data;
+}
+
+/** Set group/channel permissions (owner/admin only). */
+export async function setGroupPermissions(chatId, payload) {
+  const { data } = await client.patch(`/chats/${chatId}/permissions`, payload);
+  return data;
+}
+
+/** Vote on a poll message. optionIndex is 0-based. */
+export async function votePoll(chatId, messageId, optionIndex) {
+  const { data } = await client.post(`/chats/${chatId}/messages/${messageId}/vote`, { optionIndex });
+  return data;
+}

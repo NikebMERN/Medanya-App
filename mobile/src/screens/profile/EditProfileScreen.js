@@ -152,7 +152,6 @@ export default function EditProfileScreen() {
             res?.user?.avatarUrl ||
             ""
           ).trim();
-          console.log("[EditProfile] Avatar URL (pending result):", serverUrl);
           if (serverUrl) setAvatarUri(serverUrl);
           // Do NOT update auth store — header stays old until user taps Save
         } catch (_) { }
@@ -189,14 +188,12 @@ export default function EditProfileScreen() {
         setError("");
         try {
           const res = await uploadAvatarAndSave(uri);
-          console.log("[EditProfile] uploadAvatarAndSave full response:", JSON.stringify(res, null, 2));
           const serverUrl = (
             res?.user?.avatar_url ||
             res?.user?.avatarUrl ||
             res?.avatarUrl ||
             ""
           ).trim();
-          console.log("[EditProfile] Avatar URL after upload:", serverUrl);
           if (serverUrl) {
             setAvatarUri(serverUrl);
             // Do NOT update auth store here — header stays old until user taps Save

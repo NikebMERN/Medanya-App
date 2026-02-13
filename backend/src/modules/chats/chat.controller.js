@@ -15,9 +15,11 @@ function mapError(res, err) {
                         ? 400
                         : code === "GROUP_TOO_LARGE"
                             ? 400
-                            : code === "LAST_ADMIN_BLOCKED"
+                            :                         code === "LAST_ADMIN_BLOCKED"
                                 ? 409
-                                : 500;
+                                : code === "INVALID_MESSAGE"
+                                    ? 404
+                                    : 500;
 
     return res.status(status).json({
         error: { code, message: err.message || code },
@@ -114,6 +116,34 @@ const setGroupName = async (req, res) => {
     }
 };
 
+const setGroupAvatar = async (req, res) => {
+    try {
+        const me = req.user.id ?? req.user.userId;
+        const { chatId } = req.params;
+        const { groupAvatarUrl } = req.body;
+        await chatService.setGroupAvatar(me, chatId, groupAvatarUrl);
+        return res.json({ success: true });
+    } catch (err) {
+        return mapError(res, err);
+    }
+};
+
+const setGroupPermissions = async (req, res) => {
+    try {
+        const me = req.user.id ?? req.user.userId;
+        const { chatId } = req.params;
+        const { membersCanEditProfile, membersCanSendMessages, membersCanEditChannel } = req.body;
+        await chatService.setGroupPermissions(me, chatId, {
+            membersCanEditProfile,
+            membersCanSendMessages,
+            membersCanEditChannel,
+        });
+        return res.json({ success: true });
+    } catch (err) {
+        return mapError(res, err);
+    }
+};
+
 const addMembers = async (req, res) => {
     try {
         const me = req.user.id ?? req.user.userId;
@@ -160,6 +190,40 @@ const deleteGroup = async (req, res) => {
     }
 };
 
+const deleteMessageForAll = async (req, res) => {
+    try {
+        const me = req.user.id ?? req.user.userId;
+        const { chatId, messageId } = req.params;
+        await chatService.deleteMessageForAll(me, chatId, messageId);
+        return res.json({ success: true });
+    } catch (err) {
+        return mapError(res, err);
+    }
+};
+
+const deleteMessageForMe = async (req, res) => {
+    try {
+        const me = req.user.id ?? req.user.userId;
+        const { chatId, messageId } = req.params;
+        await chatService.deleteMessageForMe(me, chatId, messageId);
+        return res.json({ success: true });
+    } catch (err) {
+        return mapError(res, err);
+    }
+};
+
+const votePoll = async (req, res) => {
+    try {
+        const me = req.user.id ?? req.user.userId;
+        const { chatId, messageId } = req.params;
+        const { optionIndex } = req.body;
+        const data = await chatService.votePoll(me, chatId, messageId, optionIndex);
+        return res.json({ success: true, ...data });
+    } catch (err) {
+        return mapError(res, err);
+    }
+};
+
 module.exports = {
     startDirect,
     createGroup,
@@ -169,8 +233,13 @@ module.exports = {
     getChat,
     listMessages,
     setGroupName,
+    setGroupAvatar,
+    setGroupPermissions,
     addMembers,
     removeMember,
     leaveGroup,
     deleteGroup,
+    deleteMessageForAll,
+    deleteMessageForMe,
+    votePoll,
 };
