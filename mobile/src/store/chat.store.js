@@ -106,6 +106,28 @@ export const useChatStore = create((set, get) => ({
     }));
   },
 
+  removeMessage: (chatId, messageId) => {
+    const id = String(chatId);
+    const mid = String(messageId);
+    set((s) => {
+      const list = (s.messagesByChatId[id] || []).filter(
+        (m) => String(m._id || m.id) !== mid && String(m.pendingTempId) !== mid
+      );
+      return { messagesByChatId: { ...s.messagesByChatId, [id]: list } };
+    });
+  },
+
+  updateMessage: (chatId, messageId, updates) => {
+    const id = String(chatId);
+    const mid = String(messageId);
+    set((s) => {
+      const list = (s.messagesByChatId[id] || []).map((m) =>
+        String(m._id || m.id) === mid ? { ...m, ...updates } : m
+      );
+      return { messagesByChatId: { ...s.messagesByChatId, [id]: list } };
+    });
+  },
+
   getMessages: (chatId) => (get().messagesByChatId[String(chatId)] || []),
   getNextCursor: (chatId) => get().nextCursorByChatId[String(chatId)],
   getHasMore: (chatId) => get().hasMoreByChatId[String(chatId)] !== false,

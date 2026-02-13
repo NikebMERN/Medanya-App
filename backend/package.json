@@ -5,6 +5,8 @@
     "main": "src/server.js",
     "scripts": {
         "start": "nodemon src/server.js",
+        "tables": "node src/database/migrate.js",
+        "seed": "node src/database/seeds/admin.seed.js",
         "dev": "firebase login",
         "token": "npx firebase emulators:start --only auth",
         "test": "echo \"Error: no test specified\" && exit 1"

@@ -11,6 +11,7 @@ import {
   Alert,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
@@ -18,6 +19,7 @@ import * as userApi from "../../api/user.api";
 
 export default function BlockedUsersScreen() {
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   const colors = useThemeColors();
   const styles = createStyles(colors);
   const [users, setUsers] = useState([]);
@@ -95,31 +97,39 @@ export default function BlockedUsersScreen() {
     );
   };
 
+  const listHeader = (
+    <View style={[styles.headerWrap, { paddingTop: insets.top + spacing.sm }]}>
+      <TouchableOpacity style={styles.backRow} onPress={() => navigation.goBack()} activeOpacity={0.8}>
+        <MaterialIcons name="arrow-back" size={24} color={colors.text} />
+        <Text style={styles.backLabel}>Back</Text>
+      </TouchableOpacity>
+      <Text style={styles.screenTitle}>Blacklist</Text>
+    </View>
+  );
+
   if (loading && users.length === 0) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color={colors.primary} />
+      <View style={styles.container}>
+        {listHeader}
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      <View style={styles.headerRow}>
-        <TouchableOpacity
-          style={styles.backBtn}
-          onPress={() => navigation.goBack()}
-          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-        >
-          <MaterialIcons name="arrow-back" size={24} color={colors.text} />
-        </TouchableOpacity>
-        <Text style={styles.title}>Blocked users</Text>
-      </View>
-      <Text style={styles.subtitle}>Users you've blocked. Tap Unblock to allow them again.</Text>
       <FlatList
         data={users}
         keyExtractor={(item) => String(item.id ?? item.userId)}
         renderItem={renderItem}
+        ListHeaderComponent={
+          <View>
+            {listHeader}
+            <Text style={styles.subtitle}>Users you've blocked. Tap Unblock to allow them again.</Text>
+          </View>
+        }
         contentContainerStyle={users.length === 0 ? styles.emptyList : styles.listContent}
         ListEmptyComponent={
           <Text style={styles.emptyText}>You haven't blocked anyone.</Text>
@@ -140,30 +150,10 @@ function createStyles(colors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
     center: { flex: 1, justifyContent: "center", alignItems: "center" },
-    headerRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      paddingHorizontal: spacing.md,
-      paddingTop: spacing.lg,
-      paddingBottom: spacing.sm,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.border,
-      backgroundColor: colors.surface,
-    },
-    backBtn: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      justifyContent: "center",
-      alignItems: "center",
-      marginRight: spacing.sm,
-    },
-    title: {
-      fontSize: 20,
-      fontWeight: "800",
-      color: colors.text,
-      flex: 1,
-    },
+    headerWrap: { paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
+    backRow: { flexDirection: "row", alignItems: "center", marginBottom: spacing.md, gap: spacing.xs },
+    backLabel: { fontSize: 17, fontWeight: "600", color: colors.text },
+    screenTitle: { fontSize: 20, fontWeight: "800", color: colors.text },
     subtitle: {
       fontSize: 14,
       color: colors.textMuted,

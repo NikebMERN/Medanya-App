@@ -21,6 +21,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useAuthStore } from "../../store/auth.store";
 import { useThemeStore } from "../../store/theme.store";
 import { useThemeColors } from "../../theme/useThemeColors";
+import { typography } from "../../theme/typography";
 import { spacing } from "../../theme/spacing";
 import { getMe, getFollowRequests } from "../../api/user.api";
 
@@ -192,12 +193,27 @@ export default function ProfileScreen() {
               <MaterialIcons name="edit" size={14} color={colors.white} />
               <Text style={styles.editLabel}>Edit</Text>
             </TouchableOpacity>
+            {accountPrivate && followRequestCount > 0 && (
+              <TouchableOpacity
+                style={styles.followRequestsBtn}
+                activeOpacity={0.8}
+                onPress={() => navigation.navigate("FollowRequests")}
+              >
+                <MaterialIcons name="person-add" size={14} color={colors.white} />
+                <Text style={styles.followRequestsLabel}>{followRequestCount} REQUEST{followRequestCount !== 1 ? "S" : ""}</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
         <Text style={styles.displayName}>{displayName}</Text>
-        {(user?.phone_number ?? user?.phoneNumber) ? (
-          <Text style={styles.phoneText}>{user.phone_number ?? user.phoneNumber}</Text>
-        ) : null}
+        <View style={styles.idPhoneRow}>
+          {(user?.id ?? user?.userId) ? (
+            <Text style={styles.phoneText}>ID: {String(user?.id ?? user?.userId)}</Text>
+          ) : null}
+          {(user?.phone_number ?? user?.phoneNumber) ? (
+            <Text style={styles.phoneText}>{user.phone_number ?? user.phoneNumber}</Text>
+          ) : null}
+        </View>
         {neighborhood !== "—" && (
           <View style={styles.locationRow}>
             <MaterialIcons name="location-on" size={14} color={colors.textSecondary} />
@@ -205,30 +221,28 @@ export default function ProfileScreen() {
           </View>
         )}
         {bio ? <Text style={styles.bioUnderPhoto}>{bio}</Text> : null}
-        {accountPrivate && followRequestCount > 0 && (
-          <TouchableOpacity
-            style={styles.followRequestsBtn}
-            activeOpacity={0.8}
-            onPress={() => navigation.navigate("FollowRequests")}
-          >
-            <MaterialIcons name="person-add" size={14} color={colors.white} />
-            <Text style={styles.followRequestsLabel}>{followRequestCount} FOLLOW REQUEST{followRequestCount !== 1 ? "S" : ""}</Text>
-          </TouchableOpacity>
-        )}
       </View>
 
       {/* Stats row */}
       <View style={styles.statsRow}>
-        <View style={styles.statCard}>
+        <TouchableOpacity
+          style={styles.statCard}
+          onPress={() => navigation.navigate("FollowersList", { userId: user?.id ?? user?.userId })}
+          activeOpacity={0.8}
+        >
           <MaterialIcons name="people" size={20} color={colors.textSecondary} style={styles.statIcon} />
           <Text style={styles.statNumber}>{followerCount}</Text>
           <Text style={styles.statLabel}>FOLLOWERS</Text>
-        </View>
-        <View style={styles.statCard}>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.statCard}
+          onPress={() => navigation.navigate("FollowingList", { userId: user?.id ?? user?.userId })}
+          activeOpacity={0.8}
+        >
           <MaterialIcons name="person-add" size={20} color={colors.textSecondary} style={styles.statIcon} />
           <Text style={styles.statNumber}>{followingCount}</Text>
           <Text style={styles.statLabel}>FOLLOWING</Text>
-        </View>
+        </TouchableOpacity>
         <View style={styles.statCard}>
           <MaterialIcons name="favorite" size={20} color={colors.error} style={styles.statIcon} />
           <Text style={styles.statNumber}>0</Text>
@@ -363,8 +377,8 @@ function createStyles(colors) {
     },
     cameraIcon: { fontSize: 16 },
     headerActions: {
-      flexDirection: "row",
-      alignItems: "center",
+      flexDirection: "column",
+      alignItems: "flex-end",
       gap: spacing.sm,
     },
     editBtn: {
@@ -380,6 +394,7 @@ function createStyles(colors) {
       fontSize: 14,
       fontWeight: "700",
       color: colors.white,
+      fontStyle: typography.fontStyle,
     },
     displayName: {
       fontSize: 24,
@@ -387,11 +402,18 @@ function createStyles(colors) {
       color: colors.text,
       marginBottom: spacing.xs,
       letterSpacing: 0.3,
+      fontStyle: typography.fontStyle,
+    },
+    idPhoneRow: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: spacing.md,
+      marginBottom: spacing.sm,
     },
     phoneText: {
       fontSize: 12,
       color: colors.textMuted,
-      marginBottom: spacing.sm,
+      fontStyle: typography.fontStyle,
     },
     locationRow: {
       flexDirection: "row",
@@ -404,6 +426,7 @@ function createStyles(colors) {
       fontWeight: "600",
       color: colors.textSecondary,
       letterSpacing: 0.5,
+      fontStyle: typography.fontStyle,
     },
     bioUnderPhoto: {
       fontSize: 14,
@@ -411,23 +434,23 @@ function createStyles(colors) {
       color: colors.text,
       opacity: 0.95,
       marginBottom: spacing.md,
+      fontStyle: typography.fontStyle,
     },
     followRequestsBtn: {
       flexDirection: "row",
       alignItems: "center",
-      alignSelf: "flex-start",
       gap: 6,
       paddingVertical: spacing.sm,
       paddingHorizontal: spacing.md,
       borderRadius: 12,
       backgroundColor: colors.primary,
-      marginBottom: spacing.sm,
     },
     followRequestsLabel: {
       fontSize: 12,
       fontWeight: "700",
       color: colors.white,
       letterSpacing: 0.5,
+      fontStyle: typography.fontStyle,
     },
     statsRow: {
       flexDirection: "row",
@@ -450,12 +473,14 @@ function createStyles(colors) {
       fontWeight: "800",
       color: colors.text,
       marginBottom: 2,
+      fontStyle: typography.fontStyle,
     },
     statLabel: {
       fontSize: 10,
       fontWeight: "700",
       color: colors.textSecondary,
       letterSpacing: 0.5,
+      fontStyle: typography.fontStyle,
     },
     actionRow: {
       flexDirection: "row",
@@ -480,6 +505,7 @@ function createStyles(colors) {
       fontWeight: "700",
       color: colors.text,
       letterSpacing: 0.5,
+      fontStyle: typography.fontStyle,
     },
     footer: { height: spacing.xxl },
     avatarFullScreenOverlay: {

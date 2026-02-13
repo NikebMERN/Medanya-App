@@ -4,7 +4,10 @@ import ChatsScreen from "../screens/chat/ChatsScreen";
 import ChatRoomScreen from "../screens/chat/ChatRoomScreen";
 import CreateGroupScreen from "../screens/chat/CreateGroupScreen";
 import CreateChannelScreen from "../screens/chat/CreateChannelScreen";
+import AddGroupMembersScreen from "../screens/chat/AddGroupMembersScreen";
 import UserProfileScreen from "../screens/profile/UserProfileScreen";
+import FollowersListScreen from "../screens/profile/FollowersListScreen";
+import FollowingListScreen from "../screens/profile/FollowingListScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -15,7 +18,10 @@ export default function ChatStack() {
       <Stack.Screen name="ChatRoom" component={ChatRoomScreen} />
       <Stack.Screen name="CreateGroup" component={CreateGroupScreen} />
       <Stack.Screen name="CreateChannel" component={CreateChannelScreen} />
+      <Stack.Screen name="AddGroupMembers" component={AddGroupMembersScreen} />
       <Stack.Screen name="UserProfile" component={UserProfileScreen} />
+      <Stack.Screen name="FollowersList" component={FollowersListScreen} />
+      <Stack.Screen name="FollowingList" component={FollowingListScreen} />
     </Stack.Navigator>
   );
 }

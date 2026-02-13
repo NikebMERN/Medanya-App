@@ -13,6 +13,7 @@ import {
   Switch,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import Button from "../../components/ui/Button";
@@ -20,7 +21,6 @@ import Input from "../../components/ui/Input";
 import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
 import { useAuthStore } from "../../store/auth.store";
-import { useHeaderBack } from "../../context/HeaderBackContext";
 import { updateMe, uploadAvatarAndSave } from "../../api/user.api";
 
 const BIO_MAX_WORDS = 120;
@@ -91,14 +91,7 @@ export default function EditProfileScreen() {
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { user, setAuth, token } = useAuthStore();
-  const { setBackHandler } = useHeaderBack() || {};
   const initialUser = route.params?.user ?? user;
-
-  useEffect(() => {
-    if (!setBackHandler) return;
-    setBackHandler(() => navigation.goBack());
-    return () => setBackHandler(null);
-  }, [navigation, setBackHandler]);
 
   const [displayName, setDisplayName] = useState(
     initialUser?.display_name ?? initialUser?.displayName ?? ""
@@ -320,16 +313,21 @@ export default function EditProfileScreen() {
     }
   };
 
+  const insets = useSafeAreaInsets();
   return (
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <ScrollView
-        contentContainerStyle={styles.scroll}
+        contentContainerStyle={[styles.scroll, { paddingTop: insets.top + spacing.sm }]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
+        <TouchableOpacity style={styles.backRow} onPress={() => navigation.goBack()} activeOpacity={0.8}>
+          <MaterialIcons name="arrow-back" size={24} color={colors.text} />
+          <Text style={styles.backLabel}>Back</Text>
+        </TouchableOpacity>
         <Text style={styles.title}>Edit Profile</Text>
 
         <TouchableOpacity
@@ -468,9 +466,15 @@ function createStyles(colors) {
     scroll: {
       flexGrow: 1,
       paddingHorizontal: spacing.lg,
-      paddingTop: spacing.xxl,
       paddingBottom: spacing.xl,
     },
+    backRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginBottom: spacing.md,
+      gap: spacing.xs,
+    },
+    backLabel: { fontSize: 17, fontWeight: "600", color: colors.text },
     title: {
       fontSize: 24,
       fontWeight: "800",

@@ -114,11 +114,16 @@ export default function PhoneScreen() {
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
         <Button
-          title="REQUEST OTP  →"
+          title={loading ? "SENDING…" : "REQUEST OTP  →"}
           onPress={handleRequestOtp}
           loading={loading}
           style={styles.submitBtn}
         />
+        {loading ? (
+          <Text style={styles.sendingHint}>
+            Sending code to your phone. This may take a few seconds.
+          </Text>
+        ) : null}
 
         <View style={styles.footer}>
           <Text style={styles.footerText}>
@@ -295,6 +300,12 @@ function createStyles(colors) {
     color: colors.error,
     fontSize: 13,
     marginBottom: spacing.sm,
+  },
+  sendingHint: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    marginTop: spacing.sm,
+    textAlign: "center",
   },
   submitBtn: { marginTop: spacing.md },
   footer: {

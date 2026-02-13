@@ -2,6 +2,7 @@ import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { colors } from "../../theme/colors";
 import { spacing } from "../../theme/spacing";
+import { typography } from "../../theme/typography";
 
 export default function FeedScreen() {
   return (
@@ -25,9 +26,11 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: "700",
     marginBottom: spacing.sm,
+    fontStyle: typography.fontStyle,
   },
   subtitle: {
     color: colors.textSecondary,
     fontSize: 14,
+    fontStyle: typography.fontStyle,
   },
 });

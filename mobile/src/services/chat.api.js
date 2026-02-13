@@ -39,3 +39,14 @@ export async function createGroup(groupName, memberIds = []) {
   const { data } = await client.post("/chats/group", { groupName, memberIds: ids });
   return data;
 }
+
+export async function setGroupName(chatId, groupName) {
+  const { data } = await client.patch(`/chats/${chatId}/groupName`, { groupName });
+  return data;
+}
+
+export async function addGroupMembers(chatId, memberIds = []) {
+  const ids = Array.isArray(memberIds) ? memberIds.map((id) => (id != null ? String(id) : id)) : [];
+  const { data } = await client.patch(`/chats/${chatId}/members/add`, { memberIds: ids });
+  return data;
+}

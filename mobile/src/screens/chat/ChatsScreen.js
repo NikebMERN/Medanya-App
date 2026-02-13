@@ -23,9 +23,9 @@ import * as chatApi from "../../services/chat.api";
 import * as userApi from "../../api/user.api";
 import { ensureChatSocket } from "../../realtime/chat.socket";
 import { formatRelative } from "../../utils/format";
+import { typography } from "../../theme/typography";
 
 const SEARCH_DEBOUNCE_MS = 300;
-const MIN_SEARCH_LENGTH = 2;
 const USER_SEARCH_LIMIT = 100;
 
 const SEARCH_SCOPE_ALL = "all";
@@ -43,6 +43,7 @@ export default function ChatsScreen() {
   const [userSearchResults, setUserSearchResults] = useState([]);
   const [userSearchLoading, setUserSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState(null);
+  const [participantProfiles, setParticipantProfiles] = useState({});
 
   const token = useAuthStore((s) => s.token);
   const userId = useAuthStore((s) => s.user?.id ?? s.user?.userId) ?? "";
@@ -64,22 +65,17 @@ export default function ChatsScreen() {
     if (!q) return list;
     return list.filter((chat) => {
       const isGroup = chat.type === "group";
-      const title = isGroup ? (chat.groupName || "Group") : getOtherDisplayName(chat, userId);
+      const title = isGroup ? (chat.groupName || "Group") : getOtherDisplayName(chat, userId, participantProfiles);
       const subtitle = chat.lastMessagePreview || "";
       return (
         title.toLowerCase().includes(q) ||
         subtitle.toLowerCase().includes(q)
       );
     });
-  }, [chats, searchQuery, searchScope, userId]);
+  }, [chats, searchQuery, searchScope, userId, participantProfiles]);
 
   useEffect(() => {
     if (!debouncedSearchTerm) {
-      setUserSearchResults([]);
-      setSearchError(null);
-      return;
-    }
-    if (debouncedSearchTerm.length < MIN_SEARCH_LENGTH) {
       setUserSearchResults([]);
       setSearchError(null);
       return;
@@ -160,6 +156,45 @@ export default function ChatsScreen() {
     loadChats();
   }, [loadChats]);
 
+  // Resolve display names for direct chat participants
+  useEffect(() => {
+    if (!chats?.length || !userId) return;
+    let cancelled = false;
+    const directChats = chats.filter((c) => c.type === "direct");
+    const otherIds = [
+      ...new Set(
+        directChats
+          .map((c) => (c.participants || []).find((p) => String(p) !== String(userId)))
+          .filter(Boolean)
+      ),
+    ];
+    otherIds.forEach((otherId) => {
+      const idStr = String(otherId);
+      if (participantProfiles[idStr]) return;
+      userApi
+        .getPublicProfile(otherId)
+        .then((data) => {
+          if (cancelled) return;
+          const u = data?.user ?? data;
+          setParticipantProfiles((prev) => ({
+            ...prev,
+            [idStr]: {
+              displayName: u?.display_name ?? u?.displayName ?? `User ${idStr}`,
+              avatarUrl: u?.avatar_url ?? u?.avatarUrl,
+            },
+          }));
+        })
+        .catch(() => {
+          if (!cancelled)
+            setParticipantProfiles((prev) => ({
+              ...prev,
+              [idStr]: { displayName: `User ${idStr}`, avatarUrl: null },
+            }));
+        });
+    });
+    return () => { cancelled = true; };
+  }, [chats, userId]);
+
   useEffect(() => {
     if (token) ensureChatSocket(token);
   }, [token]);
@@ -190,6 +225,26 @@ export default function ChatsScreen() {
       }
     },
     [loadChats, navigation]
+  );
+
+  const openMessageWithUser = useCallback(
+    async (user) => {
+      const uid = user?.id ?? user?.userId;
+      if (!uid || String(uid) === String(userId)) return;
+      const isFriend = !!(user.isFollowing && (user.followsMe ?? user.follows_me));
+      if (!isFriend) return;
+      try {
+        const chat = await chatApi.startDirect(uid);
+        const chatId = chat?._id ?? chat?.id;
+        if (chatId) {
+          loadChats();
+          navigation.navigate("ChatRoom", { chatId });
+        }
+      } catch (e) {
+        Alert.alert("Error", e?.message || "Could not start chat.");
+      }
+    },
+    [userId, loadChats, navigation]
   );
 
   const onFollowPress = useCallback(
@@ -251,8 +306,11 @@ export default function ChatsScreen() {
     const isGroup = item.type === "group";
     const title = isGroup
       ? item.groupName || "Group"
-      : getOtherDisplayName(item, userId);
-    const subtitle = item.lastMessagePreview || "No messages yet";
+      : getOtherDisplayName(item, userId, participantProfiles);
+    const subtitle = item.lastMessagePreview || "No message yet";
+    const otherId = !isGroup && (item.participants || []).find((p) => String(p) !== String(userId));
+    const profile = otherId ? participantProfiles[String(otherId)] : null;
+    const avatarUrl = profile?.avatarUrl;
 
     return (
       <TouchableOpacity
@@ -260,9 +318,13 @@ export default function ChatsScreen() {
         onPress={() => navigation.navigate("ChatRoom", { chatId })}
         activeOpacity={0.7}
       >
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{title.charAt(0).toUpperCase()}</Text>
-        </View>
+        {avatarUrl ? (
+          <Image source={{ uri: avatarUrl }} style={styles.chatRowAvatar} />
+        ) : (
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>{title.charAt(0).toUpperCase()}</Text>
+          </View>
+        )}
         <View style={styles.body}>
           <Text style={styles.title} numberOfLines={1}>
             {title}
@@ -287,7 +349,75 @@ export default function ChatsScreen() {
 
   const hasSearchQuery = (searchQuery || "").trim().length > 0;
 
-  const listHeader = useMemo(() => {
+  const renderPersonRow = useCallback(
+    ({ item: user }) => {
+      const uid = user.id ?? user.userId;
+      const name = user.display_name ?? user.displayName ?? `User ${uid}`;
+      const avatarUrl = user.avatar_url ?? user.avatarUrl;
+      const isPrivate = !!(user.account_private ?? user.accountPrivate);
+      const isFriend = !!(user.isFollowing && (user.followsMe ?? user.follows_me));
+      return (
+        <View style={styles.userRow}>
+          <TouchableOpacity
+            style={styles.userRowMain}
+            onPress={() => openUserProfile(user)}
+            activeOpacity={0.7}
+          >
+            <View style={styles.avatarWrap}>
+              {avatarUrl ? (
+                <Image source={{ uri: avatarUrl }} style={styles.userAvatar} />
+              ) : (
+                <View style={[styles.userAvatar, styles.avatarPlaceholderSmall]}>
+                  <Text style={styles.avatarTextSmall}>{name.charAt(0).toUpperCase()}</Text>
+                </View>
+              )}
+              {isPrivate && (
+                <View style={styles.lockIconWrap}>
+                  <MaterialIcons name="lock" size={12} color={colors.textMuted} />
+                </View>
+              )}
+            </View>
+            <Text style={styles.userName} numberOfLines={1}>{name}</Text>
+          </TouchableOpacity>
+          <View style={styles.userRowActions}>
+            {isFriend ? (
+              <TouchableOpacity
+                style={styles.iconBtn}
+                onPress={() => openMessageWithUser(user)}
+                hitSlop={12}
+              >
+                <MaterialIcons name="message" size={22} color={colors.primary} />
+              </TouchableOpacity>
+            ) : (
+              <>
+                <TouchableOpacity
+                  style={styles.iconBtn}
+                  onPress={() => onFollowPress(user)}
+                  hitSlop={12}
+                >
+                  <MaterialIcons
+                    name={user.isFollowing ? "person-check" : "person-add"}
+                    size={22}
+                    color={user.isFollowing ? colors.textMuted : colors.primary}
+                  />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.iconBtn}
+                  onPress={() => onBlockPress(user)}
+                  hitSlop={12}
+                >
+                  <MaterialIcons name="block" size={20} color={colors.error || "#dc2626"} />
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </View>
+      );
+    },
+    [colors, openUserProfile, openMessageWithUser, onFollowPress, onBlockPress, styles]
+  );
+
+  const searchListHeader = useMemo(() => {
     if (!hasSearchQuery) return null;
     return (
       <View style={styles.peopleSection}>
@@ -298,80 +428,9 @@ export default function ChatsScreen() {
         {!userSearchLoading && searchError && (
           <Text style={styles.peopleError}>{searchError}</Text>
         )}
-        {!userSearchLoading && !searchError && searchQuery.trim().length > 0 && searchQuery.trim().length < MIN_SEARCH_LENGTH && (
-          <Text style={styles.peopleEmpty}>Type at least {MIN_SEARCH_LENGTH} characters to search</Text>
-        )}
-        {!userSearchLoading && !searchError && searchQuery.trim().length >= MIN_SEARCH_LENGTH && peopleList.length === 0 && (
-          <Text style={styles.peopleEmpty}>No people found for "{searchQuery.trim()}"</Text>
-        )}
-        {!userSearchLoading && !searchError &&
-          peopleList.map((user) => {
-            const uid = user.id ?? user.userId;
-            const name = user.display_name ?? user.displayName ?? `User ${uid}`;
-            const avatarUrl = user.avatar_url ?? user.avatarUrl;
-            const isPrivate = !!(user.account_private ?? user.accountPrivate);
-            const isFriend = !!(user.isFollowing && (user.followsMe ?? user.follows_me));
-            return (
-              <View key={String(uid)} style={styles.userRow}>
-                <TouchableOpacity
-                  style={styles.userRowMain}
-                  onPress={() => openUserProfile(user)}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.avatarWrap}>
-                    {avatarUrl ? (
-                      <Image source={{ uri: avatarUrl }} style={styles.userAvatar} />
-                    ) : (
-                      <View style={[styles.userAvatar, styles.avatarPlaceholderSmall]}>
-                        <Text style={styles.avatarTextSmall}>{name.charAt(0).toUpperCase()}</Text>
-                      </View>
-                    )}
-                    {isPrivate && (
-                      <View style={styles.lockIconWrap}>
-                        <MaterialIcons name="lock" size={12} color={colors.textMuted} />
-                      </View>
-                    )}
-                  </View>
-                  <Text style={styles.userName} numberOfLines={1}>{name}</Text>
-                </TouchableOpacity>
-                <View style={styles.userRowActions}>
-                  {isFriend ? (
-                    <TouchableOpacity
-                      style={styles.iconBtn}
-                      onPress={() => onChatPress(user)}
-                      hitSlop={12}
-                    >
-                      <MaterialIcons name="message" size={22} color={colors.primary} />
-                    </TouchableOpacity>
-                  ) : (
-                    <>
-                      <TouchableOpacity
-                        style={styles.iconBtn}
-                        onPress={() => onFollowPress(user)}
-                        hitSlop={12}
-                      >
-                        <MaterialIcons
-                          name={user.isFollowing ? "person-check" : "person-add"}
-                          size={22}
-                          color={user.isFollowing ? colors.textMuted : colors.primary}
-                        />
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.iconBtn}
-                        onPress={() => onBlockPress(user)}
-                        hitSlop={12}
-                      >
-                        <MaterialIcons name="block" size={20} color={colors.error || "#dc2626"} />
-                      </TouchableOpacity>
-                    </>
-                  )}
-                </View>
-              </View>
-            );
-          })}
       </View>
     );
-  }, [hasSearchQuery, peopleList, userSearchLoading, searchError, searchQuery, colors, openUserProfile, onChatPress, onFollowPress, onBlockPress]);
+  }, [hasSearchQuery, userSearchLoading, searchError, colors, styles]);
 
   if (chatsError) {
     return (
@@ -433,30 +492,39 @@ export default function ChatsScreen() {
         </View>
       </View>
 
-      {chatsLoading && chats.length === 0 ? (
+      {chatsLoading && chats.length === 0 && !hasSearchQuery ? (
         <View style={styles.center}>
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
       ) : (
         <FlatList
-          data={filteredChats}
-          keyExtractor={(item) => String(item._id || item.id)}
-          renderItem={renderItem}
-          ListHeaderComponent={listHeader}
+          data={hasSearchQuery ? peopleList : filteredChats}
+          keyExtractor={(item) =>
+            hasSearchQuery ? String(item.id ?? item.userId) : String(item._id || item.id)
+          }
+          renderItem={hasSearchQuery ? renderPersonRow : renderItem}
+          ListHeaderComponent={hasSearchQuery ? searchListHeader : null}
           contentContainerStyle={
-            filteredChats.length === 0 && !listHeader ? styles.emptyList : undefined
+            (hasSearchQuery ? peopleList.length === 0 : filteredChats.length === 0) &&
+            !searchListHeader
+              ? styles.emptyList
+              : undefined
           }
           ListEmptyComponent={
             <Text style={styles.emptyText}>
-              {searchQuery.trim() || searchScope !== SEARCH_SCOPE_ALL
-                ? "No chats match your search."
-                : "No chats yet. Start a conversation."}
+              {hasSearchQuery
+                ? !userSearchLoading && searchQuery.trim()
+                  ? 'No people found for "' + searchQuery.trim() + '"'
+                  : "Search for people above."
+                : searchQuery.trim() || searchScope !== SEARCH_SCOPE_ALL
+                  ? "No chats match your search."
+                  : "No chats yet. Start a conversation."}
             </Text>
           }
           refreshControl={
             <RefreshControl
-              refreshing={chatsLoading}
-              onRefresh={loadChats}
+              refreshing={hasSearchQuery ? userSearchLoading : chatsLoading}
+              onRefresh={hasSearchQuery ? () => {} : loadChats}
               colors={[colors.primary]}
             />
           }
@@ -466,11 +534,12 @@ export default function ChatsScreen() {
   );
 }
 
-function getOtherDisplayName(chat, currentUserId) {
+function getOtherDisplayName(chat, currentUserId, participantProfiles = {}) {
   const participants = chat.participants || [];
   const otherId = participants.find((p) => String(p) !== String(currentUserId));
   if (!otherId) return "Chat";
-  return `User ${otherId}`;
+  const profile = participantProfiles[String(otherId)];
+  return profile?.displayName ?? `User ${otherId}`;
 }
 
 const searchFontFamily = Platform.select({ ios: "System", android: "Roboto" });
@@ -623,6 +692,7 @@ function createStyles(colors) {
       fontWeight: "700",
       color: colors.text,
       fontFamily: searchFontFamily,
+      fontStyle: typography.fontStyle,
       marginLeft: spacing.sm,
     },
     row: {
@@ -643,11 +713,18 @@ function createStyles(colors) {
       alignItems: "center",
       marginRight: spacing.md,
     },
+    chatRowAvatar: {
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      backgroundColor: colors.surfaceLight,
+      marginRight: spacing.md,
+    },
     avatarText: { color: colors.white, fontSize: 18, fontWeight: "600" },
     body: { flex: 1, minWidth: 0 },
-    title: { fontSize: 16, fontWeight: "600", color: colors.text },
-    subtitle: { fontSize: 14, color: colors.textMuted, marginTop: 2 },
-    time: { fontSize: 12, color: colors.textMuted, marginLeft: spacing.sm },
+    title: { fontSize: 16, fontWeight: "600", color: colors.text, fontStyle: typography.fontStyle },
+    subtitle: { fontSize: 14, color: colors.textMuted, marginTop: 2, fontStyle: typography.fontStyle },
+    time: { fontSize: 12, color: colors.textMuted, marginLeft: spacing.sm, fontStyle: typography.fontStyle },
     error: {
       color: colors.error,
       marginBottom: spacing.md,
@@ -659,8 +736,8 @@ function createStyles(colors) {
       backgroundColor: colors.primary,
       borderRadius: 8,
     },
-    retryLabel: { color: colors.white, fontWeight: "600" },
+    retryLabel: { color: colors.white, fontWeight: "600", fontStyle: typography.fontStyle },
     emptyList: { flexGrow: 1, justifyContent: "center", padding: spacing.lg },
-    emptyText: { textAlign: "center", color: colors.textMuted, fontSize: 15 },
+    emptyText: { textAlign: "center", color: colors.textMuted, fontSize: 15, fontStyle: typography.fontStyle },
   });
 }

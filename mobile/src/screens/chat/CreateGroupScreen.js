@@ -11,7 +11,7 @@ import {
   Alert,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import { useHeaderBack } from "../../context/HeaderBackContext";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
@@ -21,9 +21,9 @@ import * as userApi from "../../api/user.api";
 
 export default function CreateGroupScreen() {
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   const colors = useThemeColors();
   const styles = createStyles(colors);
-  const { setBackHandler } = useHeaderBack() || {};
 
   const userId = useAuthStore((s) => s.user?.id ?? s.user?.userId) ?? "";
   const [groupName, setGroupName] = useState("");
@@ -31,12 +31,6 @@ export default function CreateGroupScreen() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
-
-  useEffect(() => {
-    if (!setBackHandler) return;
-    setBackHandler(() => navigation.goBack());
-    return () => setBackHandler(null);
-  }, [navigation, setBackHandler]);
 
   useEffect(() => {
     let cancelled = false;
@@ -139,8 +133,12 @@ export default function CreateGroupScreen() {
     );
   };
 
-  return (
-    <View style={styles.container}>
+  const listHeader = (
+    <View style={[styles.headerWrap, { paddingTop: insets.top + spacing.sm }]}>
+      <TouchableOpacity style={styles.backRow} onPress={() => navigation.goBack()} activeOpacity={0.8}>
+        <MaterialIcons name="arrow-back" size={24} color={colors.text} />
+        <Text style={styles.backLabel}>Back</Text>
+      </TouchableOpacity>
       <View style={styles.form}>
         <Text style={styles.label}>Group name</Text>
         <TextInput
@@ -152,9 +150,14 @@ export default function CreateGroupScreen() {
         />
         <Text style={[styles.label, { marginTop: spacing.lg }]}>Add members (from your followers)</Text>
       </View>
+    </View>
+  );
 
+  return (
+    <View style={styles.container}>
       {loading ? (
         <View style={styles.center}>
+          {listHeader}
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
       ) : (
@@ -162,6 +165,7 @@ export default function CreateGroupScreen() {
           data={contacts}
           keyExtractor={(item) => String(item.id ?? item.userId)}
           renderItem={renderContact}
+          ListHeaderComponent={listHeader}
           contentContainerStyle={styles.listContent}
           ListEmptyComponent={
             <Text style={styles.emptyText}>No followers to add. Follow people first.</Text>
@@ -189,7 +193,10 @@ export default function CreateGroupScreen() {
 function createStyles(colors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
-    form: { padding: spacing.lg, paddingBottom: spacing.sm },
+    headerWrap: { paddingHorizontal: spacing.lg },
+    backRow: { flexDirection: "row", alignItems: "center", marginBottom: spacing.md, gap: spacing.xs },
+    backLabel: { fontSize: 17, fontWeight: "600", color: colors.text },
+    form: { paddingBottom: spacing.sm },
     label: { fontSize: 14, fontWeight: "600", color: colors.textMuted, marginBottom: spacing.sm },
     input: {
       backgroundColor: colors.surface,

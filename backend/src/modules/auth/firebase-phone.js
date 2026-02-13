@@ -20,18 +20,37 @@ function getApiKey() {
  * @param {string} recaptchaToken - From client (reCAPTCHA / App Check / SafetyNet)
  * @returns {Promise<{ sessionInfo: string }>}
  */
+const FIREBASE_REQUEST_TIMEOUT_MS = 25000;
+
 async function sendVerificationCode(phoneNumber, recaptchaToken) {
     const apiKey = getApiKey();
     const e164 = phoneNumber.startsWith("+") ? phoneNumber : `+${phoneNumber}`;
 
-    const res = await fetch(`${BASE_URL}:sendVerificationCode?key=${apiKey}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            phoneNumber: e164,
-            recaptchaToken: recaptchaToken || undefined,
-        }),
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), FIREBASE_REQUEST_TIMEOUT_MS);
+
+    let res;
+    try {
+        res = await fetch(`${BASE_URL}:sendVerificationCode?key=${apiKey}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                phoneNumber: e164,
+                recaptchaToken: recaptchaToken || undefined,
+            }),
+            signal: controller.signal,
+        });
+    } catch (e) {
+        clearTimeout(timeoutId);
+        if (e.name === "AbortError") {
+            const err = new Error("Verification request timed out. Please try again.");
+            err.code = "FIREBASE_PHONE_ERROR";
+            err.status = 504;
+            throw err;
+        }
+        throw e;
+    }
+    clearTimeout(timeoutId);
 
     const data = await res.json().catch(() => ({}));
 

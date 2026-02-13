@@ -1,5 +1,6 @@
 import React from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { getFocusedRouteNameFromRoute } from "@react-navigation/native";
 import AppHeader from "../components/AppHeader";
 import AppTabBar from "../components/AppTabBar";
 import FeedScreen from "../screens/home/FeedScreen";
@@ -24,8 +25,29 @@ export default function MainTabs() {
       <Tab.Screen name="Jobs" component={JobsListScreen} options={{ title: "Jobs" }} />
       <Tab.Screen name="Videos" component={VideoFeedScreen} options={{ title: "Videos" }} />
       <Tab.Screen name="Live" component={LiveListScreen} options={{ title: "Safety" }} />
-      <Tab.Screen name="Chat" component={ChatStack} options={{ title: "Chat" }} />
-      <Tab.Screen name="Profile" component={ProfileStack} options={{ title: "Profile" }} />
+      <Tab.Screen
+        name="Chat"
+        component={ChatStack}
+        options={({ route }) => {
+          const routeName = getFocusedRouteNameFromRoute(route) ?? "Chats";
+          return {
+            title: "Chat",
+            headerShown: routeName !== "ChatRoom",
+          };
+        }}
+      />
+      <Tab.Screen
+        name="Profile"
+        component={ProfileStack}
+        options={{
+          title: "Profile",
+          listeners: ({ navigation }) => ({
+            focus: () => {
+              navigation.navigate("Profile", { screen: "ProfileMain" });
+            },
+          }),
+        }}
+      />
     </Tab.Navigator>
   );
 }

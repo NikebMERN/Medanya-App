@@ -5,6 +5,8 @@
   "scripts": {
     "update-api-url": "node scripts/update-api-url.js",
     "start": "node scripts/update-api-url.js && expo start",
+    "start:clean": "node scripts/update-api-url.js && expo start --clear",
+    "clean": "node -e \"const fs=require('fs');const path=require('path');const rm=(p)=>{try{fs.existsSync(p)&&fs.rmSync(p,{recursive:true});}catch(e){}};rm(path.join(process.cwd(),'.expo'));rm(path.join(process.cwd(),'node_modules','.cache'));console.log('Cache cleared.');\"",
     "start:online": "expo start",
     "android": "expo start --offline --android",
     "ios": "expo start --offline --ios",
@@ -21,6 +23,7 @@
     "expo-asset": "^12.0.12",
     "expo-auth-session": "~7.0.10",
     "expo-constants": "^18.0.13",
+    "expo-av": "~15.0.2",
     "expo-crypto": "~15.0.8",
     "expo-image-picker": "~17.0.10",
     "expo-linking": "^8.0.11",

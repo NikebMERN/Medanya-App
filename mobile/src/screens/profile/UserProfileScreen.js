@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   View,
   Text,
@@ -8,8 +8,17 @@ import {
   Image,
   ActivityIndicator,
   Alert,
+  Modal,
+  Pressable,
+  useWindowDimensions,
 } from "react-native";
+import {
+  PinchGestureHandler,
+  PanGestureHandler,
+  State,
+} from "react-native-gesture-handler";
 import { useNavigation, useRoute } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
@@ -29,6 +38,62 @@ export default function UserProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [followLoading, setFollowLoading] = useState(false);
   const [blockLoading, setBlockLoading] = useState(false);
+  const [avatarFullScreenVisible, setAvatarFullScreenVisible] = useState(false);
+  const [zoomScale, setZoomScale] = useState(1);
+  const [translateX, setTranslateX] = useState(0);
+  const [translateY, setTranslateY] = useState(0);
+  const baseScaleRef = useRef(1);
+  const baseTranslateXRef = useRef(0);
+  const baseTranslateYRef = useRef(0);
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+
+  const MIN_ZOOM = 1;
+  const MAX_ZOOM = 4;
+
+  const openAvatarFullScreen = () => setAvatarFullScreenVisible(true);
+  const closeAvatarFullScreen = () => {
+    setAvatarFullScreenVisible(false);
+    setZoomScale(1);
+    setTranslateX(0);
+    setTranslateY(0);
+    baseScaleRef.current = 1;
+    baseTranslateXRef.current = 0;
+    baseTranslateYRef.current = 0;
+  };
+
+  const onPinchStateChange = (e) => {
+    const { state, scale } = e.nativeEvent;
+    if (state === State.BEGAN) baseScaleRef.current = zoomScale;
+    if (state === State.END || state === State.CANCELLED) {
+      const next = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, baseScaleRef.current * scale));
+      baseScaleRef.current = next;
+      setZoomScale(next);
+    }
+  };
+  const onPinchGestureEvent = (e) => {
+    const { scale } = e.nativeEvent;
+    const next = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, baseScaleRef.current * scale));
+    setZoomScale(next);
+  };
+  const onPanStateChange = (e) => {
+    const { state, translationX, translationY } = e.nativeEvent;
+    if (state === State.BEGAN) {
+      baseTranslateXRef.current = translateX;
+      baseTranslateYRef.current = translateY;
+    }
+    if (state === State.END || state === State.CANCELLED) {
+      setTranslateX(baseTranslateXRef.current + translationX);
+      setTranslateY(baseTranslateYRef.current + translationY);
+      baseTranslateXRef.current = baseTranslateXRef.current + translationX;
+      baseTranslateYRef.current = baseTranslateYRef.current + translationY;
+    }
+  };
+  const onPanGestureEvent = (e) => {
+    const { translationX, translationY } = e.nativeEvent;
+    setTranslateX(baseTranslateXRef.current + translationX);
+    setTranslateY(baseTranslateYRef.current + translationY);
+  };
 
   const loadProfile = useCallback(async () => {
     if (!targetUserId) return;
@@ -49,14 +114,18 @@ export default function UserProfileScreen() {
 
   const handleFollow = useCallback(async () => {
     if (!user?.id || followLoading) return;
+    const followRequestPending = user.followRequestPending ?? user.follow_request_pending;
+    if (followRequestPending) return;
     setFollowLoading(true);
     try {
       if (user.isFollowing) {
         await userApi.unfollowUser(user.id);
-        setUser((prev) => (prev ? { ...prev, isFollowing: false } : null));
+        setUser((prev) => (prev ? { ...prev, isFollowing: false, followRequestPending: false } : null));
       } else {
         await userApi.followUser(user.id);
-        setUser((prev) => (prev ? { ...prev, isFollowing: true } : null));
+        const data = await userApi.getPublicProfile(user.id);
+        const u = data?.user ?? data;
+        setUser((prev) => (prev && u ? { ...prev, ...u, isFollowing: u.isFollowing, followRequestPending: u.followRequestPending ?? u.follow_request_pending } : prev));
       }
     } catch (e) {
       Alert.alert("Error", e?.message || "Could not update follow.");
@@ -98,7 +167,10 @@ export default function UserProfileScreen() {
     try {
       const chat = await chatApi.startDirect(user.id);
       const chatId = chat?._id ?? chat?.id;
-      if (chatId) navigation.navigate("ChatRoom", { chatId });
+      if (chatId) {
+        // Navigate to Chat tab then ChatRoom (UserProfile is under Profile tab)
+        navigation.navigate("Chat", { screen: "ChatRoom", params: { chatId } });
+      }
     } catch (e) {
       Alert.alert("Error", e?.message || "Could not start chat.");
     }
@@ -130,18 +202,42 @@ export default function UserProfileScreen() {
   const followerCount = user.followerCount ?? 0;
   const followingCount = user.followingCount ?? 0;
   const isFriend = !!(user.isFollowing && user.followsMe);
+  const followRequestPending = user.followRequestPending ?? user.follow_request_pending ?? false;
+
+  const followButtonLabel = followRequestPending
+    ? "Requested"
+    : isFriend
+      ? "Friends"
+      : user.isFollowing
+        ? "Following"
+        : "Follow";
+  const followButtonIcon = followRequestPending
+    ? "schedule"
+    : isFriend || user.isFollowing
+      ? "person"
+      : "person-add";
 
   return (
+    <>
     <ScrollView
       style={styles.container}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.sm }]}
       showsVerticalScrollIndicator={false}
     >
+      <TouchableOpacity style={styles.backRow} onPress={() => navigation.goBack()} activeOpacity={0.8}>
+        <MaterialIcons name="arrow-back" size={24} color={colors.text} />
+        <Text style={styles.backLabel}>Back</Text>
+      </TouchableOpacity>
       <View style={styles.headerCard}>
         <View style={styles.headerRow}>
-          <View style={styles.avatarWrap}>
+          <TouchableOpacity
+            style={styles.avatarWrap}
+            onPress={() => avatarUrl && openAvatarFullScreen()}
+            activeOpacity={avatarUrl ? 0.9 : 1}
+            disabled={!avatarUrl}
+          >
             {avatarUrl ? (
-              <Image source={{ uri: avatarUrl }} style={styles.avatar} />
+              <Image source={{ uri: avatarUrl }} style={styles.avatar} key={avatarUrl} />
             ) : (
               <View style={styles.avatarPlaceholder}>
                 <Text style={styles.avatarLetter}>
@@ -149,26 +245,23 @@ export default function UserProfileScreen() {
                 </Text>
               </View>
             )}
-          </View>
+          </TouchableOpacity>
           <View style={styles.headerActions}>
             <TouchableOpacity
-              style={[styles.followBtn, user.isFollowing && styles.followingBtn]}
+              style={[
+                styles.followBtn,
+                (user.isFollowing || followRequestPending) && styles.followingBtn,
+              ]}
               onPress={handleFollow}
-              disabled={followLoading}
+              disabled={followLoading || followRequestPending}
               activeOpacity={0.8}
             >
               {followLoading ? (
                 <ActivityIndicator size="small" color={colors.white} />
               ) : (
                 <>
-                  <MaterialIcons
-                    name={user.isFollowing ? "person-check" : "person-add"}
-                    size={16}
-                    color={colors.white}
-                  />
-                  <Text style={styles.followBtnText}>
-                    {user.isFollowing ? "Following" : "Follow"}
-                  </Text>
+                  <MaterialIcons name={followButtonIcon} size={16} color={colors.white} />
+                  <Text style={styles.followBtnText}>{followButtonLabel}</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -184,9 +277,14 @@ export default function UserProfileScreen() {
           </View>
         </View>
         <Text style={styles.displayName}>{displayName}</Text>
-        {(user.phone_number ?? user.phoneNumber) ? (
-          <Text style={styles.phoneText}>{user.phone_number ?? user.phoneNumber}</Text>
-        ) : null}
+        <View style={styles.idPhoneRow}>
+          {(user?.id ?? user?.userId) ? (
+            <Text style={styles.phoneText}>ID: {String(user?.id ?? user?.userId)}</Text>
+          ) : null}
+          {(user.phone_number ?? user.phoneNumber) ? (
+            <Text style={styles.phoneText}>{user.phone_number ?? user.phoneNumber}</Text>
+          ) : null}
+        </View>
         {bio ? <Text style={styles.bioUnderPhoto}>{bio}</Text> : null}
         {neighborhood !== "—" && (
           <View style={styles.locationRow}>
@@ -197,16 +295,24 @@ export default function UserProfileScreen() {
       </View>
 
       <View style={styles.statsRow}>
-        <View style={styles.statCard}>
+        <TouchableOpacity
+          style={styles.statCard}
+          onPress={() => navigation.navigate("FollowersList", { userId: targetUserId })}
+          activeOpacity={0.8}
+        >
           <MaterialIcons name="people" size={20} color={colors.textSecondary} style={styles.statIcon} />
           <Text style={styles.statNumber}>{followerCount}</Text>
           <Text style={styles.statLabel}>FOLLOWERS</Text>
-        </View>
-        <View style={styles.statCard}>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.statCard}
+          onPress={() => navigation.navigate("FollowingList", { userId: targetUserId })}
+          activeOpacity={0.8}
+        >
           <MaterialIcons name="person-add" size={20} color={colors.textSecondary} style={styles.statIcon} />
           <Text style={styles.statNumber}>{followingCount}</Text>
           <Text style={styles.statLabel}>FOLLOWING</Text>
-        </View>
+        </TouchableOpacity>
       </View>
 
       {isFriend && (
@@ -218,13 +324,76 @@ export default function UserProfileScreen() {
 
       <View style={styles.footer} />
     </ScrollView>
+
+    <Modal
+      visible={avatarFullScreenVisible}
+      transparent
+      animationType="fade"
+      onRequestClose={closeAvatarFullScreen}
+    >
+      <Pressable
+        style={[styles.avatarFullScreenOverlay, { width: windowWidth, height: windowHeight }]}
+        onPress={closeAvatarFullScreen}
+      >
+        <PinchGestureHandler
+          onGestureEvent={onPinchGestureEvent}
+          onHandlerStateChange={onPinchStateChange}
+        >
+          <View style={styles.avatarFullScreenContent}>
+            <PanGestureHandler
+              onGestureEvent={onPanGestureEvent}
+              onHandlerStateChange={onPanStateChange}
+              minPointers={1}
+            >
+              <View
+                style={[
+                  styles.avatarFullScreenImageWrap,
+                  {
+                    transform: [
+                      { scale: zoomScale },
+                      { translateX },
+                      { translateY },
+                    ],
+                  },
+                ]}
+              >
+                <Image
+                  source={{ uri: avatarUrl }}
+                  style={[
+                    styles.avatarFullScreenImage,
+                    { width: windowWidth, height: windowWidth, maxHeight: windowHeight },
+                  ]}
+                  resizeMode="contain"
+                />
+              </View>
+            </PanGestureHandler>
+          </View>
+        </PinchGestureHandler>
+
+        <TouchableOpacity
+          style={styles.avatarFullScreenClose}
+          onPress={closeAvatarFullScreen}
+          hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+        >
+          <MaterialIcons name="close" size={28} color={colors.white} />
+        </TouchableOpacity>
+      </Pressable>
+    </Modal>
+  </>
   );
 }
 
 function createStyles(colors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
-    content: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.xxl },
+    content: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl },
+    backRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginBottom: spacing.md,
+      gap: spacing.xs,
+    },
+    backLabel: { fontSize: 17, fontWeight: "600", color: colors.text },
     loader: { flex: 1, justifyContent: "center", alignItems: "center" },
     error: { fontSize: 16, color: colors.error, textAlign: "center", marginTop: spacing.xl },
     retryBtn: { marginTop: spacing.md, alignSelf: "center", paddingVertical: spacing.sm, paddingHorizontal: spacing.lg },
@@ -284,10 +453,15 @@ function createStyles(colors) {
       marginBottom: spacing.xs,
       letterSpacing: 0.3,
     },
+    idPhoneRow: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: spacing.md,
+      marginBottom: spacing.sm,
+    },
     phoneText: {
       fontSize: 12,
       color: colors.textMuted,
-      marginBottom: spacing.sm,
     },
     locationRow: {
       flexDirection: "row",
@@ -328,5 +502,33 @@ function createStyles(colors) {
     },
     messageBtnText: { fontSize: 16, fontWeight: "700", color: colors.white },
     footer: { height: spacing.xxl },
+    avatarFullScreenOverlay: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.95)",
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    avatarFullScreenContent: {
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    avatarFullScreenImageWrap: {
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    avatarFullScreenImage: {
+      backgroundColor: "transparent",
+    },
+    avatarFullScreenClose: {
+      position: "absolute",
+      top: 52,
+      right: spacing.md,
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: "rgba(255,255,255,0.2)",
+      justifyContent: "center",
+      alignItems: "center",
+    },
   });
 }

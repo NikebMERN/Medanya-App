@@ -9,26 +9,12 @@ import {
   Pressable,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { CommonActions } from "@react-navigation/native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useThemeColors } from "../theme/useThemeColors";
+import { typography } from "../theme/typography";
 import { useAuthStore } from "../store/auth.store";
 import { useThemeStore } from "../store/theme.store";
 import { spacing } from "../theme/spacing";
-
-function canShowBack(navigation) {
-  if (!navigation?.getState) return false;
-  const state = navigation.getState();
-  const routes = state?.routes;
-  const index = state?.index;
-  if (!routes?.length || index == null) return false;
-  const currentTab = routes[index];
-  const nestedState = currentTab?.state;
-  const nestedIndex = nestedState?.index;
-  const nestedRoutes = nestedState?.routes;
-  if (nestedRoutes?.length && nestedIndex > 0) return true;
-  return false;
-}
 
 export default function AppHeader({ navigation }) {
   const insets = useSafeAreaInsets();
@@ -41,12 +27,11 @@ export default function AppHeader({ navigation }) {
   const avatarUrl = user?.avatar_url ?? user?.avatarUrl;
   const displayName = user?.display_name ?? user?.displayName ?? "";
   const accountPrivate = user?.account_private ?? user?.accountPrivate;
-  const showBack = navigation ? canShowBack(navigation) : false;
   const [menuVisible, setMenuVisible] = useState(false);
 
-  const handleBack = () => {
-    if (navigation?.dispatch) {
-      navigation.dispatch(CommonActions.goBack());
+  const handleLogoPress = () => {
+    if (navigation?.navigate) {
+      navigation.navigate("Home");
     }
   };
 
@@ -91,15 +76,12 @@ export default function AppHeader({ navigation }) {
     <>
       <View style={styles.container}>
         <View style={styles.left}>
-          {showBack && (
-            <TouchableOpacity style={styles.backBtn} onPress={handleBack} activeOpacity={0.8}>
-              <MaterialIcons name="arrow-back" size={24} color={colors.text} />
-            </TouchableOpacity>
-          )}
-          <View style={styles.logo}>
-            <Text style={styles.logoLetter}>M</Text>
-          </View>
-          <Text style={styles.title}>MEDANYA</Text>
+          <TouchableOpacity style={styles.logoWrap} onPress={handleLogoPress} activeOpacity={0.8}>
+            <View style={styles.logo}>
+              <Text style={styles.logoLetter}>M</Text>
+            </View>
+            <Text style={styles.title}>MEDANYA</Text>
+          </TouchableOpacity>
         </View>
         <View style={styles.right}>
           <TouchableOpacity style={styles.iconBtn} activeOpacity={0.8}>
@@ -193,13 +175,10 @@ function createStyles(colors, paddingTop, paddingBottom = 0) {
       alignItems: "center",
       gap: spacing.sm,
     },
-    backBtn: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      backgroundColor: colors.surface,
-      justifyContent: "center",
+    logoWrap: {
+      flexDirection: "row",
       alignItems: "center",
+      gap: spacing.sm,
     },
     logo: {
       width: 36,
@@ -213,12 +192,14 @@ function createStyles(colors, paddingTop, paddingBottom = 0) {
       fontSize: 18,
       fontWeight: "800",
       color: colors.white,
+      fontStyle: typography.fontStyle,
     },
     title: {
       fontSize: 18,
       fontWeight: "800",
       color: colors.text,
       letterSpacing: 0.5,
+      fontStyle: typography.fontStyle,
     },
     right: {
       flexDirection: "row",
@@ -261,6 +242,7 @@ function createStyles(colors, paddingTop, paddingBottom = 0) {
       fontSize: 16,
       fontWeight: "700",
       color: colors.text,
+      fontStyle: typography.fontStyle,
     },
     menuOverlay: {
       flex: 1,
@@ -296,6 +278,7 @@ function createStyles(colors, paddingTop, paddingBottom = 0) {
       fontSize: 16,
       fontWeight: "600",
       color: colors.text,
+      fontStyle: typography.fontStyle,
     },
     menuItemDanger: {
       borderBottomWidth: 0,

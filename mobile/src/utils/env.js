@@ -28,19 +28,27 @@ export const env = {
   oauthRedirectUri: (extra.oauthRedirectUri || process.env.EXPO_PUBLIC_OAUTH_REDIRECT_URI || "").trim().replace(/^["']|["']$/g, "") || null,
 };
 
+const DEFAULT_MIME = {
+  image: "image/jpeg",
+  video: "video/mp4",
+  raw: "audio/m4a",
+};
+
 /**
- * Upload image to Cloudinary (unsigned preset) and return the hosted URL.
- * Flow: app uploads file to Cloudinary -> get secure_url -> send that URL to backend.
+ * Upload file to Cloudinary (unsigned preset) and return the hosted URL.
+ * resourceType: "image" | "video" | "raw" (for voice/audio).
  * Requires in .env: EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME, EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET (unsigned).
  */
-export async function uploadToCloudinary(uri, resourceType = "image") {
+export async function uploadToCloudinary(uri, resourceType = "image", mimeType) {
   const cloudName = env.cloudinaryCloudName;
   const preset = env.cloudinaryUploadPreset;
   if (!cloudName || !preset) {
     throw new Error("Cloudinary not configured. Add EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME and EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET to .env");
   }
+  const type = mimeType || DEFAULT_MIME[resourceType] || "application/octet-stream";
+  const name = resourceType === "raw" ? "voice.m4a" : resourceType === "video" ? "video.mp4" : "upload.jpg";
   const formData = new FormData();
-  formData.append("file", { uri, type: resourceType === "video" ? "video/mp4" : "image/jpeg", name: "upload" });
+  formData.append("file", { uri, type, name });
   formData.append("upload_preset", preset);
   const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`, {
     method: "POST",

@@ -41,37 +41,59 @@ async function countFollowing(userId) {
     return r?.c || 0;
 }
 
-async function listFollowers(userId, { page = 1, limit = 50 } = {}) {
+async function listFollowers(userId, { page = 1, limit = 50, q = "" } = {}) {
     const p = Math.max(parseInt(page, 10) || 1, 1);
     const l = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 100);
     const offset = (p - 1) * l;
+    const searchQ = String(q || "").trim();
+    const like = searchQ ? `%${searchQ}%` : null;
+    const baseWhere = "f.following_id = ? AND u.is_active = 1";
+    const searchWhere = like
+        ? `${baseWhere} AND (u.display_name LIKE ? OR CAST(u.id AS CHAR) LIKE ? OR u.phone_number LIKE ?)`
+        : baseWhere;
+    const params = like ? [userId, like, like, like, l, offset] : [userId, l, offset];
+    const countParams = like ? [userId, like, like, like] : [userId];
     const [rows] = await pool.query(
-        `SELECT u.id, u.display_name, u.avatar_url, u.role, u.is_verified, f.created_at AS followed_at
+        `SELECT u.id, u.display_name, u.avatar_url, u.phone_number, u.role, u.is_verified, f.created_at AS followed_at
          FROM follows f
          JOIN users u ON u.id = f.follower_id
-         WHERE f.following_id = ? AND u.is_active = 1
+         WHERE ${searchWhere}
          ORDER BY f.created_at DESC
          LIMIT ? OFFSET ?`,
-        [userId, l, offset],
+        params,
     );
-    const [[c]] = await pool.query(`SELECT COUNT(*) AS total FROM follows WHERE following_id = ?`, [userId]);
+    const [[c]] = await pool.query(
+        `SELECT COUNT(*) AS total FROM follows f JOIN users u ON u.id = f.follower_id WHERE ${searchWhere}`,
+        countParams,
+    );
     return { page: p, limit: l, total: c.total, users: rows };
 }
 
-async function listFollowing(userId, { page = 1, limit = 50 } = {}) {
+async function listFollowing(userId, { page = 1, limit = 50, q = "" } = {}) {
     const p = Math.max(parseInt(page, 10) || 1, 1);
     const l = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 100);
     const offset = (p - 1) * l;
+    const searchQ = String(q || "").trim();
+    const like = searchQ ? `%${searchQ}%` : null;
+    const baseWhere = "f.follower_id = ? AND u.is_active = 1";
+    const searchWhere = like
+        ? `${baseWhere} AND (u.display_name LIKE ? OR CAST(u.id AS CHAR) LIKE ? OR u.phone_number LIKE ?)`
+        : baseWhere;
+    const params = like ? [userId, like, like, like, l, offset] : [userId, l, offset];
+    const countParams = like ? [userId, like, like, like] : [userId];
     const [rows] = await pool.query(
-        `SELECT u.id, u.display_name, u.avatar_url, u.role, u.is_verified, f.created_at AS followed_at
+        `SELECT u.id, u.display_name, u.avatar_url, u.phone_number, u.role, u.is_verified, f.created_at AS followed_at
          FROM follows f
          JOIN users u ON u.id = f.following_id
-         WHERE f.follower_id = ? AND u.is_active = 1
+         WHERE ${searchWhere}
          ORDER BY f.created_at DESC
          LIMIT ? OFFSET ?`,
-        [userId, l, offset],
+        params,
     );
-    const [[c]] = await pool.query(`SELECT COUNT(*) AS total FROM follows WHERE follower_id = ?`, [userId]);
+    const [[c]] = await pool.query(
+        `SELECT COUNT(*) AS total FROM follows f JOIN users u ON u.id = f.following_id WHERE ${searchWhere}`,
+        countParams,
+    );
     return { page: p, limit: l, total: c.total, users: rows };
 }
 
@@ -181,16 +203,16 @@ async function discoverUsers(currentUserId, { page = 1, limit = 20, q = "" } = {
     whereWithBlocks += " AND u.id NOT IN (SELECT blocker_id FROM user_blocks WHERE blocked_id = ?)";
     paramsWithBlocks.push(me);
     if (like) {
-        whereWithBlocks += " AND (u.display_name LIKE ? OR u.phone_number LIKE ?)";
-        paramsWithBlocks.push(like, like);
+        whereWithBlocks += " AND (u.display_name LIKE ? OR u.phone_number LIKE ? OR CAST(u.id AS CHAR) LIKE ?)";
+        paramsWithBlocks.push(like, like, like);
     }
 
     // Build WHERE without block exclusion (fallback when user_blocks missing)
     let whereNoBlocks = "u.is_active = 1 AND u.id != ?";
     const paramsNoBlocks = [me];
     if (like) {
-        whereNoBlocks += " AND (u.display_name LIKE ? OR u.phone_number LIKE ?)";
-        paramsNoBlocks.push(like, like);
+        whereNoBlocks += " AND (u.display_name LIKE ? OR u.phone_number LIKE ? OR CAST(u.id AS CHAR) LIKE ?)";
+        paramsNoBlocks.push(like, like, like);
     }
 
     let rows;

@@ -9,26 +9,20 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
-import { useHeaderBack } from "../../context/HeaderBackContext";
 import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
 import { getFollowRequests, acceptFollowRequest, rejectFollowRequest } from "../../api/user.api";
 
 export default function FollowRequestsScreen() {
   const navigation = useNavigation();
-  const { setBackHandler } = useHeaderBack() || {};
+  const insets = useSafeAreaInsets();
   const colors = useThemeColors();
   const styles = createStyles(colors);
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actingId, setActingId] = useState(null);
-
-  useEffect(() => {
-    if (!setBackHandler) return;
-    setBackHandler(() => navigation.goBack());
-    return () => setBackHandler(null);
-  }, [navigation, setBackHandler]);
 
   const load = async () => {
     setLoading(true);
@@ -99,18 +93,34 @@ export default function FollowRequestsScreen() {
     );
   };
 
+  const listHeader = (
+    <View style={[styles.headerWrap, { paddingTop: insets.top + spacing.sm }]}>
+      <TouchableOpacity style={styles.backRow} onPress={() => navigation.goBack()} activeOpacity={0.8}>
+        <MaterialIcons name="arrow-back" size={24} color={colors.text} />
+        <Text style={styles.backLabel}>Back</Text>
+      </TouchableOpacity>
+      <Text style={styles.title}>Follow requests</Text>
+    </View>
+  );
+
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Follow requests</Text>
       {loading ? (
-        <ActivityIndicator size="large" color={colors.primary} style={styles.loader} />
+        <View style={styles.center}>
+          {listHeader}
+          <ActivityIndicator size="large" color={colors.primary} style={styles.loader} />
+        </View>
       ) : requests.length === 0 ? (
-        <Text style={styles.empty}>No pending requests</Text>
+        <View style={styles.center}>
+          {listHeader}
+          <Text style={styles.empty}>No pending requests</Text>
+        </View>
       ) : (
         <FlatList
           data={requests}
           keyExtractor={(item) => String(item.id)}
           renderItem={renderItem}
+          ListHeaderComponent={listHeader}
           contentContainerStyle={styles.list}
         />
       )}
@@ -121,13 +131,15 @@ export default function FollowRequestsScreen() {
 function createStyles(colors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
+    center: { flex: 1 },
+    headerWrap: { paddingHorizontal: spacing.lg },
+    backRow: { flexDirection: "row", alignItems: "center", marginBottom: spacing.md, gap: spacing.xs },
+    backLabel: { fontSize: 17, fontWeight: "600", color: colors.text },
     title: {
       fontSize: 22,
       fontWeight: "800",
       color: colors.text,
-      marginTop: spacing.lg,
       marginBottom: spacing.lg,
-      paddingHorizontal: spacing.lg,
     },
     loader: { flex: 1, justifyContent: "center" },
     empty: {

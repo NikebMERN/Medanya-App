@@ -196,14 +196,32 @@ async function unfollowUser(reqUser, targetUserId) {
 }
 
 async function getFollowers(reqUser, targetUserId, query) {
+    const reqUserId = getUserId(reqUser);
+    const targetId = String(targetUserId);
     const target = await db.getById(targetUserId);
     if (!target) throw err("NOT_FOUND", "User not found");
+    if (reqUserId !== targetId) {
+        const isPrivate = Boolean(target.account_private);
+        if (isPrivate) {
+            const following = await followDb.isFollowing(reqUserId, targetUserId);
+            if (!following) throw err("FORBIDDEN", "This account is private");
+        }
+    }
     return followDb.listFollowers(targetUserId, query);
 }
 
 async function getFollowing(reqUser, targetUserId, query) {
+    const reqUserId = getUserId(reqUser);
+    const targetId = String(targetUserId);
     const target = await db.getById(targetUserId);
     if (!target) throw err("NOT_FOUND", "User not found");
+    if (reqUserId !== targetId) {
+        const isPrivate = Boolean(target.account_private);
+        if (isPrivate) {
+            const following = await followDb.isFollowing(reqUserId, targetUserId);
+            if (!following) throw err("FORBIDDEN", "This account is private");
+        }
+    }
     return followDb.listFollowing(targetUserId, query);
 }
 
@@ -243,11 +261,12 @@ async function getPublicProfile(reqUser, targetUserId) {
     if (blockedByMe || blockedMe) throw err("NOT_FOUND", "User not found");
     const user = await db.getById(targetId);
     if (!user || !user.is_active) throw err("NOT_FOUND", "User not found");
-    const [followerCount, followingCount, isFollowing, followsMe] = await Promise.all([
+    const [followerCount, followingCount, isFollowing, followsMe, followRequestPending] = await Promise.all([
         followDb.countFollowers(targetId),
         followDb.countFollowing(targetId),
         followDb.isFollowing(currentUserId, targetId),
         followDb.isFollowing(targetId, currentUserId),
+        followDb.getPendingRequest(currentUserId, targetId),
     ]);
     const out = {
         id: user.id,
@@ -261,6 +280,7 @@ async function getPublicProfile(reqUser, targetUserId) {
         followingCount,
         isFollowing: !!isFollowing,
         followsMe: !!followsMe,
+        followRequestPending: !!followRequestPending,
     };
     if (isFollowing && user.phone_number) out.phone_number = user.phone_number;
     return out;
