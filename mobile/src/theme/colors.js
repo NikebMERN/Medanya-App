@@ -16,6 +16,8 @@ export const lightColors = {
   warning: "#ca8a04",
   white: "#ffffff",
   black: "#0f172a",
+  /** Unread / notification indicator (chat list blue dot, tab badge, future push). */
+  unreadIndicatorBlue: "#3b82f6",
 };
 
 export const darkColors = {
@@ -33,6 +35,7 @@ export const darkColors = {
   warning: "#eab308",
   white: "#ffffff",
   black: "#0f172a",
+  unreadIndicatorBlue: "#3b82f6",
 };
 
 export function getColors(theme) {

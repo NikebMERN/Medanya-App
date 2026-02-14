@@ -4,6 +4,8 @@
 import { create } from "zustand";
 
 export const HIDDEN_CHATS_KEY = "@medanya_hidden_chat_ids";
+export const PINNED_CHATS_KEY = "@medanya_pinned_chat_ids";
+export const MUTED_CHATS_KEY = "@medanya_muted_chat_ids";
 
 export const useChatStore = create((set, get) => ({
   chats: [],
@@ -11,6 +13,10 @@ export const useChatStore = create((set, get) => ({
   chatsError: null,
   /** Chat IDs the user has "deleted" (hidden from list). Persist to AsyncStorage. */
   hiddenChatIds: [],
+  /** Ordered list of pinned chat IDs (pinned chats appear at top). Persist to AsyncStorage. */
+  pinnedChatIds: [],
+  /** Set of muted chat IDs (for future notification handling). Persist to AsyncStorage. */
+  mutedChatIds: [],
   /** User IDs the current user has blocked; used to show "medanya_user" and no avatar for them. */
   blockedUserIds: [],
   /** Map of userId (string) -> { displayName, avatarUrl } for chat list display; never cleared so names/pics persist when list reorders */
@@ -18,7 +24,10 @@ export const useChatStore = create((set, get) => ({
 
   /** Chat ID of the room currently open (null when on list). Used to avoid incrementing unread for the open room. */
   currentChatId: null,
-  /** Map of chatId (string) -> unread count (number). Incremented when a message arrives and we're not in that room. */
+  /**
+   * Map of chatId (string) -> unread count (number). Incremented when a message arrives and we're not in that room.
+   * Ready for future: can be hydrated from server on login, and drive push notification badges.
+   */
   unreadByChatId: {},
 
   setCurrentChatId: (chatId) => set({ currentChatId: chatId ? String(chatId) : null }),
@@ -35,6 +44,11 @@ export const useChatStore = create((set, get) => ({
       return { unreadByChatId: { ...s.unreadByChatId, [id]: prev + 1 } };
     });
   },
+  /** For notifications UI: total unread across all chats. Muted chats can be excluded later. */
+  getTotalUnread: () =>
+    Object.values(get().unreadByChatId || {}).reduce((sum, n) => sum + Math.max(0, Number(n) || 0), 0),
+  getUnreadCount: (chatId) => Math.max(0, Number(get().unreadByChatId[String(chatId)]) || 0),
+  hasUnread: (chatId) => (get().unreadByChatId[String(chatId)] ?? 0) > 0,
 
   messagesByChatId: {},
   messagesLoading: {},
@@ -64,6 +78,26 @@ export const useChatStore = create((set, get) => ({
     });
     return next;
   },
+  setPinnedChatIds: (ids) => set({ pinnedChatIds: ids || [] }),
+  setMutedChatIds: (ids) => set({ mutedChatIds: ids || [] }),
+  togglePin: (chatId) => {
+    const id = String(chatId);
+    const current = get().pinnedChatIds || [];
+    const isPinned = current.includes(id);
+    const next = isPinned ? current.filter((c) => c !== id) : [id, ...current];
+    set({ pinnedChatIds: next });
+    return next;
+  },
+  toggleMute: (chatId) => {
+    const id = String(chatId);
+    const current = get().mutedChatIds || [];
+    const isMuted = current.includes(id);
+    const next = isMuted ? current.filter((c) => c !== id) : [...current, id];
+    set({ mutedChatIds: next });
+    return next;
+  },
+  isPinned: (chatId) => (get().pinnedChatIds || []).includes(String(chatId)),
+  isMuted: (chatId) => (get().mutedChatIds || []).includes(String(chatId)),
   setBlockedUserIds: (ids) => set({ blockedUserIds: ids || [] }),
   addBlockedUserId: (userId) => {
     const id = String(userId);

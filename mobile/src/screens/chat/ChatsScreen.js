@@ -21,7 +21,7 @@ import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
 import { useDebounce } from "../../hooks/useDebounce";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useChatStore, HIDDEN_CHATS_KEY } from "../../store/chat.store";
+import { useChatStore, HIDDEN_CHATS_KEY, PINNED_CHATS_KEY, MUTED_CHATS_KEY } from "../../store/chat.store";
 import { useAuthStore } from "../../store/auth.store";
 import * as chatApi from "../../services/chat.api";
 import * as userApi from "../../api/user.api";
@@ -29,7 +29,7 @@ import { ensureChatSocket } from "../../realtime/chat.socket";
 import { formatRelative } from "../../utils/format";
 import { typography } from "../../theme/typography";
 
-const SEARCH_DEBOUNCE_MS = 300;
+const SEARCH_DEBOUNCE_MS = 400;
 const USER_SEARCH_LIMIT = 100;
 
 const SEARCH_SCOPE_ALL = "all";
@@ -60,12 +60,21 @@ export default function ChatsScreen() {
   const participantProfiles = useChatStore((s) => s.participantProfiles);
   const setParticipantProfile = useChatStore((s) => s.setParticipantProfile);
   const removeChatFromList = useChatStore((s) => s.removeChatFromList);
+  const clearMessages = useChatStore((s) => s.clearMessages);
   const setHiddenChatIds = useChatStore((s) => s.setHiddenChatIds);
   const addHiddenChatId = useChatStore((s) => s.addHiddenChatId);
   const hiddenChatIds = useChatStore((s) => s.hiddenChatIds);
   const setBlockedUserIds = useChatStore((s) => s.setBlockedUserIds);
   const addBlockedUserId = useChatStore((s) => s.addBlockedUserId);
   const blockedUserIds = useChatStore((s) => s.blockedUserIds);
+  const pinnedChatIds = useChatStore((s) => s.pinnedChatIds) || [];
+  const mutedChatIds = useChatStore((s) => s.mutedChatIds) || [];
+  const togglePin = useChatStore((s) => s.togglePin);
+  const toggleMute = useChatStore((s) => s.toggleMute);
+  const setPinnedChatIds = useChatStore((s) => s.setPinnedChatIds);
+  const setMutedChatIds = useChatStore((s) => s.setMutedChatIds);
+  const isPinned = useChatStore((s) => s.isPinned);
+  const isMuted = useChatStore((s) => s.isMuted);
   const unreadByChatId = useChatStore((s) => s.unreadByChatId) || {};
 
   const [chatMenuChatId, setChatMenuChatId] = useState(null);
@@ -79,17 +88,32 @@ export default function ChatsScreen() {
       list = list.filter((c) => c.type === "group");
     }
     const q = (searchQuery || "").trim().toLowerCase();
-    if (!q) return list;
-    return list.filter((chat) => {
-      const isGroup = chat.type === "group";
-      const title = isGroup ? (chat.groupName || "Group") : getOtherDisplayName(chat, userId, participantProfiles, blockedUserIds);
-      const subtitle = chat.lastMessagePreview || "";
-      return (
-        title.toLowerCase().includes(q) ||
-        subtitle.toLowerCase().includes(q)
-      );
+    if (q) {
+      list = list.filter((chat) => {
+        const isGroup = chat.type === "group";
+        const title = isGroup ? (chat.groupName || "Group") : getOtherDisplayName(chat, userId, participantProfiles, blockedUserIds);
+        const subtitle = chat.lastMessagePreview || "";
+        return (
+          title.toLowerCase().includes(q) ||
+          subtitle.toLowerCase().includes(q)
+        );
+      });
+    }
+    const pinned = pinnedChatIds || [];
+    const pinnedSet = new Set(pinned.map(String));
+    return [...list].sort((a, b) => {
+      const aId = String(a._id || a.id);
+      const bId = String(b._id || b.id);
+      const aPin = pinnedSet.has(aId);
+      const bPin = pinnedSet.has(bId);
+      if (aPin && !bPin) return -1;
+      if (!aPin && bPin) return 1;
+      if (aPin && bPin) return pinned.indexOf(aId) - pinned.indexOf(bId);
+      const aT = new Date(a.lastMessageAt || 0).getTime();
+      const bT = new Date(b.lastMessageAt || 0).getTime();
+      return bT - aT;
     });
-  }, [chats, searchQuery, searchScope, userId, participantProfiles, blockedUserIds]);
+  }, [chats, searchQuery, searchScope, userId, participantProfiles, blockedUserIds, pinnedChatIds]);
 
   useEffect(() => {
     if (!debouncedSearchTerm) {
@@ -149,6 +173,23 @@ export default function ChatsScreen() {
       .catch(() => {});
     return () => { mounted = false; };
   }, [setHiddenChatIds]);
+
+  useEffect(() => {
+    let mounted = true;
+    Promise.all([
+      AsyncStorage.getItem(PINNED_CHATS_KEY),
+      AsyncStorage.getItem(MUTED_CHATS_KEY),
+    ]).then(([pinnedRaw, mutedRaw]) => {
+      if (!mounted) return;
+      try {
+        const pinned = pinnedRaw ? JSON.parse(pinnedRaw) : [];
+        const muted = mutedRaw ? JSON.parse(mutedRaw) : [];
+        if (Array.isArray(pinned)) setPinnedChatIds(pinned);
+        if (Array.isArray(muted)) setMutedChatIds(muted);
+      } catch (_) {}
+    }).catch(() => {});
+    return () => { mounted = false; };
+  }, [setPinnedChatIds, setMutedChatIds]);
 
   const loadChats = useCallback(async () => {
     setChatsLoading(true);
@@ -234,9 +275,11 @@ export default function ChatsScreen() {
   const menuOtherId = menuChat?.type === "direct"
     ? (menuChat.participants || []).find((p) => String(p) !== String(userId))
     : null;
-  const menuDisplayName = menuOtherId
-    ? ((blockedUserIds || []).includes(String(menuOtherId)) ? "medanya_user" : (participantProfiles[String(menuOtherId)]?.displayName ?? `User ${menuOtherId}`))
-    : "";
+  const menuDisplayName = menuChat?.type === "group"
+    ? (menuChat?.groupName || (menuChat?.isChannel ? "Channel" : "Group"))
+    : (menuOtherId ? ((blockedUserIds || []).includes(String(menuOtherId)) ? "medanya_user" : (participantProfiles[String(menuOtherId)]?.displayName ?? `User ${menuOtherId}`)) : "");
+  const menuIsGroup = menuChat?.type === "group";
+  const menuIsChannel = !!menuChat?.isChannel;
 
   useEffect(() => {
     if (chatMenuChatId) {
@@ -320,6 +363,82 @@ export default function ChatsScreen() {
       ]
     );
   }, [chatMenuChatId, closeChatMenu, addHiddenChatId]);
+
+  const onMenuPin = useCallback(async () => {
+    if (!chatMenuChatId) return;
+    const next = togglePin(chatMenuChatId);
+    closeChatMenu();
+    try {
+      await AsyncStorage.setItem(PINNED_CHATS_KEY, JSON.stringify(next));
+    } catch (_) {}
+  }, [chatMenuChatId, togglePin, closeChatMenu]);
+
+  const onMenuMute = useCallback(async () => {
+    if (!chatMenuChatId) return;
+    const next = toggleMute(chatMenuChatId);
+    closeChatMenu();
+    try {
+      await AsyncStorage.setItem(MUTED_CHATS_KEY, JSON.stringify(next));
+    } catch (_) {}
+  }, [chatMenuChatId, toggleMute, closeChatMenu]);
+
+  const onMenuLeaveGroup = useCallback(() => {
+    const cid = chatMenuChatId;
+    const label = menuIsChannel ? "channel" : "group";
+    closeChatMenu();
+    Alert.alert(
+      `Leave ${label}`,
+      `Are you sure you want to leave ${menuDisplayName || `this ${label}`}?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Leave",
+          style: "destructive",
+          onPress: async () => {
+            if (!cid) return;
+            try {
+              await chatApi.leaveGroup(cid);
+              removeChatFromList(cid);
+              clearMessages(cid);
+              loadChats();
+              navigation.navigate("Chat", { screen: "Chats" });
+            } catch (e) {
+              Alert.alert("Error", e?.response?.data?.error?.message || e?.message || "Could not leave.");
+            }
+          },
+        },
+      ]
+    );
+  }, [chatMenuChatId, menuDisplayName, menuIsChannel, closeChatMenu, removeChatFromList, clearMessages, loadChats, navigation]);
+
+  const onMenuDeleteGroup = useCallback(() => {
+    const cid = chatMenuChatId;
+    const label = menuIsChannel ? "channel" : "group";
+    closeChatMenu();
+    Alert.alert(
+      `Delete ${label}`,
+      `Permanently delete ${menuDisplayName || `this ${label}`} and all messages? This cannot be undone.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            if (!cid) return;
+            try {
+              await chatApi.deleteGroup(cid);
+              removeChatFromList(cid);
+              clearMessages(cid);
+              loadChats();
+              navigation.navigate("Chat", { screen: "Chats" });
+            } catch (e) {
+              Alert.alert("Error", e?.response?.data?.error?.message || e?.message || "Could not delete.");
+            }
+          },
+        },
+      ]
+    );
+  }, [chatMenuChatId, menuDisplayName, menuIsChannel, closeChatMenu, removeChatFromList, clearMessages, loadChats, navigation]);
 
   const openUserProfile = useCallback(
     (user) => {
@@ -423,7 +542,7 @@ export default function ChatsScreen() {
     []
   );
 
-  const renderItem = ({ item }) => {
+  const renderItem = useCallback(({ item }) => {
     const chatId = item._id || item.id;
     const chatIdStr = String(chatId);
     const isGroup = item.type === "group";
@@ -434,14 +553,18 @@ export default function ChatsScreen() {
     const otherId = !isGroup && (item.participants || []).find((p) => String(p) !== String(userId));
     const isBlocked = otherId && (blockedUserIds || []).includes(String(otherId));
     const profile = otherId ? participantProfiles[String(otherId)] : null;
-    const avatarUrl = isBlocked ? null : profile?.avatarUrl;
+    const avatarUrl = isGroup
+      ? (item.groupAvatarUrl || null)
+      : (isBlocked ? null : profile?.avatarUrl);
     const unread = Math.max(0, Number(unreadByChatId[chatIdStr]) || 0);
+    const pinned = isPinned(chatId);
+    const muted = isMuted(chatId);
 
     return (
       <TouchableOpacity
         style={styles.row}
         onPress={() => navigation.navigate("ChatRoom", { chatId })}
-        onLongPress={() => !isGroup && setChatMenuChatId(chatId)}
+        onLongPress={() => setChatMenuChatId(chatId)}
         activeOpacity={0.7}
         delayLongPress={400}
       >
@@ -454,16 +577,20 @@ export default function ChatsScreen() {
             </View>
           )}
           {unread > 0 && (
-            <View style={styles.unreadBadge}>
+            <View style={[styles.unreadBadge, { backgroundColor: colors.unreadIndicatorBlue || "#3b82f6" }]}>
               <Text style={styles.unreadCount} numberOfLines={1}>{unread > 99 ? "99+" : unread}</Text>
             </View>
           )}
         </View>
         <View style={styles.body}>
-          <Text style={styles.title} numberOfLines={1}>
-            {title}
-          </Text>
-          <Text style={styles.subtitle} numberOfLines={1}>
+          <View style={styles.rowTitleWrap}>
+            {pinned && <MaterialIcons name="push-pin" size={14} color={colors.primary} style={styles.rowPinIcon} />}
+            <Text style={[styles.title, muted && styles.titleMuted]} numberOfLines={1}>
+              {title}
+            </Text>
+            {muted && <MaterialIcons name="notifications-off" size={14} color={colors.textMuted} style={styles.rowMuteIcon} />}
+          </View>
+          <Text style={[styles.subtitle, muted && styles.subtitleMuted]} numberOfLines={1}>
             {subtitle}
           </Text>
         </View>
@@ -472,7 +599,7 @@ export default function ChatsScreen() {
         )}
       </TouchableOpacity>
     );
-  };
+  }, [navigation, userId, participantProfiles, blockedUserIds, unreadByChatId, isPinned, isMuted, styles, colors]);
 
   const peopleList = useMemo(() => {
     const me = String(userId);
@@ -643,6 +770,10 @@ export default function ChatsScreen() {
             hasSearchQuery ? String(item.id ?? item.userId) : String(item._id || item.id)
           }
           renderItem={hasSearchQuery ? renderPersonRow : renderItem}
+          initialNumToRender={12}
+          maxToRenderPerBatch={10}
+          windowSize={8}
+          removeClippedSubviews={Platform.OS !== "web"}
           ListHeaderComponent={hasSearchQuery ? searchListHeader : null}
           contentContainerStyle={
             (hasSearchQuery ? peopleList.length === 0 : filteredChats.length === 0) &&
@@ -699,18 +830,49 @@ export default function ChatsScreen() {
                 },
               ]}
             >
-            <TouchableOpacity style={styles.chatMenuItem} onPress={onMenuUnfollow} activeOpacity={0.7}>
-              <MaterialIcons name="person-remove" size={22} color={colors.text} />
-              <Text style={[styles.chatMenuItemText, { color: colors.text }]}>Unfollow</Text>
+            <TouchableOpacity style={styles.chatMenuItem} onPress={onMenuPin} activeOpacity={0.7}>
+              <MaterialIcons name="push-pin" size={22} color={menuChat && isPinned(chatMenuChatId) ? colors.primary : colors.text} />
+              <Text style={[styles.chatMenuItemText, { color: menuChat && isPinned(chatMenuChatId) ? colors.primary : colors.text }]}>
+                {menuChat && isPinned(chatMenuChatId) ? "Unpin" : "Pin"}
+              </Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.chatMenuItem} onPress={onMenuBlock} activeOpacity={0.7}>
-              <MaterialIcons name="block" size={22} color={colors.error || "#dc2626"} />
-              <Text style={[styles.chatMenuItemText, { color: colors.error || "#dc2626" }]}>Block</Text>
+            <TouchableOpacity style={styles.chatMenuItem} onPress={onMenuMute} activeOpacity={0.7}>
+              <MaterialIcons name={menuChat && isMuted(chatMenuChatId) ? "notifications" : "notifications-off"} size={22} color={menuChat && isMuted(chatMenuChatId) ? colors.primary : colors.text} />
+              <Text style={[styles.chatMenuItemText, { color: menuChat && isMuted(chatMenuChatId) ? colors.primary : colors.text }]}>
+                {menuChat && isMuted(chatMenuChatId) ? "Unmute" : "Mute"}
+              </Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.chatMenuItem} onPress={onMenuDeleteChat} activeOpacity={0.7}>
-              <MaterialIcons name="delete-outline" size={22} color={colors.text} />
-              <Text style={[styles.chatMenuItemText, { color: colors.text }]}>Delete chat</Text>
-            </TouchableOpacity>
+            {menuIsGroup ? (
+              <>
+                <TouchableOpacity style={styles.chatMenuItem} onPress={onMenuLeaveGroup} activeOpacity={0.7}>
+                  <MaterialIcons name="exit-to-app" size={22} color={colors.warning || "#f59e0b"} />
+                  <Text style={[styles.chatMenuItemText, { color: colors.warning || "#f59e0b" }]}>
+                    Leave {menuIsChannel ? "channel" : "group"}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.chatMenuItem} onPress={onMenuDeleteGroup} activeOpacity={0.7}>
+                  <MaterialIcons name="delete-outline" size={22} color={colors.error || "#dc2626"} />
+                  <Text style={[styles.chatMenuItemText, { color: colors.error || "#dc2626" }]}>
+                    Delete {menuIsChannel ? "channel" : "group"}
+                  </Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <TouchableOpacity style={styles.chatMenuItem} onPress={onMenuUnfollow} activeOpacity={0.7}>
+                  <MaterialIcons name="person-remove" size={22} color={colors.text} />
+                  <Text style={[styles.chatMenuItemText, { color: colors.text }]}>Unfollow</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.chatMenuItem} onPress={onMenuBlock} activeOpacity={0.7}>
+                  <MaterialIcons name="block" size={22} color={colors.error || "#dc2626"} />
+                  <Text style={[styles.chatMenuItemText, { color: colors.error || "#dc2626" }]}>Block</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.chatMenuItem} onPress={onMenuDeleteChat} activeOpacity={0.7}>
+                  <MaterialIcons name="delete-outline" size={22} color={colors.text} />
+                  <Text style={[styles.chatMenuItemText, { color: colors.text }]}>Delete chat</Text>
+                </TouchableOpacity>
+              </>
+            )}
           </Animated.View>
           </Pressable>
         </Pressable>
@@ -913,13 +1075,12 @@ function createStyles(colors) {
       position: "absolute",
       top: -2,
       right: -2,
-      minWidth: 20,
-      height: 20,
-      borderRadius: 10,
-      backgroundColor: "#3b82f6",
+      minWidth: 22,
+      height: 22,
+      borderRadius: 11,
       justifyContent: "center",
       alignItems: "center",
-      paddingHorizontal: 6,
+      paddingHorizontal: 5,
     },
     unreadCount: {
       color: "#fff",
@@ -928,8 +1089,13 @@ function createStyles(colors) {
     },
     avatarText: { color: colors.white, fontSize: 18, fontWeight: "600" },
     body: { flex: 1, minWidth: 0 },
+    rowTitleWrap: { flexDirection: "row", alignItems: "center", gap: 4, minWidth: 0 },
+    rowPinIcon: { marginRight: 2 },
+    rowMuteIcon: { marginLeft: 4 },
     title: { fontSize: 16, fontWeight: "600", color: colors.text, fontStyle: typography.fontStyle },
+    titleMuted: { color: colors.textMuted, opacity: 0.9 },
     subtitle: { fontSize: 14, color: colors.textMuted, marginTop: 2, fontStyle: typography.fontStyle },
+    subtitleMuted: { opacity: 0.8 },
     time: { fontSize: 12, color: colors.textMuted, marginLeft: spacing.sm, fontStyle: typography.fontStyle },
     error: {
       color: colors.error,

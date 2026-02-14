@@ -12,6 +12,7 @@ import {
   Pressable,
   Image,
   ActivityIndicator,
+  Animated,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
@@ -22,6 +23,70 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useThemeColors } from "../theme/useThemeColors";
 import { spacing } from "../theme/spacing";
 import { uploadToCloudinary } from "../utils/env";
+
+const BAR_COUNT = 9;
+const recordingAnimStyles = StyleSheet.create({
+  wrap: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    marginRight: spacing.xs,
+  },
+  bar: {
+    width: 4,
+    borderRadius: 2,
+    minHeight: 6,
+  },
+});
+
+function RecordingAnimation({ colors }) {
+  const anims = useRef(
+    Array.from({ length: BAR_COUNT }, () => new Animated.Value(0.3))
+  ).current;
+
+  useEffect(() => {
+    const loops = anims.map((anim, i) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(anim, {
+            toValue: 0.9 - (i / BAR_COUNT) * 0.4,
+            duration: 120 + i * 30,
+            useNativeDriver: false,
+          }),
+          Animated.timing(anim, {
+            toValue: 0.2 + (i / BAR_COUNT) * 0.5,
+            duration: 120 + i * 30,
+            useNativeDriver: false,
+          }),
+        ])
+      )
+    );
+    loops.forEach((l) => l.start());
+    return () => loops.forEach((l) => l.stop());
+  }, [anims]);
+
+  return (
+    <View style={recordingAnimStyles.wrap}>
+      {anims.map((anim, i) => (
+        <Animated.View
+          key={i}
+          style={[
+            recordingAnimStyles.bar,
+            {
+              backgroundColor: colors.textMuted + "80",
+              height: anim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [6, 28],
+              }),
+            },
+          ]}
+        />
+      ))}
+    </View>
+  );
+}
 
 /**
  * Chat input: plus, text field, mic, camera, send. Optional reply/edit bars.
@@ -84,8 +149,11 @@ export default function ChatInput({
         Alert.alert("Permission needed", "Allow access to photos to send images and videos.");
         return;
       }
+      const mediaTypes = Platform.OS === "ios"
+        ? ["images", "videos"]
+        : (ImagePicker.MediaTypeOptions?.All ?? "all");
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions?.All ?? "all",
+        mediaTypes,
         allowsEditing: false,
         quality: 0.8,
       });
@@ -270,6 +338,18 @@ export default function ChatInput({
     { key: "contact", label: "Contact", icon: "contacts", onPress: pickContact },
   ];
 
+  const discardVoice = useCallback(async () => {
+    if (!recording) return;
+    try {
+      const r = recordingRef.current;
+      if (r) {
+        await r.stopAndUnloadAsync();
+      }
+    } catch (_) {}
+    recordingRef.current = null;
+    setRecording(false);
+  }, [recording]);
+
   const toggleVoice = useCallback(async () => {
     if (disabled || uploading) return;
 
@@ -352,64 +432,78 @@ export default function ChatInput({
         </View>
       )}
       <View style={styles.container}>
-        {!isEditMode && (
-          pendingMedia ? (
-            <View style={styles.mediaPreviewWrap}>
-              <Image source={{ uri: pendingMedia.uri }} style={styles.mediaPreviewImg} resizeMode="cover" />
-              <View style={styles.mediaProgressOverlay}>
-                <ActivityIndicator size="small" color={colors.primary} />
-              </View>
-            </View>
-          ) : (
-            <TouchableOpacity
-              style={styles.iconBtn}
-              onPress={openPlusMenu}
-              disabled={disabled || uploading}
-            >
-              <MaterialIcons name="add" size={26} color={colors.primary} />
-            </TouchableOpacity>
-          )
-        )}
-        <TextInput
-          style={styles.input}
-          placeholder={isEditMode ? "Edit message..." : "Message..."}
-          placeholderTextColor={colors.textMuted}
-          value={text}
-          onChangeText={setText}
-          multiline
-          maxLength={4096}
-          editable={!disabled}
-          onSubmitEditing={handleSendText}
-        />
-        {!isEditMode && (
+        {recording ? (
           <>
-            <TouchableOpacity
-              style={[styles.iconBtn, recording && styles.iconBtnRecording]}
-              onPress={toggleVoice}
-              disabled={disabled || uploading}
-            >
-              <MaterialIcons
-                name={recording ? "stop" : "mic"}
-                size={24}
-                color={recording ? colors.error : colors.textMuted}
-              />
+            <TouchableOpacity style={styles.iconBtn} onPress={discardVoice}>
+              <MaterialIcons name="delete-outline" size={24} color={colors.error} />
             </TouchableOpacity>
+            <RecordingAnimation colors={colors} />
             <TouchableOpacity
-              style={styles.iconBtn}
-              onPress={takePhoto}
-              disabled={disabled || uploading}
+              style={[styles.iconBtn, styles.iconBtnRecording]}
+              onPress={toggleVoice}
+              disabled={uploading}
             >
-              <MaterialIcons name="camera-alt" size={22} color={colors.textMuted} />
+              <MaterialIcons name="stop" size={24} color={colors.error} />
+            </TouchableOpacity>
+          </>
+        ) : (
+          <>
+            {!isEditMode && (
+              pendingMedia ? (
+                <View style={styles.mediaPreviewWrap}>
+                  <Image source={{ uri: pendingMedia.uri }} style={styles.mediaPreviewImg} resizeMode="cover" />
+                  <View style={styles.mediaProgressOverlay}>
+                    <ActivityIndicator size="small" color={colors.primary} />
+                  </View>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  style={styles.iconBtn}
+                  onPress={openPlusMenu}
+                  disabled={disabled || uploading}
+                >
+                  <MaterialIcons name="add" size={26} color={colors.primary} />
+                </TouchableOpacity>
+              )
+            )}
+            <TextInput
+              style={styles.input}
+              placeholder={isEditMode ? "Edit message..." : "Message..."}
+              placeholderTextColor={colors.textMuted}
+              value={text}
+              onChangeText={setText}
+              multiline
+              maxLength={4096}
+              editable={!disabled}
+              onSubmitEditing={handleSendText}
+            />
+            {!isEditMode && (
+              <>
+                <TouchableOpacity
+                  style={styles.iconBtn}
+                  onPress={toggleVoice}
+                  disabled={disabled || uploading}
+                >
+                  <MaterialIcons name="mic" size={24} color={colors.textMuted} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.iconBtn}
+                  onPress={takePhoto}
+                  disabled={disabled || uploading}
+                >
+                  <MaterialIcons name="camera-alt" size={22} color={colors.textMuted} />
+                </TouchableOpacity>
+              </>
+            )}
+            <TouchableOpacity
+              style={[styles.sendBtn, (!canSendText || disabled) && styles.sendBtnDisabled]}
+              onPress={handleSendText}
+              disabled={!canSendText || disabled}
+            >
+              <Text style={styles.sendLabel}>{isEditMode ? "Save" : "Send"}</Text>
             </TouchableOpacity>
           </>
         )}
-        <TouchableOpacity
-          style={[styles.sendBtn, (!canSendText || disabled) && styles.sendBtnDisabled]}
-          onPress={handleSendText}
-          disabled={!canSendText || disabled}
-        >
-          <Text style={styles.sendLabel}>{isEditMode ? "Save" : "Send"}</Text>
-        </TouchableOpacity>
       </View>
 
       <Modal visible={pollModalVisible} transparent animationType="fade" onRequestClose={() => setPollModalVisible(false)}>

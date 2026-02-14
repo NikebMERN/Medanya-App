@@ -56,6 +56,7 @@ export default function LandingScreen() {
       iosClientId: googleIosClientId,
       androidClientId: googleAndroidClientId,
       redirectUri,
+      scopes: ["openid", "profile", "email"],
     });
 
   const [fbRequest, fbResponse, fbPromptAsync] = Facebook.useAuthRequest({

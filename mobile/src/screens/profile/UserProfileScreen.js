@@ -65,6 +65,15 @@ export default function UserProfileScreen() {
   const chats = useChatStore((s) => s.chats);
   const setChats = useChatStore((s) => s.setChats);
   const participantProfiles = useChatStore((s) => s.participantProfiles);
+  const unreadByChatId = useChatStore((s) => s.unreadByChatId) || {};
+
+  const chatWithUser = useMemo(() => {
+    if (!targetUserId || !chats?.length) return null;
+    return chats.find(
+      (c) => c.type === "direct" && (c.participants || []).some((p) => String(p) === String(targetUserId))
+    ) || null;
+  }, [chats, targetUserId]);
+  const unreadWithUser = chatWithUser ? Math.max(0, Number(unreadByChatId[String(chatWithUser._id || chatWithUser.id)]) || 0) : 0;
 
   const MIN_ZOOM = 1;
   const MAX_ZOOM = 4;
@@ -429,7 +438,14 @@ export default function UserProfileScreen() {
       {isFriend && (
         <View style={styles.messageRow}>
           <TouchableOpacity style={styles.messageBtn} onPress={handleMessage} activeOpacity={0.8}>
-            <MaterialIcons name="message" size={20} color={colors.white} />
+            <View style={styles.messageBtnInner}>
+              <MaterialIcons name="message" size={20} color={colors.white} />
+              {unreadWithUser > 0 && (
+                <View style={[styles.unreadDot, { backgroundColor: colors.unreadIndicatorBlue || "#3b82f6" }]}>
+                  <Text style={styles.unreadDotText}>{unreadWithUser > 99 ? "99+" : unreadWithUser}</Text>
+                </View>
+              )}
+            </View>
             <Text style={styles.messageBtnText}>Message</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.shareContactBtn} onPress={openShareProfileModal} activeOpacity={0.8}>
@@ -683,6 +699,19 @@ function createStyles(colors) {
       borderRadius: 12,
       backgroundColor: colors.primary,
     },
+    messageBtnInner: { position: "relative" },
+    unreadDot: {
+      position: "absolute",
+      top: -6,
+      right: -10,
+      minWidth: 18,
+      height: 18,
+      borderRadius: 9,
+      justifyContent: "center",
+      alignItems: "center",
+      paddingHorizontal: 4,
+    },
+    unreadDotText: { color: "#fff", fontSize: 10, fontWeight: "700" },
     messageBtnText: { fontSize: 16, fontWeight: "700", color: colors.white },
     shareContactBtn: {
       flex: 1,

@@ -11,6 +11,8 @@ const ChatRoomScreen = React.lazy(() => import("../screens/chat/ChatRoomScreen")
 const CreateGroupScreen = React.lazy(() => import("../screens/chat/CreateGroupScreen"));
 const CreateChannelScreen = React.lazy(() => import("../screens/chat/CreateChannelScreen"));
 const AddGroupMembersScreen = React.lazy(() => import("../screens/chat/AddGroupMembersScreen"));
+const EditGroupScreen = React.lazy(() => import("../screens/chat/EditGroupScreen"));
+const EditChannelScreen = React.lazy(() => import("../screens/chat/EditChannelScreen"));
 const SearchJoinGroupScreen = React.lazy(() => import("../screens/chat/SearchJoinGroupScreen"));
 const UserProfileScreen = React.lazy(() => import("../screens/profile/UserProfileScreen"));
 const FollowersListScreen = React.lazy(() => import("../screens/profile/FollowersListScreen"));
@@ -49,7 +51,6 @@ export default function ChatStack() {
   useEffect(() => {
     const handler = (message) => {
       const msgChatId = String(message.chatId || message.chat);
-      appendMessage(msgChatId, message);
       const preview =
         message.type === "text"
           ? (message.text || "").slice(0, 80)
@@ -62,8 +63,12 @@ export default function ChatStack() {
         lastMessageAt: message.createdAt,
         lastMessagePreview: preview,
       });
+      if (String(message.senderId) === String(userId)) {
+        return;
+      }
+      appendMessage(msgChatId, message);
       const current = useChatStore.getState().currentChatId;
-      if (current !== msgChatId && String(message.senderId) !== String(userId)) {
+      if (current !== msgChatId) {
         incrementUnread(msgChatId);
       }
     };
@@ -80,6 +85,8 @@ export default function ChatStack() {
         <Stack.Screen name="CreateGroup" component={CreateGroupScreen} />
         <Stack.Screen name="CreateChannel" component={CreateChannelScreen} />
         <Stack.Screen name="AddGroupMembers" component={AddGroupMembersScreen} />
+        <Stack.Screen name="EditGroup" component={EditGroupScreen} />
+        <Stack.Screen name="EditChannel" component={EditChannelScreen} />
         <Stack.Screen name="SearchJoinGroup" component={SearchJoinGroupScreen} />
         <Stack.Screen name="UserProfile" component={UserProfileScreen} />
         <Stack.Screen name="FollowersList" component={FollowersListScreen} />

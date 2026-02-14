@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useMemo, useState, useCallback } from "react";
-import { View, Text, StyleSheet, Image, Pressable, Animated, TouchableOpacity, Linking, ActivityIndicator, Alert } from "react-native";
+import { View, Text, StyleSheet, Image, Pressable, Animated, TouchableOpacity, Linking, ActivityIndicator, Alert, Platform } from "react-native";
 import { WebView } from "react-native-webview";
 import { MaterialIcons } from "@expo/vector-icons";
 import * as FileSystem from "expo-file-system";
+import * as Sharing from "expo-sharing";
 import { useThemeColors } from "../theme/useThemeColors";
 import { spacing } from "../theme/spacing";
 import { formatTime } from "../utils/format";
@@ -77,11 +78,22 @@ export default function ChatMessage({
       const safeExt = /^[a-z0-9]+$/i.test(ext) ? ext : "file";
       const localPath = `${FileSystem.cacheDirectory}chat_file_${Date.now()}.${safeExt}`;
       const { uri } = await FileSystem.downloadAsync(url, localPath);
-      const canOpen = await Linking.canOpenURL(uri);
-      if (canOpen) {
-        await Linking.openURL(uri);
+      if (Platform.OS === "ios") {
+        const canShare = await Sharing.isAvailableAsync();
+        if (canShare) {
+          await Sharing.shareAsync(uri, { mimeType: "application/octet-stream", dialogTitle: "Open file" });
+        } else {
+          const canOpen = await Linking.canOpenURL(uri);
+          if (canOpen) await Linking.openURL(uri);
+          else Alert.alert("Open file", "Use Save from the message menu to open this file.");
+        }
       } else {
-        Alert.alert("Open file", "No app found to open this file. Try saving it from the message menu.");
+        const canOpen = await Linking.canOpenURL(uri);
+        if (canOpen) {
+          await Linking.openURL(uri);
+        } else {
+          Alert.alert("Open file", "No app found to open this file. Try saving it from the message menu.");
+        }
       }
     } catch (e) {
       try {

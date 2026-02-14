@@ -218,6 +218,9 @@ module.exports = function registerChatSocket(io, socket) {
             if (!check.ok) return ackErr(ack, check.error);
 
             await chatService.markMessagesRead(me, { chatId, messageIds });
+            if (Array.isArray(messageIds) && messageIds.length > 0) {
+                io.to(chatRoom(chatId)).emit("chat:message:read-receipt", { messageIds, readByUserId: me });
+            }
             return ackOk(ack);
         } catch (e) {
             const code = e.code || "SERVER_ERROR";

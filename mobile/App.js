@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View } from "react-native";
+import { View, InteractionManager } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -18,7 +18,7 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
 
 const queryClient = new QueryClient({
   defaultOptions: {
-    queries: { retry: 1, staleTime: 60 * 1000 },
+    queries: { retry: 1, staleTime: 2 * 60 * 1000, gcTime: 5 * 60 * 1000 },
   },
 });
 
@@ -30,16 +30,21 @@ export default function App() {
   const [splashDone, setSplashDone] = useState(false);
 
   useEffect(() => {
-    (async () => {
-      try {
-        await SplashScreen.preventAutoHideAsync();
-      } catch (_) {
-        // Native splash may not be available (e.g. web, some Expo Go)
-      }
-      await rehydrateTheme();
-      await rehydrate();
-      setReady(true);
-    })();
+    let cancelled = false;
+    const task = InteractionManager.runAfterInteractions(() => {
+      (async () => {
+        try {
+          await SplashScreen.preventAutoHideAsync();
+        } catch (_) {}
+        await rehydrateTheme();
+        await rehydrate();
+        if (!cancelled) setReady(true);
+      })();
+    });
+    return () => {
+      cancelled = true;
+      task.cancel?.();
+    };
   }, [rehydrate, rehydrateTheme]);
 
   useEffect(() => {

@@ -4,7 +4,7 @@
   "main": "index.js",
   "scripts": {
     "update-api-url": "node scripts/update-api-url.js",
-    "start": "node scripts/update-api-url.js && expo start --tunnelr",
+    "start": "node scripts/update-api-url.js && expo start",
     "start:clean": "node scripts/update-api-url.js && expo start --clear",
     "clean": "node -e \"const fs=require('fs');const path=require('path');const rm=(p)=>{try{fs.existsSync(p)&&fs.rmSync(p,{recursive:true});}catch(e){}};rm(path.join(process.cwd(),'.expo'));rm(path.join(process.cwd(),'node_modules','.cache'));console.log('Cache cleared.');\"",
     "start:online": "expo start",

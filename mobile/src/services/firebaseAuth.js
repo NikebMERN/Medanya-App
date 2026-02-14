@@ -12,20 +12,18 @@ import { env } from "../utils/env";
 WebBrowser.maybeCompleteAuthSession();
 
 /**
- * Redirect URI for OAuth.
- * 1) EXPO_PUBLIC_OAUTH_REDIRECT_URI (e.g. https://medanya-project.firebaseapp.com/__/auth/handler)
- * 2) Built from EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN → https://<domain>/__/auth/handler
- * 3) Otherwise app scheme (medanya://redirect)
+ * Redirect URI for OAuth (expo-auth-session + native token flow).
+ *
+ * Uses EXPO_PUBLIC_OAUTH_REDIRECT_URI when set (e.g. medanya://redirect).
+ * Fallback: app scheme via makeRedirectUri.
+ *
+ * For mobile: use a scheme-based URI (medanya://redirect) so the browser returns to the app.
+ * Add the same URI in Google Cloud Console and Facebook → Valid OAuth Redirect URIs.
  */
 export function getAppRedirectUri() {
   const fromEnv = env.oauthRedirectUri;
-  if (fromEnv && (fromEnv.startsWith("https://") || fromEnv.startsWith("http://"))) {
-    return fromEnv.replace(/\/+$/, "");
-  }
-  const domain = (env.firebaseAuthDomain || "").trim().replace(/\/+$/, "");
-  if (domain) {
-    const base = domain.startsWith("http") ? domain : `https://${domain}`;
-    return `${base.replace(/\/+$/, "")}/__/auth/handler`;
+  if (fromEnv) {
+    return fromEnv.trim().replace(/\/+$/, "");
   }
   const scheme = Constants.expoConfig?.scheme ?? "medanya";
   return AuthSession.makeRedirectUri({

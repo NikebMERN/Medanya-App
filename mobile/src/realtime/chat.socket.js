@@ -61,6 +61,33 @@ export function offChatMessageNew(handler) {
 }
 
 /**
+ * Mark messages as read. Payload: { chatId, messageIds }.
+ * Server updates readBy/readByUserIds on messages.
+ */
+export function markMessagesRead(payload, ack) {
+  const socket = getSocket();
+  if (!socket?.connected) {
+    if (ack) ack({ ok: false, error: "NOT_CONNECTED" });
+    return;
+  }
+  socket.emit("chat:message:read", payload, ack || (() => {}));
+}
+
+/**
+ * Subscribe to read receipt updates (when peer marks our messages as read).
+ * Handler receives ({ messageIds, readByUserId }).
+ */
+export function onChatMessageReadReceipt(handler) {
+  const socket = getSocket();
+  if (socket) socket.on("chat:message:read-receipt", handler);
+}
+
+export function offChatMessageReadReceipt(handler) {
+  const socket = getSocket();
+  if (socket) socket.off("chat:message:read-receipt", handler);
+}
+
+/**
  * Ensure socket is connected with current token. Call when entering chat flow.
  */
 export function ensureChatSocket(token) {

@@ -35,7 +35,14 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "The app needs access to your photos to let you upload a profile picture."
+          "photosPermission": "The app needs access to your photos to let you upload a profile picture and share images or videos in chat."
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow access to save images and videos to your photo library.",
+          "savePhotosPermission": "Allow access to save images and videos to your photo library."
         }
       ],
       [

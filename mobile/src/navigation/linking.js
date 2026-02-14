@@ -19,7 +19,12 @@ const linking = {
               ChatRoom: "chat/:chatId",
             },
           },
-          Jobs: "jobs",
+          Jobs: {
+            screens: {
+              JobsList: "jobs",
+              JobDetail: "jobs/:jobId",
+            },
+          },
           Videos: "videos",
           Live: "live",
           Profile: "profile",

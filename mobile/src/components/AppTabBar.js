@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useThemeColors } from "../theme/useThemeColors";
 import { spacing } from "../theme/spacing";
+import { useChatStore } from "../store/chat.store";
 
 const TAB_CONFIG = [
   { name: "Home", label: "HOME", icon: "home", rootScreen: null },
@@ -18,6 +19,11 @@ export default function AppTabBar({ state, descriptors, navigation }) {
   const insets = useSafeAreaInsets();
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors, insets.bottom), [colors, insets.bottom]);
+  const unreadByChatId = useChatStore((s) => s.unreadByChatId) || {};
+  const totalUnread = useMemo(
+    () => Object.values(unreadByChatId).reduce((sum, n) => sum + Math.max(0, Number(n) || 0), 0),
+    [unreadByChatId]
+  );
   const scaleAnims = useRef({}).current;
 
   const getScaleAnim = (key) => {
@@ -54,6 +60,7 @@ export default function AppTabBar({ state, descriptors, navigation }) {
     const isFocused = state.index === globalIndex;
     const config = TAB_CONFIG[globalIndex];
     const scale = getScaleAnim(route.key);
+    const showUnreadBadge = route.name === "Chat" && totalUnread > 0;
 
     return (
       <TouchableOpacity
@@ -74,6 +81,13 @@ export default function AppTabBar({ state, descriptors, navigation }) {
             size={22}
             color={isFocused ? colors.primary : colors.textSecondary}
           />
+          {showUnreadBadge && (
+            <View style={[styles.tabBadge, { backgroundColor: colors.unreadIndicatorBlue || "#3b82f6" }]}>
+              <Text style={styles.tabBadgeText} numberOfLines={1}>
+                {totalUnread > 99 ? "99+" : totalUnread}
+              </Text>
+            </View>
+          )}
         </Animated.View>
         <Text style={[styles.label, isFocused && styles.labelActive]} numberOfLines={1}>
           {config?.label ?? route.name}
@@ -130,6 +144,23 @@ function createStyles(colors, paddingBottom) {
       justifyContent: "center",
       alignItems: "center",
       marginBottom: 2,
+      position: "relative",
+    },
+    tabBadge: {
+      position: "absolute",
+      top: -6,
+      right: -8,
+      minWidth: 18,
+      height: 18,
+      borderRadius: 9,
+      justifyContent: "center",
+      alignItems: "center",
+      paddingHorizontal: 4,
+    },
+    tabBadgeText: {
+      color: "#fff",
+      fontSize: 10,
+      fontWeight: "700",
     },
     iconWrapActive: {
       backgroundColor: colors.primary + "30",
