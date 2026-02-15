@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, memo } from "react";
 import {
   View,
   Text,
@@ -16,10 +16,12 @@ import { useAuthStore } from "../store/auth.store";
 import { useThemeStore } from "../store/theme.store";
 import { spacing } from "../theme/spacing";
 
-export default function AppHeader({ navigation, route, focusedRouteName }) {
+function AppHeaderInner({ navigation, route, focusedRouteName }) {
   const insets = useSafeAreaInsets();
   const colors = useThemeColors();
-  const styles = useMemo(() => createStyles(colors, insets.top, insets.bottom), [colors, insets.top, insets.bottom]);
+  const topInset = insets?.top ?? 0;
+  const bottomInset = insets?.bottom ?? 0;
+  const styles = useMemo(() => createStyles(colors, topInset, bottomInset), [colors, topInset, bottomInset]);
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const theme = useThemeStore((s) => s.theme);
@@ -117,7 +119,7 @@ export default function AppHeader({ navigation, route, focusedRouteName }) {
         onRequestClose={closeMenu}
       >
         <Pressable style={styles.menuOverlay} onPress={closeMenu}>
-          <Pressable style={[styles.menuSheet, { paddingBottom: insets.bottom + spacing.md }]} onPress={(e) => e.stopPropagation()}>
+          <Pressable style={[styles.menuSheet, { paddingBottom: bottomInset + spacing.md }]} onPress={(e) => e.stopPropagation()}>
             <View style={styles.menuHandle} />
             <TouchableOpacity style={styles.menuItem} onPress={handleEditProfile} activeOpacity={0.7}>
               <MaterialIcons name="edit" size={22} color={colors.text} />
@@ -299,3 +301,6 @@ function createStyles(colors, paddingTop, paddingBottom = 0) {
     },
   });
 }
+
+const AppHeader = memo(AppHeaderInner);
+export default AppHeader;

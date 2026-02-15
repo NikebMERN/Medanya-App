@@ -12,7 +12,7 @@ const linking = {
       },
       Main: {
         screens: {
-          Feed: "feed",
+          Home: "feed",
           Chat: {
             screens: {
               Chats: "chat",
@@ -25,8 +25,21 @@ const linking = {
               JobDetail: "jobs/:jobId",
             },
           },
-          Videos: "videos",
-          Live: "live",
+          Marketplace: {
+            screens: {
+              MarketplaceList: "marketplace",
+              MarketplaceDetail: "marketplace/:itemId",
+              CreateItem: "marketplace/sell",
+            },
+          },
+          Safety: {
+            screens: {
+              SafetyHub: "safety",
+              BlacklistSearch: "safety/blacklist",
+              MissingList: "safety/missing",
+              MissingDetail: "safety/missing/:id",
+            },
+          },
           Profile: "profile",
         },
       },

@@ -280,6 +280,16 @@ export default function ProfileScreen() {
         </View>
       </View>
 
+      {/* Identity verification */}
+      <TouchableOpacity
+        style={styles.actionCard}
+        onPress={() => navigation.navigate("Kyc")}
+        activeOpacity={0.8}
+      >
+        <MaterialIcons name="badge" size={28} color={colors.primary} style={styles.actionIcon} />
+        <Text style={styles.actionLabel}>IDENTITY VERIFICATION</Text>
+      </TouchableOpacity>
+
       {/* Light mode + Logout */}
       <View style={styles.actionRow}>
         <TouchableOpacity style={styles.actionCard} onPress={toggleTheme} activeOpacity={0.8}>

@@ -4,6 +4,7 @@ const { pool } = require("../../config/mysql");
 async function getById(userId) {
     const [rows] = await pool.query(
         `SELECT id, phone_number, email, display_name, avatar_url, neighborhood, last_lat, last_lng, bio, preferred_theme, role, is_verified,
+            otp_verified, kyc_status, kyc_level, safety_acknowledged_at,
             privacy_hide_phone, account_private, notification_enabled, is_banned, banned_reason, is_active,
             created_at, updated_at
      FROM users WHERE id = ? LIMIT 1`,
@@ -27,6 +28,7 @@ async function updateById(userId, fields) {
         privacy_hide_phone: fields.privacy_hide_phone,
         account_private: fields.account_private,
         notification_enabled: fields.notification_enabled,
+        safety_acknowledged_at: fields.safety_acknowledged_at,
     };
 
     const keys = Object.keys(allowed).filter((k) => allowed[k] !== undefined);
@@ -104,6 +106,23 @@ async function setVerified(userId, verified) {
     return getById(userId);
 }
 
+async function updateKyc(userId, { kyc_status, kyc_level }) {
+    const set = [];
+    const params = [];
+    if (kyc_status !== undefined) {
+        set.push("kyc_status = ?");
+        params.push(kyc_status);
+    }
+    if (kyc_level !== undefined) {
+        set.push("kyc_level = ?");
+        params.push(kyc_level);
+    }
+    if (set.length === 0) return getById(userId);
+    params.push(userId);
+    await pool.query(`UPDATE users SET ${set.join(", ")} WHERE id = ?`, params);
+    return getById(userId);
+}
+
 module.exports = {
     getById,
     updateById,
@@ -113,4 +132,5 @@ module.exports = {
     banUser,
     countAdmins,
     setVerified,
+    updateKyc,
 };

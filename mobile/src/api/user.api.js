@@ -13,6 +13,7 @@ export async function updateMe(payload) {
   if (payload.bio !== undefined) body.bio = payload.bio;
   if (payload.lastLat !== undefined) body.lastLat = payload.lastLat;
   if (payload.lastLng !== undefined) body.lastLng = payload.lastLng;
+  if (payload.safetyAcknowledgedAt !== undefined) body.safetyAcknowledgedAt = payload.safetyAcknowledgedAt;
   const { data } = await client.patch("/users/me", body);
   return data;
 }

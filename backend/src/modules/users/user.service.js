@@ -72,6 +72,9 @@ function validatePatch(body = {}) {
         const v = String(body.preferredTheme || "dark").toLowerCase();
         out.preferred_theme = ["light", "dark", "system"].includes(v) ? v : "dark";
     }
+    if (body.safetyAcknowledgedAt !== undefined) {
+        out.safety_acknowledged_at = body.safetyAcknowledgedAt ? new Date() : null;
+    }
 
     return out;
 }

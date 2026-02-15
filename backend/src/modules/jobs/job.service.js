@@ -1,5 +1,7 @@
 // src/modules/jobs/job.service.js
 const jobDb = require("./job.mysql");
+const userDb = require("../users/user.mysql");
+const fraudService = require("../../services/fraudPrevention.service");
 
 const validateCreate = (body) => {
     const title = String(body.title || "").trim();
@@ -79,8 +81,23 @@ async function createJob(reqUser, body) {
         throw codeErr("UNAUTHORIZED", "Auth required");
     const userId = reqUser.id ?? reqUser.userId;
 
+    await fraudService.requireOtpVerified(userId);
+    await fraudService.checkJobRateLimit(userId);
+
     const data = validateCreate(body);
-    const id = await jobDb.insertJob({ created_by: userId, ...data });
+    const { score, matchedKeywords, status } = await fraudService.computeRiskScore(userId, {
+        title: data.title,
+        description: null,
+        location: data.location,
+    });
+
+    const id = await jobDb.insertJob({
+        created_by: userId,
+        ...data,
+        risk_score: score,
+        matched_keywords: matchedKeywords.length ? JSON.stringify(matchedKeywords) : null,
+        status: status || "active",
+    });
     const job = await jobDb.findJobById(id);
     return job;
 }
@@ -92,6 +109,13 @@ async function getJob(id, includeRating = true) {
         const rating = await jobDb.getAverageRatingByJobId(id);
         job.avgRating = rating.avgRating;
         job.ratingCount = rating.count;
+    }
+    if (job.created_by) {
+        const creator = await userDb.getById(job.created_by);
+        if (creator) {
+            job.creator_otp_verified = !!creator.otp_verified;
+            job.creator_kyc_verified = creator.kyc_status === "verified";
+        }
     }
     return job;
 }

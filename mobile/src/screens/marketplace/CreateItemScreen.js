@@ -118,7 +118,15 @@ export default function CreateItemScreen() {
         { text: "OK", onPress: () => navigation.goBack() },
       ]);
     } catch (err) {
-      Alert.alert("Error", err?.response?.data?.error?.message || err?.message || "Failed to post.");
+      const code = err?.response?.data?.error?.code;
+      const msg = err?.response?.data?.error?.message || err?.message || "Failed to post.";
+      if (code === "OTP_REQUIRED") {
+        Alert.alert("Verification required", "Please verify your phone number with OTP before posting.");
+      } else if (code === "RATE_LIMIT") {
+        Alert.alert("Rate limit", "You've reached your daily posting limit. Try again tomorrow.");
+      } else {
+        Alert.alert("Error", msg);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -136,6 +144,14 @@ export default function CreateItemScreen() {
   }
 
   return (
+    <View style={styles.wrapper}>
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+          <MaterialIcons name="arrow-back" size={24} color={colors.text} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Sell Item</Text>
+        <View style={styles.headerRight} />
+      </View>
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={80}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={styles.label}>Photos (optional, max 8)</Text>
@@ -181,11 +197,17 @@ export default function CreateItemScreen() {
         </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>
+    </View>
   );
 }
 
 function createStyles(colors) {
   return StyleSheet.create({
+    wrapper: { flex: 1 },
+    header: { flexDirection: "row", alignItems: "center", paddingVertical: spacing.sm, paddingHorizontal: spacing.sm, backgroundColor: colors.background, borderBottomWidth: 1, borderBottomColor: colors.border },
+    backBtn: { padding: spacing.sm },
+    headerTitle: { flex: 1, fontSize: 18, fontWeight: "700", color: colors.text, textAlign: "center" },
+    headerRight: { width: 40 },
     container: { flex: 1, backgroundColor: colors.background },
     content: { padding: spacing.md, paddingBottom: spacing.xl },
     label: { fontSize: 14, fontWeight: "600", color: colors.text, marginBottom: spacing.xs, marginTop: spacing.sm },

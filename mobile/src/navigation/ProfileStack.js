@@ -10,6 +10,7 @@ const BlockedUsersScreen = React.lazy(() => import("../screens/profile/BlockedUs
 const FollowersListScreen = React.lazy(() => import("../screens/profile/FollowersListScreen"));
 const FollowingListScreen = React.lazy(() => import("../screens/profile/FollowingListScreen"));
 const UserProfileScreen = React.lazy(() => import("../screens/profile/UserProfileScreen"));
+const KycScreen = React.lazy(() => import("../screens/profile/KycScreen"));
 
 const Stack = createNativeStackNavigator();
 
@@ -39,6 +40,7 @@ export default function ProfileStack() {
         <Stack.Screen name="FollowersList" component={FollowersListScreen} />
         <Stack.Screen name="FollowingList" component={FollowingListScreen} />
         <Stack.Screen name="UserProfile" component={UserProfileScreen} />
+        <Stack.Screen name="Kyc" component={KycScreen} />
       </Stack.Navigator>
     </Suspense>
   );

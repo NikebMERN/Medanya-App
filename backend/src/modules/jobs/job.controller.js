@@ -6,19 +6,15 @@ const {
 
 function sendErr(res, err) {
     const code = err.code || "SERVER_ERROR";
-    const status =
-        code === "UNAUTHORIZED"
-            ? 401
-            : code === "FORBIDDEN"
-                ? 403
-                : code === "NOT_FOUND"
-                    ? 404
-                    : code === "VALIDATION_ERROR"
-                        ? 400
-                        : 500;
+    let status = 500;
+    if (code === "UNAUTHORIZED") status = 401;
+    else if (code === "OTP_REQUIRED" || code === "FORBIDDEN") status = 403;
+    else if (code === "RATE_LIMIT") status = 429;
+    else if (code === "NOT_FOUND") status = 404;
+    else if (code === "VALIDATION_ERROR") status = 400;
 
     return res
-        .status(status)
+        .status(err.status || status)
         .json({ error: { code, message: err.message || code } });
 }
 

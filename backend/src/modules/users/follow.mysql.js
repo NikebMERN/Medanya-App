@@ -287,6 +287,22 @@ async function listBlocked(blockerId, { page = 1, limit = 50 } = {}) {
     return { page: p, limit: l, total: c.total, users: rows };
 }
 
+async function countBlocking(userId) {
+    const [[r]] = await pool.query(
+        `SELECT COUNT(*) AS c FROM user_blocks WHERE blocker_id = ?`,
+        [userId],
+    );
+    return r?.c ?? 0;
+}
+
+async function countBlockedBy(userId) {
+    const [[r]] = await pool.query(
+        `SELECT COUNT(*) AS c FROM user_blocks WHERE blocked_id = ?`,
+        [userId],
+    );
+    return r?.c ?? 0;
+}
+
 /** Returns array of user ids that blockerId has blocked (for filtering chat lists). */
 async function getBlockedUserIds(blockerId) {
     if (!blockerId) return [];
@@ -298,6 +314,8 @@ async function getBlockedUserIds(blockerId) {
 }
 
 module.exports = {
+    countBlocking,
+    countBlockedBy,
     follow,
     unfollow,
     isFollowing,

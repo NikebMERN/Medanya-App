@@ -1,5 +1,7 @@
 // src/modules/marketplace/market.service.js
 const db = require("./market.mysql");
+const userDb = require("../users/user.mysql");
+const fraudService = require("../../services/fraudPrevention.service");
 
 function codeErr(code, message) {
     const e = new Error(message || code);
@@ -98,8 +100,23 @@ async function create(user, body) {
     const seller_id = user?.id ?? user?.userId;
     if (!seller_id) throw codeErr("UNAUTHORIZED", "Auth required");
 
+    await fraudService.requireOtpVerified(seller_id);
+    await fraudService.checkListingRateLimit(seller_id);
+
     const data = validateCreate(body);
-    const id = await db.insertItem({ seller_id, ...data });
+    const { score, matchedKeywords, status } = await fraudService.computeRiskScore(seller_id, {
+        title: data.title,
+        description: data.description,
+        location: data.location,
+    });
+
+    const id = await db.insertItem({
+        seller_id,
+        ...data,
+        risk_score: score,
+        matched_keywords: matchedKeywords.length ? JSON.stringify(matchedKeywords) : null,
+        status: status || "active",
+    });
     return db.findById(id);
 }
 
@@ -110,6 +127,14 @@ async function list(query) {
 async function detail(id) {
     const item = await db.findById(id);
     if (!item) throw codeErr("NOT_FOUND", "Item not found");
+    const sellerId = item.seller_id ?? item.sellerId;
+    if (sellerId) {
+        const seller = await userDb.getById(sellerId);
+        if (seller) {
+            item.seller_otp_verified = !!seller.otp_verified;
+            item.seller_kyc_verified = seller.kyc_status === "verified";
+        }
+    }
     return item;
 }
 

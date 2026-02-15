@@ -206,6 +206,14 @@ async function verifyOtp(phone, code) {
 
     await redisClient.del(sessionKey);
     await redisClient.del(attemptsKey);
+
+    // Mark user as OTP verified (required for posting jobs/listings)
+    try {
+        await pool.query("UPDATE users SET otp_verified = 1 WHERE id = ?", [user.id]);
+        user.otp_verified = 1;
+    } catch (e) {
+        // Column may not exist yet; migration 016 adds it
+    }
     return user;
 }
 

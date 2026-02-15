@@ -9,12 +9,16 @@ const insertJob = async ({
     location,
     contact_phone,
     image_url,
+    risk_score,
+    matched_keywords,
+    status: statusVal,
 }) => {
+    const status = statusVal || "active";
     const [result] = await pool.query(
         `
     INSERT INTO jobs
-    (created_by, title, category, salary, location, contact_phone, image_url, status)
-    VALUES (?, ?, ?, ?, ?, ?, ?, 'active')
+    (created_by, title, category, salary, location, contact_phone, image_url, risk_score, matched_keywords, status)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
         [
             created_by,
@@ -24,6 +28,9 @@ const insertJob = async ({
             location,
             contact_phone,
             image_url || null,
+            risk_score ?? null,
+            matched_keywords ?? null,
+            status,
         ],
     );
     return result.insertId;
@@ -252,6 +259,14 @@ const insertJobRating = async (jobId, raterId, rating) => {
     return result.affectedRows;
 };
 
+const incrementReportsAndMaybeHide = async (_type, jobId, newCount) => {
+    const status = newCount >= 3 ? "HIDDEN_PENDING_REVIEW" : "active";
+    await pool.query(
+        `UPDATE jobs SET reports_count = ?, status = ? WHERE id = ?`,
+        [newCount, status, jobId],
+    );
+};
+
 const getAverageRatingByJobId = async (jobId) => {
     const [[row]] = await pool.query(
         `SELECT COALESCE(AVG(rating), 0) AS avgRating, COUNT(*) AS count FROM job_ratings WHERE job_id = ?`,
@@ -263,6 +278,7 @@ const getAverageRatingByJobId = async (jobId) => {
 module.exports = {
     insertJob,
     findJobById,
+    incrementReportsAndMaybeHide,
     listJobs,
     searchJobs,
     updateJob,

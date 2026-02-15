@@ -5,6 +5,8 @@ const router = express.Router();
 const authMiddleware = require("../../middlewares/auth.middleware");
 const { requireRole } = require("../../middlewares/admin.middleware");
 const adminController = require("./admin.controller");
+const kycController = require("../kyc/kyc.controller");
+const reviewsController = require("./reviews.controller");
 const { validateRoleChange, validateBanChange, validatePagination } = require("./admin.validation.js");
 
 // All admin routes require JWT + admin role
@@ -18,5 +20,14 @@ router.get("/users", validatePagination, adminController.listUsers);
 router.patch("/users/:id/role", validateRoleChange, adminController.setUserRole);
 
 router.patch("/users/:id/ban", validateBanChange, adminController.banUser);
+
+router.get("/kyc", kycController.adminList);
+router.patch("/kyc/:submissionId/approve", kycController.adminApprove);
+router.patch("/kyc/:submissionId/reject", kycController.adminReject);
+
+router.get("/reviews/listings", reviewsController.listFlaggedListings);
+router.patch("/reviews/listings/:type/:id", reviewsController.updateListingStatus);
+
+router.get("/users/:id/risk", adminController.getUserRisk);
 
 module.exports = router;

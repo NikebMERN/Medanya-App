@@ -61,6 +61,18 @@ export async function searchBlacklist(params = {}) {
   };
 }
 
+/** Report a job, marketplace listing, or user. */
+export async function createListingReport(body) {
+  const { data } = await client.post("/reports/listings", {
+    targetType: body.targetType,
+    targetId: String(body.targetId),
+    reason: body.reason || "",
+    description: body.description || "",
+    mediaUrls: Array.isArray(body.mediaUrls) ? body.mediaUrls : [],
+  });
+  return data?.report ?? data;
+}
+
 export async function getBlacklistSummary(phoneNumber, params = {}) {
   const { data } = await client.get(`/blacklist/${encodeURIComponent(phoneNumber)}`, {
     params: { limit: params.limit },

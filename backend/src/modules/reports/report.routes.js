@@ -30,6 +30,7 @@ const reportLimiter = createRateLimiter({ windowMs: 60_000, max: 4 });
 
 // Reports (JWT)
 router.post("/reports", auth, reportLimiter, controller.createReport);
+router.post("/reports/listings", auth, reportLimiter, controller.createListingReport);
 router.get("/reports/mine", auth, controller.mine);
 
 // Blacklist (public, JWT optional)

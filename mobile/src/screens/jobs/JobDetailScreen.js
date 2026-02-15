@@ -18,6 +18,8 @@ import { spacing } from "../../theme/spacing";
 import { useAuthStore } from "../../store/auth.store";
 import * as jobsApi from "../../services/jobs.api";
 import * as chatApi from "../../services/chat.api";
+import SafetyModal from "../../components/common/SafetyModal";
+import ReportOptionsModal from "../../components/common/ReportOptionsModal";
 
 export default function JobDetailScreen() {
   const navigation = useNavigation();
@@ -27,13 +29,17 @@ export default function JobDetailScreen() {
   const styles = useMemo(() => createStyles(colors, insets.top), [colors, insets.top]);
 
   const jobId = route.params?.jobId;
-  const userId = useAuthStore((s) => s.user?.id ?? s.user?.userId) ?? "";
+  const user = useAuthStore((s) => s.user);
+  const userId = user?.id ?? user?.userId ?? "";
+  const safetyAcknowledged = user?.safety_acknowledged_at ?? user?.safetyAcknowledgedAt;
 
   const [job, setJob] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [applying, setApplying] = useState(false);
   const [chatting, setChatting] = useState(false);
+  const [safetyModal, setSafetyModal] = useState({ visible: false, action: null });
+  const [reportModalVisible, setReportModalVisible] = useState(false);
 
   const loadJob = useCallback(async () => {
     if (!jobId) return;
@@ -68,14 +74,10 @@ export default function JobDetailScreen() {
     }
   }, [jobId]);
 
-  const handleChatWithEmployer = useCallback(async () => {
+  const doChatWithEmployer = useCallback(async () => {
     const createdBy = job?.created_by ?? job?.createdBy;
     if (!createdBy) {
       Alert.alert("Error", "Employer information not available.");
-      return;
-    }
-    if (String(createdBy) === String(userId)) {
-      Alert.alert("Notice", "This is your own job posting.");
       return;
     }
     setChatting(true);
@@ -93,9 +95,26 @@ export default function JobDetailScreen() {
     } finally {
       setChatting(false);
     }
-  }, [job, userId, navigation]);
+  }, [job, navigation]);
 
-  const handleCall = useCallback(() => {
+  const handleChatWithEmployer = useCallback(() => {
+    const createdBy = job?.created_by ?? job?.createdBy;
+    if (!createdBy) {
+      Alert.alert("Error", "Employer information not available.");
+      return;
+    }
+    if (String(createdBy) === String(userId)) {
+      Alert.alert("Notice", "This is your own job posting.");
+      return;
+    }
+    if (!safetyAcknowledged) {
+      setSafetyModal({ visible: true, action: "chat" });
+      return;
+    }
+    doChatWithEmployer();
+  }, [job, userId, safetyAcknowledged, doChatWithEmployer]);
+
+  const doCall = useCallback(() => {
     const phone = job?.contact_phone ?? job?.contactPhone ?? "";
     if (!phone) {
       Alert.alert("Notice", "No contact number available.");
@@ -104,6 +123,27 @@ export default function JobDetailScreen() {
     const tel = phone.trim().startsWith("+") ? phone.trim() : `+${phone.trim()}`;
     Linking.openURL(`tel:${tel}`).catch(() => Alert.alert("Error", "Could not open dialer."));
   }, [job]);
+
+  const handleCall = useCallback(() => {
+    const phone = job?.contact_phone ?? job?.contactPhone ?? "";
+    if (!phone) {
+      Alert.alert("Notice", "No contact number available.");
+      return;
+    }
+    if (!safetyAcknowledged) {
+      setSafetyModal({ visible: true, action: "call" });
+      return;
+    }
+    doCall();
+  }, [job, safetyAcknowledged, doCall]);
+
+  const onSafetyAcknowledge = useCallback(() => {
+    setSafetyModal((prev) => {
+      if (prev.action === "chat") doChatWithEmployer();
+      else if (prev.action === "call") doCall();
+      return { visible: false, action: null };
+    });
+  }, [doChatWithEmployer, doCall]);
 
   if (loading && !job) {
     return (
@@ -174,7 +214,13 @@ export default function JobDetailScreen() {
           <MaterialIcons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>Job Details</Text>
-        <View style={styles.headerRight} />
+        <View style={styles.headerRight}>
+          {!isOwnJob && (
+            <TouchableOpacity style={styles.moreBtn} onPress={() => setReportModalVisible(true)}>
+              <MaterialIcons name="more-vert" size={24} color={colors.text} />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       {job.image_url || job.imageUrl ? (
@@ -185,6 +231,24 @@ export default function JobDetailScreen() {
         </View>
       )}
       <View style={styles.body}>
+        <View style={styles.badges}>
+          {(job.creator_otp_verified || job.creator_kyc_verified) && (
+            <>
+              {job.creator_otp_verified && (
+                <View style={styles.badge}><MaterialIcons name="verified-user" size={14} color={colors.primary} /><Text style={styles.badgeText}>Verified Phone</Text></View>
+              )}
+              {job.creator_kyc_verified && (
+                <View style={styles.badge}><MaterialIcons name="badge" size={14} color={colors.success} /><Text style={styles.badgeText}>Verified Identity</Text></View>
+              )}
+            </>
+          )}
+          {(job.reports_count || 0) >= 1 && (
+            <View style={[styles.badge, styles.badgeReported]}><MaterialIcons name="warning" size={14} color={colors.warning} /><Text style={styles.badgeText}>Reported</Text></View>
+          )}
+          {job.status === "PENDING_REVIEW" && (
+            <View style={[styles.badge, styles.badgePending]}><Text style={styles.badgeText}>Pending Review</Text></View>
+          )}
+        </View>
         <Text style={styles.title}>{job.title}</Text>
         <View style={styles.meta}>
           <Text style={styles.category}>{job.category || "Job"}</Text>
@@ -260,6 +324,19 @@ export default function JobDetailScreen() {
         </View>
       </View>
     </ScrollView>
+      <SafetyModal
+        visible={safetyModal.visible}
+        onAcknowledge={onSafetyAcknowledge}
+        onClose={() => setSafetyModal({ visible: false, action: null })}
+      />
+      <ReportOptionsModal
+        visible={reportModalVisible}
+        onClose={() => setReportModalVisible(false)}
+        targetType="job"
+        targetId={jobId}
+        targetUserId={createdBy}
+        onBlocked={() => navigation.goBack()}
+      />
     </View>
   );
 }
@@ -281,6 +358,12 @@ function createStyles(colors, paddingTop = 0) {
     backBtn: { padding: spacing.sm },
     headerTitle: { flex: 1, fontSize: 18, fontWeight: "700", color: colors.text, textAlign: "center" },
     headerRight: { width: 40 },
+    moreBtn: { padding: spacing.sm },
+    badges: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs, marginBottom: spacing.sm },
+    badge: { flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 4, paddingHorizontal: spacing.sm, borderRadius: 8, backgroundColor: colors.surfaceLight },
+    badgeReported: { backgroundColor: "rgba(234,179,8,0.2)" },
+    badgePending: { backgroundColor: "rgba(99,102,241,0.2)" },
+    badgeText: { fontSize: 12, fontWeight: "600", color: colors.text },
     container: { flex: 1, backgroundColor: colors.background },
     content: { paddingBottom: spacing.xl },
     center: {

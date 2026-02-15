@@ -1,5 +1,7 @@
 // src/modules/admin/admin.service.js
 const { pool } = require("../../config/mysql");
+const followDb = require("../users/follow.mysql");
+const ListingReport = require("../reports/listingReport.model");
 const { ALLOWED_ROLES, ROLES } = require("../../utils/roles.util");
 
 const listUsers = async ({ page = 1, limit = 20 }) => {
@@ -113,9 +115,37 @@ const banUser = async (userId, banned) => {
     return result.affectedRows > 0;
 };
 
+const getUserRisk = async (userId) => {
+    const uid = String(userId);
+    const userReports = await ListingReport.countDocuments({
+        targetType: "user",
+        targetId: uid,
+    });
+    const [blocking, blockedBy] = await Promise.all([
+        followDb.countBlocking(uid),
+        followDb.countBlockedBy(uid),
+    ]);
+    const [[jobsCount]] = await pool.query(
+        `SELECT COUNT(*) AS c FROM jobs WHERE created_by = ?`,
+        [uid],
+    );
+    const [[listingsCount]] = await pool.query(
+        `SELECT COUNT(*) AS c FROM marketplace_items WHERE seller_id = ?`,
+        [uid],
+    );
+    return {
+        reportsCount: userReports,
+        blockingCount: blocking,
+        blockedByCount: blockedBy,
+        jobsCount: jobsCount?.c ?? 0,
+        listingsCount: listingsCount?.c ?? 0,
+    };
+};
+
 module.exports = {
     listUsers,
     setUserRole,
     banUser,
     getAdminCount,
+    getUserRisk,
 };

@@ -9,12 +9,16 @@ const insertItem = async ({
     category,
     location,
     image_urls,
+    risk_score,
+    matched_keywords,
+    status: statusVal,
 }) => {
+    const status = statusVal || "active";
     const [result] = await pool.query(
         `
     INSERT INTO marketplace_items
-    (seller_id, title, description, price, category, location, image_urls, status)
-    VALUES (?, ?, ?, ?, ?, ?, ?, 'active')
+    (seller_id, title, description, price, category, location, image_urls, risk_score, matched_keywords, status)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
         [
             seller_id,
@@ -24,6 +28,9 @@ const insertItem = async ({
             category,
             location,
             image_urls ? JSON.stringify(image_urls) : null,
+            risk_score ?? null,
+            matched_keywords ?? null,
+            status,
         ],
     );
     return result.insertId;
@@ -173,6 +180,15 @@ const updateItem = async (id, fields) => {
     return result.affectedRows;
 };
 
+const incrementReportsAndMaybeHide = async (_type, itemId, newCount) => {
+    const status = newCount >= 3 ? "HIDDEN_PENDING_REVIEW" : "active";
+    const [result] = await pool.query(
+        `UPDATE marketplace_items SET reports_count = ?, status = ? WHERE id = ?`,
+        [newCount, status, itemId],
+    );
+    return result.affectedRows;
+};
+
 const markSold = async (id) => {
     const [result] = await pool.query(
         `UPDATE marketplace_items SET status='sold' WHERE id = ?`,
@@ -251,6 +267,7 @@ const listRecentMarketplaceForFeed = async ({ limit = 25 } = {}) => {
 module.exports = {
     insertItem,
     findById,
+    incrementReportsAndMaybeHide,
     listItems,
     searchItems,
     updateItem,

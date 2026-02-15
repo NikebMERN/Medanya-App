@@ -26,6 +26,14 @@ export const useAuthStore = create((set, get) => ({
     set({ token, user, isAuthenticated: !!token });
   },
 
+  updateUser: (updates) => {
+    const { user } = get();
+    if (!user) return;
+    const next = { ...user, ...updates };
+    persistUser(next);
+    set({ user: next });
+  },
+
   logout: async () => {
     disconnectSocket();
     await persistToken(null);

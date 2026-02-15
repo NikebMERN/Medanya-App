@@ -38,4 +38,14 @@ const banUser = async (req, res, next) => {
     }
 };
 
-module.exports = { health, listUsers, setUserRole, banUser };
+const getUserRisk = async (req, res, next) => {
+    try {
+        const userId = req.params.id;
+        const data = await adminService.getUserRisk(userId);
+        return res.json({ success: true, ...data });
+    } catch (err) {
+        return next(err);
+    }
+};
+
+module.exports = { health, listUsers, setUserRole, banUser, getUserRisk };

@@ -18,6 +18,8 @@ import { spacing } from "../../theme/spacing";
 import { useAuthStore } from "../../store/auth.store";
 import * as marketplaceApi from "../../services/marketplace.api";
 import * as chatApi from "../../services/chat.api";
+import SafetyModal from "../../components/common/SafetyModal";
+import ReportOptionsModal from "../../components/common/ReportOptionsModal";
 
 export default function MarketplaceDetailScreen() {
   const route = useRoute();
@@ -25,13 +27,17 @@ export default function MarketplaceDetailScreen() {
   const insets = useSafeAreaInsets();
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors, insets.top), [colors, insets.top]);
-  const userId = useAuthStore((s) => s.user?.id ?? s.user?.userId) ?? "";
+  const user = useAuthStore((s) => s.user);
+  const userId = user?.id ?? user?.userId ?? "";
+  const safetyAcknowledged = user?.safety_acknowledged_at ?? user?.safetyAcknowledgedAt;
 
   const itemId = route.params?.itemId;
   const [item, setItem] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [chatting, setChatting] = useState(false);
+  const [safetyModal, setSafetyModal] = useState({ visible: false, action: "chat" });
+  const [reportModalVisible, setReportModalVisible] = useState(false);
 
   const load = useCallback(async () => {
     if (!itemId) return;
@@ -51,16 +57,9 @@ export default function MarketplaceDetailScreen() {
     load();
   }, [load]);
 
-  const handleChatWithSeller = useCallback(async () => {
+  const doChatWithSeller = useCallback(async () => {
     const sellerId = item?.seller_id ?? item?.sellerId;
-    if (!sellerId) {
-      Alert.alert("Error", "Seller information not available.");
-      return;
-    }
-    if (String(sellerId) === String(userId)) {
-      Alert.alert("Notice", "This is your own listing.");
-      return;
-    }
+    if (!sellerId) return;
     setChatting(true);
     try {
       const data = await chatApi.startDirect(sellerId);
@@ -76,7 +75,31 @@ export default function MarketplaceDetailScreen() {
     } finally {
       setChatting(false);
     }
-  }, [item, userId, navigation]);
+  }, [item, navigation]);
+
+  const handleChatWithSeller = useCallback(() => {
+    const sellerId = item?.seller_id ?? item?.sellerId;
+    if (!sellerId) {
+      Alert.alert("Error", "Seller information not available.");
+      return;
+    }
+    if (String(sellerId) === String(userId)) {
+      Alert.alert("Notice", "This is your own listing.");
+      return;
+    }
+    if (!safetyAcknowledged) {
+      setSafetyModal({ visible: true, action: "chat" });
+      return;
+    }
+    doChatWithSeller();
+  }, [item, userId, safetyAcknowledged, doChatWithSeller]);
+
+  const onSafetyAcknowledge = useCallback(() => {
+    setSafetyModal((prev) => {
+      if (prev.action === "chat") doChatWithSeller();
+      return { visible: false, action: null };
+    });
+  }, [doChatWithSeller]);
 
   if (loading && !item) {
     return (
@@ -107,7 +130,13 @@ export default function MarketplaceDetailScreen() {
           <MaterialIcons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>Item</Text>
-        <View style={styles.headerRight} />
+        <View style={styles.headerRight}>
+          {!isOwn && (
+            <TouchableOpacity style={styles.moreBtn} onPress={() => setReportModalVisible(true)}>
+              <MaterialIcons name="more-vert" size={24} color={colors.text} />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
         {images[0] ? (
@@ -123,6 +152,24 @@ export default function MarketplaceDetailScreen() {
           </View>
         ) : null}
         <View style={styles.body}>
+          <View style={styles.badges}>
+            {(item.seller_otp_verified || item.seller_kyc_verified) && (
+              <>
+                {item.seller_otp_verified && (
+                  <View style={styles.badge}><MaterialIcons name="verified-user" size={14} color={colors.primary} /><Text style={styles.badgeText}>Verified Phone</Text></View>
+                )}
+                {item.seller_kyc_verified && (
+                  <View style={styles.badge}><MaterialIcons name="badge" size={14} color={colors.success} /><Text style={styles.badgeText}>Verified Identity</Text></View>
+                )}
+              </>
+            )}
+            {(item.reports_count || 0) >= 1 && (
+              <View style={[styles.badge, styles.badgeReported]}><MaterialIcons name="warning" size={14} color={colors.warning} /><Text style={styles.badgeText}>Reported</Text></View>
+            )}
+            {item.status === "PENDING_REVIEW" && (
+              <View style={[styles.badge, styles.badgePending]}><Text style={styles.badgeText}>Pending Review</Text></View>
+            )}
+          </View>
           <Text style={styles.title}>{item.title}</Text>
           <Text style={styles.price}>AED {item.price != null ? item.price : "—"}</Text>
           {item.category ? <Text style={styles.meta}>Category: {item.category}</Text> : null}
@@ -145,6 +192,19 @@ export default function MarketplaceDetailScreen() {
           ) : null}
         </View>
       </ScrollView>
+      <SafetyModal
+        visible={safetyModal.visible}
+        onAcknowledge={onSafetyAcknowledge}
+        onClose={() => setSafetyModal({ visible: false, action: null })}
+      />
+      <ReportOptionsModal
+        visible={reportModalVisible}
+        onClose={() => setReportModalVisible(false)}
+        targetType="marketplace"
+        targetId={itemId}
+        targetUserId={sellerId}
+        onBlocked={() => navigation.goBack()}
+      />
     </View>
   );
 }
@@ -156,6 +216,12 @@ function createStyles(colors, paddingTop = 0) {
     backBtn: { padding: spacing.sm },
     headerTitle: { flex: 1, fontSize: 18, fontWeight: "700", color: colors.text, textAlign: "center" },
     headerRight: { width: 40 },
+    moreBtn: { padding: spacing.sm },
+    badges: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs, marginBottom: spacing.sm },
+    badge: { flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 4, paddingHorizontal: spacing.sm, borderRadius: 8, backgroundColor: colors.surfaceLight },
+    badgeReported: { backgroundColor: "rgba(234,179,8,0.2)" },
+    badgePending: { backgroundColor: "rgba(99,102,241,0.2)" },
+    badgeText: { fontSize: 12, fontWeight: "600", color: colors.text },
     center: { flex: 1, justifyContent: "center", alignItems: "center", padding: spacing.lg },
     scroll: { flex: 1 },
     content: { paddingBottom: spacing.xl },

@@ -96,6 +96,14 @@ export default function BlacklistSearchScreen() {
   );
 
   return (
+    <View style={styles.wrapper}>
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+          <MaterialIcons name="arrow-back" size={24} color={colors.text} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Search Blacklist</Text>
+        <View style={styles.headerRight} />
+      </View>
     <View style={styles.container}>
       <View style={styles.searchRow}>
         <View style={styles.searchWrap}>
@@ -131,11 +139,17 @@ export default function BlacklistSearchScreen() {
         />
       )}
     </View>
+    </View>
   );
 }
 
 function createStyles(colors) {
   return StyleSheet.create({
+    wrapper: { flex: 1 },
+    header: { flexDirection: "row", alignItems: "center", paddingVertical: spacing.sm, paddingHorizontal: spacing.sm, backgroundColor: colors.background, borderBottomWidth: 1, borderBottomColor: colors.border },
+    backBtn: { padding: spacing.sm },
+    headerTitle: { flex: 1, fontSize: 18, fontWeight: "700", color: colors.text, textAlign: "center" },
+    headerRight: { width: 40 },
     container: { flex: 1, backgroundColor: colors.background },
     searchRow: { flexDirection: "row", padding: spacing.md, gap: spacing.sm },
     searchWrap: {

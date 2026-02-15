@@ -6,15 +6,17 @@ import AppTabBar from "../components/AppTabBar";
 import FeedScreen from "../screens/home/FeedScreen";
 import ChatStack from "./ChatStack";
 import JobsStack from "./JobsStack";
-import VideoFeedScreen from "../screens/videos/VideoFeedScreen";
-import LiveListScreen from "../screens/livestream/LiveListScreen";
+import MarketplaceStack from "./MarketplaceStack";
+import SafetyStack from "./SafetyStack";
 import ProfileStack from "./ProfileStack";
 
 const Tab = createBottomTabNavigator();
 
 const CHAT_SUB_SCREENS = new Set(["ChatRoom", "CreateGroup", "CreateChannel", "AddGroupMembers", "EditGroup", "EditChannel", "SearchJoinGroup", "UserProfile", "FollowersList", "FollowingList"]);
 const JOBS_SUB_SCREENS = new Set(["JobDetail"]);
-const PROFILE_SUB_SCREENS = new Set(["EditProfile", "FollowRequests", "BlockedUsers", "FollowersList", "FollowingList", "UserProfile"]);
+const MARKETPLACE_SUB_SCREENS = new Set(["MarketplaceDetail", "CreateItem"]);
+const SAFETY_SUB_SCREENS = new Set(["ReportForm", "BlacklistSearch", "BlacklistDetail", "MissingList", "MissingDetail", "MissingCreate"]);
+const PROFILE_SUB_SCREENS = new Set(["EditProfile", "FollowRequests", "BlockedUsers", "FollowersList", "FollowingList", "UserProfile", "Kyc"]);
 
 export default function MainTabs() {
   return (
@@ -28,16 +30,18 @@ export default function MainTabs() {
           const focusedRouteName = rawFocused ?? (route.name === "Chat" ? "Chats" : route.name === "Profile" ? "ProfileMain" : route.name);
           const isChatSub = route.name === "Chat" && CHAT_SUB_SCREENS.has(rawFocused);
           const isJobsSub = route.name === "Jobs" && JOBS_SUB_SCREENS.has(rawFocused);
+          const isMarketplaceSub = route.name === "Marketplace" && MARKETPLACE_SUB_SCREENS.has(rawFocused);
+          const isSafetySub = route.name === "Safety" && SAFETY_SUB_SCREENS.has(rawFocused);
           const isProfileSub = route.name === "Profile" && PROFILE_SUB_SCREENS.has(rawFocused);
-          if (isChatSub || isJobsSub || isProfileSub) return null;
+          if (isChatSub || isJobsSub || isMarketplaceSub || isSafetySub || isProfileSub) return null;
           return <AppHeader navigation={navigation} route={route} focusedRouteName={focusedRouteName} />;
         },
       }}
     >
       <Tab.Screen name="Home" component={FeedScreen} options={{ title: "MEDANYA" }} />
       <Tab.Screen name="Jobs" component={JobsStack} options={{ title: "Jobs" }} />
-      <Tab.Screen name="Videos" component={VideoFeedScreen} options={{ title: "Videos" }} />
-      <Tab.Screen name="Live" component={LiveListScreen} options={{ title: "Safety" }} />
+      <Tab.Screen name="Marketplace" component={MarketplaceStack} options={{ title: "Marketplace" }} />
+      <Tab.Screen name="Safety" component={SafetyStack} options={{ title: "Safety" }} />
       <Tab.Screen
         name="Chat"
         component={ChatStack}

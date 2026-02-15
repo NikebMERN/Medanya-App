@@ -1,5 +1,6 @@
 // src/modules/reports/report.controller.js
 const service = require("./report.service");
+const listingReportService = require("./listingReport.service");
 const { maskPhone, maskName, maskLocation } = require("../../utils/mask.util");
 
 function sendError(res, err) {
@@ -145,8 +146,19 @@ const adminReject = async (req, res) => {
     }
 };
 
+const createListingReport = async (req, res) => {
+    try {
+        const reporterId = req.user?.id ?? req.user?.userId;
+        const created = await listingReportService.createListingReport(reporterId, req.body);
+        return res.status(201).json({ success: true, report: created });
+    } catch (err) {
+        return sendError(res, err);
+    }
+};
+
 module.exports = {
     createReport,
+    createListingReport,
     mine,
     blacklistSearch,
     blacklistSummary,

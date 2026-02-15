@@ -19,6 +19,7 @@ const notificationRoutes = require("./modules/notifications/notification.routes"
 const severeAbuseRoutes = require("./modules/severeAbuse/abuse.routes");
 const userRoutes = require("./modules/users/user.routes");
 const roomRoutes = require("./modules/communityRooms/room.routes");
+const kycRoutes = require("./modules/kyc/kyc.routes");
 
 router.use("/auth", authRoutes);
 
@@ -67,6 +68,9 @@ router.use("/", severeAbuseRoutes);
 
 // ✅ USERS
 router.use("/", userRoutes);
+
+// ✅ KYC
+router.use("/kyc", kycRoutes);
 
 // ✅ COMMUNITY ROOMS (posts + comments + moderation)
 router.use("/", roomRoutes);
