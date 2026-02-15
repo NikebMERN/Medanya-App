@@ -81,6 +81,10 @@ async function createJob(reqUser, body) {
         throw codeErr("UNAUTHORIZED", "Auth required");
     const userId = reqUser.id ?? reqUser.userId;
 
+    const user = await userDb.getById(userId);
+    if (!user) throw codeErr("UNAUTHORIZED", "User not found");
+    if (!user.kyc_face_verified) throw codeErr("FORBIDDEN", "Face verification required. Complete identity verification and have your face matched to your document before posting jobs.");
+
     await fraudService.requireOtpVerified(userId);
     await fraudService.checkJobRateLimit(userId);
 

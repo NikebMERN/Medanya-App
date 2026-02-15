@@ -16,12 +16,10 @@ import { useAuthStore } from "../store/auth.store";
 import { useThemeStore } from "../store/theme.store";
 import { spacing } from "../theme/spacing";
 
-function AppHeaderInner({ navigation, route, focusedRouteName }) {
+function AppHeaderComponent({ navigation, route, focusedRouteName }) {
   const insets = useSafeAreaInsets();
   const colors = useThemeColors();
-  const topInset = insets?.top ?? 0;
-  const bottomInset = insets?.bottom ?? 0;
-  const styles = useMemo(() => createStyles(colors, topInset, bottomInset), [colors, topInset, bottomInset]);
+  const styles = useMemo(() => createStyles(colors, insets.top, insets.bottom), [colors, insets.top, insets.bottom]);
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const theme = useThemeStore((s) => s.theme);
@@ -29,6 +27,7 @@ function AppHeaderInner({ navigation, route, focusedRouteName }) {
   const avatarUrl = user?.avatar_url ?? user?.avatarUrl;
   const displayName = user?.display_name ?? user?.displayName ?? "";
   const accountPrivate = user?.account_private ?? user?.accountPrivate;
+  const kycFaceVerified = user?.kyc_face_verified ?? user?.kycFaceVerified ?? false;
   const [menuVisible, setMenuVisible] = useState(false);
 
   const handleLogoPress = () => {
@@ -67,6 +66,16 @@ function AppHeaderInner({ navigation, route, focusedRouteName }) {
   const handleBlacklist = () => {
     closeMenu();
     navigation?.navigate("Profile", { screen: "BlockedUsers" });
+  };
+
+  const handlePostJob = () => {
+    closeMenu();
+    navigation?.navigate("Jobs", { screen: "CreateJob" });
+  };
+
+  const handleSellItem = () => {
+    closeMenu();
+    navigation?.navigate("Marketplace", { screen: "CreateItem" });
   };
 
   const handleToggleTheme = () => {
@@ -119,13 +128,27 @@ function AppHeaderInner({ navigation, route, focusedRouteName }) {
         onRequestClose={closeMenu}
       >
         <Pressable style={styles.menuOverlay} onPress={closeMenu}>
-          <Pressable style={[styles.menuSheet, { paddingBottom: bottomInset + spacing.md }]} onPress={(e) => e.stopPropagation()}>
+          <Pressable style={[styles.menuSheet, { paddingBottom: insets.bottom + spacing.md }]} onPress={(e) => e.stopPropagation()}>
             <View style={styles.menuHandle} />
             <TouchableOpacity style={styles.menuItem} onPress={handleEditProfile} activeOpacity={0.7}>
               <MaterialIcons name="edit" size={22} color={colors.text} />
               <Text style={styles.menuItemText}>Edit profile</Text>
               <MaterialIcons name="chevron-right" size={20} color={colors.textSecondary} />
             </TouchableOpacity>
+            {kycFaceVerified && (
+              <>
+                <TouchableOpacity style={styles.menuItem} onPress={handlePostJob} activeOpacity={0.7}>
+                  <MaterialIcons name="work" size={22} color={colors.text} />
+                  <Text style={styles.menuItemText}>Post a job</Text>
+                  <MaterialIcons name="chevron-right" size={20} color={colors.textSecondary} />
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.menuItem} onPress={handleSellItem} activeOpacity={0.7}>
+                  <MaterialIcons name="storefront" size={22} color={colors.text} />
+                  <Text style={styles.menuItemText}>Sell an item</Text>
+                  <MaterialIcons name="chevron-right" size={20} color={colors.textSecondary} />
+                </TouchableOpacity>
+              </>
+            )}
             {accountPrivate && (
               <TouchableOpacity style={styles.menuItem} onPress={handleFollowRequests} activeOpacity={0.7}>
                 <MaterialIcons name="people-outline" size={22} color={colors.text} />
@@ -302,5 +325,4 @@ function createStyles(colors, paddingTop, paddingBottom = 0) {
   });
 }
 
-const AppHeader = memo(AppHeaderInner);
-export default AppHeader;
+export default memo(AppHeaderComponent);

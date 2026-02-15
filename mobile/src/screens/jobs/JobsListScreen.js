@@ -16,12 +16,17 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
 import { useJobsStore, JOB_CATEGORIES } from "../../store/jobs.store";
+import { useAuthStore } from "../../store/auth.store";
 import * as jobsApi from "../../services/jobs.api";
 
 export default function JobsListScreen() {
   const navigation = useNavigation();
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
+
+  const user = useAuthStore((s) => s.user);
+  const otpVerified = !!(user?.otp_verified ?? user?.otpVerified);
+  const isLoggedIn = !!useAuthStore((s) => s.token);
 
   const jobs = useJobsStore((s) => s.jobs);
   const total = useJobsStore((s) => s.total);
@@ -198,6 +203,16 @@ export default function JobsListScreen() {
           removeClippedSubviews={Platform.OS !== "web"}
         />
       )}
+      {isLoggedIn && otpVerified && (
+        <TouchableOpacity
+          style={styles.fab}
+          onPress={() => navigation.navigate("CreateJob")}
+          activeOpacity={0.9}
+        >
+          <MaterialIcons name="add" size={28} color={colors.white} />
+          <Text style={styles.fabText}>Post Job</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -256,7 +271,7 @@ function createStyles(colors) {
       paddingHorizontal: spacing.md,
       paddingBottom: spacing.sm,
     },
-    listContent: { padding: spacing.md, paddingTop: 0 },
+    listContent: { padding: spacing.md, paddingTop: 0, paddingBottom: 80 },
     listEmpty: { flexGrow: 1 },
     card: {
       flexDirection: "row",
@@ -313,5 +328,18 @@ function createStyles(colors) {
     retryBtn: { paddingVertical: spacing.sm, paddingHorizontal: spacing.lg },
     retryText: { fontSize: 15, fontWeight: "600", color: colors.primary },
     loader: { flex: 1, justifyContent: "center", alignItems: "center" },
+    fab: {
+      position: "absolute",
+      bottom: 24,
+      right: 24,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      backgroundColor: colors.primary,
+      paddingVertical: 12,
+      paddingHorizontal: 20,
+      borderRadius: 24,
+    },
+    fabText: { fontSize: 16, fontWeight: "700", color: colors.white },
   });
 }

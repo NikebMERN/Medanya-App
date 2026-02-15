@@ -7,12 +7,13 @@ async function insertSubmission({
     doc_hash,
     last4,
     cloudinary_url_private,
+    selfie_image_url = null,
     status = "pending",
 }) {
     const [result] = await pool.query(
-        `INSERT INTO kyc_submissions (user_id, doc_type, doc_hash, last4, cloudinary_url_private, status)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [user_id, doc_type, doc_hash || null, last4 || null, cloudinary_url_private || null, status],
+        `INSERT INTO kyc_submissions (user_id, doc_type, doc_hash, last4, cloudinary_url_private, selfie_image_url, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [user_id, doc_type, doc_hash || null, last4 || null, cloudinary_url_private || null, selfie_image_url || null, status],
     );
     return result.insertId;
 }

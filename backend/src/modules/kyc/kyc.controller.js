@@ -50,7 +50,8 @@ async function adminList(req, res) {
 async function adminApprove(req, res) {
     try {
         const adminId = req.user?.id ?? req.user?.userId;
-        const result = await service.adminApprove(req.params.submissionId, adminId);
+        const faceVerified = req.body?.faceVerified === true;
+        const result = await service.adminApprove(req.params.submissionId, adminId, { faceVerified });
         res.json({ success: true, submission: result });
     } catch (e) {
         sendErr(res, e);

@@ -99,7 +99,10 @@ export default function ProfileScreen() {
     (async () => {
       try {
         const res = await getMe();
-        if (!cancelled && res?.user) setUser(res.user);
+        if (!cancelled && res?.user) {
+          setUser(res.user);
+          useAuthStore.getState().updateUser(res.user);
+        }
       } catch (_) {
         if (!cancelled) setUser(storeUser);
       } finally {
@@ -282,7 +285,7 @@ export default function ProfileScreen() {
 
       {/* Identity verification */}
       <TouchableOpacity
-        style={styles.actionCard}
+        style={[styles.actionCard, styles.actionCardKyc]}
         onPress={() => navigation.navigate("Kyc")}
         activeOpacity={0.8}
       >
@@ -535,6 +538,9 @@ function createStyles(colors) {
       paddingVertical: spacing.lg,
       paddingHorizontal: spacing.md,
       alignItems: "center",
+    },
+    actionCardKyc: {
+      marginBottom: spacing.md,
     },
     actionIcon: { marginBottom: spacing.sm },
     actionIconLogout: {

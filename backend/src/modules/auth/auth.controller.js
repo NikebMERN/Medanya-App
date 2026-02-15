@@ -33,6 +33,8 @@ const verifyOtpAndLogin = async (req, res, next) => {
                 email: user.email ?? null,
                 neighborhood: user.neighborhood ?? null,
                 avatar_url: user.avatar_url ?? null,
+                otp_verified: !!user.otp_verified,
+                kyc_face_verified: !!(user.kyc_face_verified),
             },
         });
     } catch (err) {
@@ -85,6 +87,8 @@ const verifyOtpAndLoginServer = async (req, res, next) => {
                 email: user.email ?? null,
                 neighborhood: user.neighborhood ?? null,
                 avatar_url: user.avatar_url ?? null,
+                otp_verified: !!user.otp_verified,
+                kyc_face_verified: !!(user.kyc_face_verified),
             },
         });
     } catch (err) {

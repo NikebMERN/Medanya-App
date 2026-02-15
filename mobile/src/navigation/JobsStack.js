@@ -5,6 +5,7 @@ import { useThemeColors } from "../theme/useThemeColors";
 import JobsListScreen from "../screens/jobs/JobsListScreen";
 
 const JobDetailScreen = React.lazy(() => import("../screens/jobs/JobDetailScreen"));
+const CreateJobScreen = React.lazy(() => import("../screens/jobs/CreateJobScreen"));
 
 const Stack = createNativeStackNavigator();
 
@@ -36,6 +37,7 @@ export default function JobsStack() {
       <Stack.Navigator screenOptions={screenOptions}>
         <Stack.Screen name="JobsList" component={JobsListScreen} options={{ animation: "none" }} />
         <Stack.Screen name="JobDetail" component={JobDetailScreen} />
+        <Stack.Screen name="CreateJob" component={CreateJobScreen} />
       </Stack.Navigator>
     </Suspense>
   );

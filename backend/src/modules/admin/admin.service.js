@@ -12,7 +12,7 @@ const listUsers = async ({ page = 1, limit = 20 }) => {
     const [[countRow]] = await pool.query(`SELECT COUNT(*) AS total FROM users`);
     const [rows] = await pool.query(
         `
-    SELECT id, phone_number, role, is_verified, is_banned, created_at, updated_at
+    SELECT id, phone_number, display_name, role, is_verified, is_banned, created_at, updated_at
     FROM users
     ORDER BY created_at DESC
     LIMIT ? OFFSET ?

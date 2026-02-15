@@ -1,10 +1,14 @@
 // src/database/seeds/admin.seed.js
+const path = require("path");
+// Load .env from backend root so seed works when run from any directory
+require("dotenv").config({ path: path.resolve(__dirname, "../../../.env") });
+
 const { pool } = require("../../config/mysql");
 
 const seedAdmin = async () => {
     try {
         // Upsert-like behavior: if phone exists, ensure it is admin
-        const phone = "+251935657526";
+        const phone = "+251900000001";
 
         const [rows] = await pool.query(
             "SELECT id FROM users WHERE phone_number = ?",

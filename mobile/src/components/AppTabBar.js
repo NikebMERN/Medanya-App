@@ -8,9 +8,9 @@ import { useChatStore } from "../store/chat.store";
 
 const TAB_CONFIG = [
   { name: "Home", label: "HOME", icon: "home", rootScreen: null },
-  { name: "Jobs", label: "JOBS", icon: "work", rootScreen: null },
-  { name: "Marketplace", label: "MARKET", icon: "storefront", rootScreen: null },
-  { name: "Safety", label: "SAFETY", icon: "shield", rootScreen: null },
+  { name: "Jobs", label: "JOBS", icon: "work", rootScreen: "JobsList" },
+  { name: "Marketplace", label: "MARKET", icon: "storefront", rootScreen: "MarketplaceList" },
+  { name: "Safety", label: "SAFETY", icon: "shield", rootScreen: "SafetyHub" },
   { name: "Chat", label: "CHAT", icon: "chat", rootScreen: "Chats" },
   { name: "Profile", label: "PROFILE", icon: "person", rootScreen: "ProfileMain" },
 ];

@@ -47,6 +47,18 @@ export async function getJob(jobId) {
   return data?.job ?? data;
 }
 
+export async function createJob(body) {
+  const { data } = await client.post("/jobs", {
+    title: body.title,
+    category: body.category,
+    salary: body.salary || undefined,
+    location: body.location,
+    contact_phone: body.contact_phone,
+    image_url: body.image_url || undefined,
+  });
+  return data?.job ?? data;
+}
+
 export async function applyToJob(jobId, message) {
   const { data } = await client.post(`/jobs/${jobId}/apply`, {
     message: message || undefined,

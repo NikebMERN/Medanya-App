@@ -6,8 +6,8 @@ const verifyOtpSchema = z.object({
 
 const sendOtpSchema = z.object({
     phone: z.string().min(9, "Phone number required"),
-    recaptchaToken: z.string().optional(),
-    sessionInfo: z.string().optional(),
+    recaptchaToken: z.string().nullish(),
+    sessionInfo: z.string().nullish(),
 });
 
 const verifyOtpServerSchema = z.object({

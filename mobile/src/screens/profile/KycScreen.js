@@ -15,6 +15,7 @@ import {
   Switch,
   TextInput,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { MaterialIcons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
@@ -39,6 +40,7 @@ export default function KycScreen() {
   const [docNumber, setDocNumber] = useState("");
   const [frontUri, setFrontUri] = useState(null);
   const [backUri, setBackUri] = useState(null);
+  const [selfieUri, setSelfieUri] = useState(null);
   const [consent, setConsent] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -86,6 +88,21 @@ export default function KycScreen() {
     if (!result.canceled && result.assets?.[0]?.uri) setBackUri(result.assets[0].uri);
   }, []);
 
+  const pickSelfie = useCallback(async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission", "Allow photo library access for selfie.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions?.Images ?? "images",
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets?.[0]?.uri) setSelfieUri(result.assets[0].uri);
+  }, []);
+
   const handleSubmit = useCallback(async () => {
     if (!docType) {
       Alert.alert("Required", "Select document type.");
@@ -95,6 +112,15 @@ export default function KycScreen() {
       Alert.alert("Required", "Upload front image of your document.");
       return;
     }
+    if (!selfieUri) {
+      Alert.alert("Required", "Upload a selfie so we can match your face to your document.");
+      return;
+    }
+    const docNum = String(docNumber || "").trim();
+    if (!docNum) {
+      Alert.alert("Required", "Document number is required for verification.");
+      return;
+    }
     if (!consent) {
       Alert.alert("Consent required", "Please accept the privacy notice to continue.");
       return;
@@ -102,21 +128,26 @@ export default function KycScreen() {
     setSubmitting(true);
     setUploading(true);
     try {
-      const frontUrl = await uploadToCloudinary(frontUri, "image");
+      const [frontUrl, selfieUrl] = await Promise.all([
+        uploadToCloudinary(frontUri, "image"),
+        uploadToCloudinary(selfieUri, "image"),
+      ]);
       let backUrl = null;
       if (backUri) backUrl = await uploadToCloudinary(backUri, "image");
       setUploading(false);
       await kycApi.submitKyc({
         docType,
-        docNumber: docNumber.trim() || undefined,
+        docNumber: docNum,
         frontImageUrl: frontUrl,
         backImageUrl: backUrl,
+        selfieImageUrl: selfieUrl,
         consent: true,
       });
-      Alert.alert("Submitted", "Your document has been submitted for review.");
+      Alert.alert("Submitted", "Your document and selfie have been submitted for review. Your face will be matched to your document before you can post jobs or list items.");
       loadStatus();
       setFrontUri(null);
       setBackUri(null);
+      setSelfieUri(null);
       setDocNumber("");
     } catch (e) {
       setUploading(false);
@@ -124,7 +155,7 @@ export default function KycScreen() {
     } finally {
       setSubmitting(false);
     }
-  }, [docType, docNumber, frontUri, backUri, consent, loadStatus]);
+  }, [docType, docNumber, frontUri, backUri, selfieUri, consent, loadStatus]);
 
   if (loading) {
     return (
@@ -139,8 +170,10 @@ export default function KycScreen() {
   const isVerified = kycStatus === "verified";
   const isRejected = latest?.status === "rejected";
 
+  const docTypeConfig = kycApi.KYC_DOC_TYPES.find((t) => t.value === docType);
+
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
           <MaterialIcons name="arrow-back" size={24} color={colors.text} />
@@ -217,11 +250,24 @@ export default function KycScreen() {
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.sectionTitle}>Document number (optional)</Text>
-            <Text style={styles.hint}>We store only the last 4 digits.</Text>
+            <Text style={styles.sectionTitle}>Selfie (face match)</Text>
+            <Text style={styles.hint}>We will match your face to the photo on your document. Required to post jobs or list items.</Text>
+            <TouchableOpacity style={styles.selfieSlot} onPress={pickSelfie}>
+              {selfieUri ? (
+                <Image source={{ uri: selfieUri }} style={styles.selfieThumb} resizeMode="cover" />
+              ) : (
+                <View style={styles.imagePlaceholder}>
+                  <MaterialIcons name="face" size={32} color={colors.textMuted} />
+                  <Text style={styles.imageLabel}>Add selfie</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+
+            <Text style={styles.sectionTitle}>Document number *</Text>
+            <Text style={styles.hint}>{docTypeConfig?.hint || "We store only the last 4 digits for verification."}</Text>
             <TextInput
               style={styles.input}
-              placeholder="e.g. A12345678"
+              placeholder={docTypeConfig?.placeholder || "Enter document number"}
               placeholderTextColor={colors.textMuted}
               value={docNumber}
               onChangeText={setDocNumber}
@@ -251,7 +297,7 @@ export default function KycScreen() {
           </>
         )}
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -272,7 +318,7 @@ function createStyles(colors) {
     headerRight: { width: 40 },
     center: { flex: 1, justifyContent: "center", alignItems: "center" },
     scroll: { flex: 1 },
-    content: { padding: spacing.lg, paddingBottom: spacing.xl * 2 },
+    content: { padding: spacing.lg, paddingBottom: spacing.xl * 3 },
     statusCard: {
       alignItems: "center",
       padding: spacing.xl,
@@ -299,6 +345,8 @@ function createStyles(colors) {
     imageRow: { flexDirection: "row", gap: spacing.md, marginBottom: spacing.md },
     imageSlot: { flex: 1, aspectRatio: 4 / 3, borderRadius: 12, overflow: "hidden" },
     thumb: { width: "100%", height: "100%" },
+    selfieSlot: { width: 120, height: 120, borderRadius: 60, overflow: "hidden", alignSelf: "center", marginBottom: spacing.md },
+    selfieThumb: { width: "100%", height: "100%" },
     imagePlaceholder: {
       flex: 1,
       aspectRatio: 4 / 3,

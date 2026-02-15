@@ -16,6 +16,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
 import { useMarketplaceStore } from "../../store/marketplace.store";
+import { useAuthStore } from "../../store/auth.store";
 import * as marketplaceApi from "../../services/marketplace.api";
 
 const CATEGORIES = [
@@ -30,6 +31,10 @@ export default function MarketplaceListScreen() {
   const navigation = useNavigation();
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
+
+  const user = useAuthStore((s) => s.user);
+  const otpVerified = !!(user?.otp_verified ?? user?.otpVerified);
+  const isLoggedIn = !!useAuthStore((s) => s.token);
 
   const items = useMarketplaceStore((s) => s.items);
   const total = useMarketplaceStore((s) => s.total);
@@ -169,14 +174,16 @@ export default function MarketplaceListScreen() {
           initialNumToRender={8}
         />
       )}
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => navigation.navigate("CreateItem")}
-        activeOpacity={0.9}
-      >
-        <MaterialIcons name="add" size={28} color={colors.white} />
-        <Text style={styles.fabText}>Sell</Text>
-      </TouchableOpacity>
+      {isLoggedIn && otpVerified && (
+        <TouchableOpacity
+          style={styles.fab}
+          onPress={() => navigation.navigate("CreateItem")}
+          activeOpacity={0.9}
+        >
+          <MaterialIcons name="add" size={28} color={colors.white} />
+          <Text style={styles.fabText}>Sell</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }

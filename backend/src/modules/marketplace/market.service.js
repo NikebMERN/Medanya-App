@@ -100,6 +100,10 @@ async function create(user, body) {
     const seller_id = user?.id ?? user?.userId;
     if (!seller_id) throw codeErr("UNAUTHORIZED", "Auth required");
 
+    const seller = await userDb.getById(seller_id);
+    if (!seller) throw codeErr("UNAUTHORIZED", "User not found");
+    if (!seller.kyc_face_verified) throw codeErr("FORBIDDEN", "Face verification required. Complete identity verification and have your face matched to your document before listing items.");
+
     await fraudService.requireOtpVerified(seller_id);
     await fraudService.checkListingRateLimit(seller_id);
 

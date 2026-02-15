@@ -10,7 +10,7 @@ import {
   Alert,
   Linking,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSafeAreaInsets, SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useThemeColors } from "../../theme/useThemeColors";
@@ -208,7 +208,7 @@ export default function JobDetailScreen() {
   const ratingCount = job.ratingCount ?? job.rating_count ?? 0;
 
   return (
-    <View style={styles.wrapper}>
+    <SafeAreaView style={styles.wrapper} edges={["top"]}>
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.8}>
           <MaterialIcons name="arrow-back" size={24} color={colors.text} />
@@ -337,7 +337,7 @@ export default function JobDetailScreen() {
         targetUserId={createdBy}
         onBlocked={() => navigation.goBack()}
       />
-    </View>
+    </SafeAreaView>
   );
 }
 

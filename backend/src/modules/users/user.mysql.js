@@ -4,7 +4,7 @@ const { pool } = require("../../config/mysql");
 async function getById(userId) {
     const [rows] = await pool.query(
         `SELECT id, phone_number, email, display_name, avatar_url, neighborhood, last_lat, last_lng, bio, preferred_theme, role, is_verified,
-            otp_verified, kyc_status, kyc_level, safety_acknowledged_at,
+            otp_verified, kyc_status, kyc_level, kyc_face_verified, safety_acknowledged_at,
             privacy_hide_phone, account_private, notification_enabled, is_banned, banned_reason, is_active,
             created_at, updated_at
      FROM users WHERE id = ? LIMIT 1`,
@@ -106,7 +106,7 @@ async function setVerified(userId, verified) {
     return getById(userId);
 }
 
-async function updateKyc(userId, { kyc_status, kyc_level }) {
+async function updateKyc(userId, { kyc_status, kyc_level, kyc_face_verified }) {
     const set = [];
     const params = [];
     if (kyc_status !== undefined) {
@@ -116,6 +116,10 @@ async function updateKyc(userId, { kyc_status, kyc_level }) {
     if (kyc_level !== undefined) {
         set.push("kyc_level = ?");
         params.push(kyc_level);
+    }
+    if (kyc_face_verified !== undefined) {
+        set.push("kyc_face_verified = ?");
+        params.push(kyc_face_verified ? 1 : 0);
     }
     if (set.length === 0) return getById(userId);
     params.push(userId);

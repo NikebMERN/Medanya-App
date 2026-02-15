@@ -10,6 +10,7 @@ import {
   Alert,
   Dimensions,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useRoute, useNavigation } from "@react-navigation/native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -124,7 +125,7 @@ export default function MarketplaceDetailScreen() {
   const isOwn = String(sellerId) === String(userId);
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
           <MaterialIcons name="arrow-back" size={24} color={colors.text} />
@@ -205,14 +206,14 @@ export default function MarketplaceDetailScreen() {
         targetUserId={sellerId}
         onBlocked={() => navigation.goBack()}
       />
-    </View>
+    </SafeAreaView>
   );
 }
 
-function createStyles(colors, paddingTop = 0) {
+function createStyles(colors, _paddingTop = 0) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
-    header: { flexDirection: "row", alignItems: "center", paddingTop: paddingTop + spacing.sm, paddingBottom: spacing.md, paddingHorizontal: spacing.sm, backgroundColor: colors.background, borderBottomWidth: 1, borderBottomColor: colors.border },
+    header: { flexDirection: "row", alignItems: "center", paddingVertical: spacing.md, paddingHorizontal: spacing.sm, backgroundColor: colors.background, borderBottomWidth: 1, borderBottomColor: colors.border },
     backBtn: { padding: spacing.sm },
     headerTitle: { flex: 1, fontSize: 18, fontWeight: "700", color: colors.text, textAlign: "center" },
     headerRight: { width: 40 },

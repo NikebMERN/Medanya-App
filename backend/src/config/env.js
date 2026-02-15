@@ -39,6 +39,10 @@ const envSchema = z.object({
     CLOUDINARY_CLOUD_NAME: z.string().optional(),
     CLOUDINARY_API_KEY: z.string().optional(),
     CLOUDINARY_API_SECRET: z.string().optional(),
+
+    // Admin panel / dev: comma-separated phone numbers (E.164 digits) that can use fixed OTP in development
+    ADMIN_TEST_PHONES: z.string().optional(),
+    ADMIN_TEST_OTP_CODE: z.string().optional().default("123456"),
 });
 
 const env = envSchema.parse(process.env);
