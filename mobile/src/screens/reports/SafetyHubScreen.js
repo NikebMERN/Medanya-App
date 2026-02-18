@@ -1,9 +1,11 @@
 import React, { useMemo } from "react";
-import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
+import { typography, radii } from "../../theme/designSystem";
+import NeoCard from "../../components/ui/NeoCard";
 
 export default function SafetyHubScreen() {
   const navigation = useNavigation();
@@ -11,87 +13,100 @@ export default function SafetyHubScreen() {
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Safety Hub</Text>
-      <Text style={styles.subtitle}>Report abuse, check employers, share alerts</Text>
+    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <Text style={styles.title}>SAFETY HUB</Text>
+      <Text style={styles.subtitle}>COMMUNITY GUARD v2.5</Text>
 
-      <TouchableOpacity
-        style={styles.card}
-        onPress={() => navigation.navigate("BlacklistSearch")}
-        activeOpacity={0.8}
-      >
-        <View style={styles.cardIcon}>
-          <MaterialIcons name="search" size={28} color={colors.primary} />
-        </View>
-        <View style={styles.cardBody}>
-          <Text style={styles.cardTitle}>Search Blacklist</Text>
-          <Text style={styles.cardDesc}>Check phone number or employer name before hiring</Text>
-        </View>
-        <MaterialIcons name="chevron-right" size={24} color={colors.textMuted} />
+      <TouchableOpacity activeOpacity={0.9} onPress={() => navigation.navigate("BlacklistSearch")}>
+        <NeoCard style={styles.searchCard}>
+          <Text style={styles.sectionLabel}>AI SCAMMER CHECK</Text>
+          <View style={styles.searchPlaceholder}>
+            <MaterialIcons name="search" size={20} color={colors.textMuted} />
+            <Text style={styles.searchPlaceholderText}>Search number or name...</Text>
+          </View>
+        </NeoCard>
       </TouchableOpacity>
 
-      <TouchableOpacity
-        style={styles.card}
-        onPress={() => navigation.navigate("ReportForm")}
-        activeOpacity={0.8}
-      >
-        <View style={[styles.cardIcon, { backgroundColor: colors.error + "20" }]}>
-          <MaterialIcons name="report-problem" size={28} color={colors.error} />
-        </View>
-        <View style={styles.cardBody}>
-          <Text style={styles.cardTitle}>Report Scammer</Text>
-          <Text style={styles.cardDesc}>Submit scam or abuse report with evidence</Text>
-        </View>
-        <MaterialIcons name="chevron-right" size={24} color={colors.textMuted} />
+      <TouchableOpacity onPress={() => navigation.navigate("ReportForm")} activeOpacity={0.9}>
+        <NeoCard style={[styles.bigCard, styles.redCard]}>
+          <MaterialIcons name="report-problem" size={32} color={colors.white} />
+          <Text style={styles.bigCardTitle}>REPORT SCAMMER</Text>
+          <Text style={styles.bigCardSub}>Expose fraudulent activity</Text>
+        </NeoCard>
       </TouchableOpacity>
 
-      <TouchableOpacity
-        style={styles.card}
-        onPress={() => navigation.navigate("MissingCreate")}
-        activeOpacity={0.8}
-      >
-        <View style={[styles.cardIcon, { backgroundColor: colors.warning + "20" }]}>
-          <MaterialIcons name="person-search" size={28} color={colors.warning} />
-        </View>
-        <View style={styles.cardBody}>
-          <Text style={styles.cardTitle}>Report Missing Person</Text>
-          <Text style={styles.cardDesc}>Create alert with photo and contact info</Text>
-        </View>
-        <MaterialIcons name="chevron-right" size={24} color={colors.textMuted} />
+      <TouchableOpacity onPress={() => navigation.navigate("MissingCreate")} activeOpacity={0.9}>
+        <NeoCard style={[styles.bigCard, styles.purpleCard]}>
+          <MaterialIcons name="person-search" size={32} color={colors.white} />
+          <Text style={styles.bigCardTitle}>REPORT MISSING</Text>
+          <Text style={styles.bigCardSub}>Create alert with photo and contact</Text>
+        </NeoCard>
       </TouchableOpacity>
 
-      <TouchableOpacity
-        style={styles.card}
-        onPress={() => navigation.navigate("MissingList")}
-        activeOpacity={0.8}
-      >
-        <View style={[styles.cardIcon, { backgroundColor: colors.primary + "20" }]}>
-          <MaterialIcons name="list" size={28} color={colors.primary} />
-        </View>
-        <View style={styles.cardBody}>
-          <Text style={styles.cardTitle}>View Missing Alerts</Text>
-          <Text style={styles.cardDesc}>Browse active missing person alerts</Text>
-        </View>
-        <MaterialIcons name="chevron-right" size={24} color={colors.textMuted} />
+      <Text style={styles.sectionTitle}>Quick actions</Text>
+      <TouchableOpacity onPress={() => navigation.navigate("BlacklistSearch")} activeOpacity={0.8}>
+        <NeoCard style={styles.card}>
+          <View style={styles.cardIcon}>
+            <MaterialIcons name="search" size={28} color={colors.primary} />
+          </View>
+          <View style={styles.cardBody}>
+            <Text style={styles.cardTitle}>Search Blacklist</Text>
+            <Text style={styles.cardDesc}>Check phone or employer name</Text>
+          </View>
+          <MaterialIcons name="chevron-right" size={24} color={colors.textMuted} />
+        </NeoCard>
       </TouchableOpacity>
-    </View>
+
+      <TouchableOpacity onPress={() => navigation.navigate("MissingList")} activeOpacity={0.8}>
+        <NeoCard style={styles.card}>
+          <View style={[styles.cardIcon, { backgroundColor: colors.primary + "20" }]}>
+            <MaterialIcons name="list" size={28} color={colors.primary} />
+          </View>
+          <View style={styles.cardBody}>
+            <Text style={styles.cardTitle}>View Missing Alerts</Text>
+            <Text style={styles.cardDesc}>Browse active missing person alerts</Text>
+          </View>
+          <MaterialIcons name="chevron-right" size={24} color={colors.textMuted} />
+        </NeoCard>
+      </TouchableOpacity>
+    </ScrollView>
   );
 }
 
 function createStyles(colors) {
   return StyleSheet.create({
-    container: { flex: 1, backgroundColor: colors.background, padding: spacing.md },
-    title: { fontSize: 22, fontWeight: "700", color: colors.text, marginBottom: spacing.xs },
-    subtitle: { fontSize: 14, color: colors.textMuted, marginBottom: spacing.lg },
+    container: { flex: 1, backgroundColor: colors.background },
+    content: { padding: spacing.md, paddingBottom: spacing.xxl },
+    title: { ...typography.sectionTitle, color: colors.text, marginBottom: spacing.xs },
+    subtitle: { fontSize: 13, color: colors.textMuted, marginBottom: spacing.lg, letterSpacing: 0.5 },
+    sectionLabel: { ...typography.label, color: colors.textMuted, marginBottom: spacing.sm },
+    sectionTitle: { fontSize: 16, fontWeight: "700", color: colors.text, marginTop: spacing.lg, marginBottom: spacing.sm },
+    searchCard: { marginBottom: spacing.md },
+    searchPlaceholder: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: colors.inputBg || colors.surfaceLight,
+      borderRadius: radii.pill,
+      paddingHorizontal: spacing.md,
+      minHeight: 44,
+      gap: spacing.sm,
+    },
+    searchPlaceholderText: { fontSize: 15, color: colors.textMuted },
+    bigCard: {
+      flexDirection: "row",
+      alignItems: "center",
+      padding: spacing.lg,
+      marginBottom: spacing.sm,
+      borderRadius: radii.card,
+    },
+    redCard: { backgroundColor: (colors.error || "#ef4444") + "dd" },
+    purpleCard: { backgroundColor: "#6B4EAA" },
+    bigCardTitle: { fontSize: 16, fontWeight: "800", color: colors.white, marginLeft: spacing.md, letterSpacing: 0.5 },
+    bigCardSub: { fontSize: 13, color: "rgba(255,255,255,0.85)", marginLeft: spacing.md, marginTop: 2 },
     card: {
       flexDirection: "row",
       alignItems: "center",
-      backgroundColor: colors.surface,
-      borderRadius: 12,
-      padding: spacing.md,
       marginBottom: spacing.sm,
-      borderWidth: 1,
-      borderColor: colors.border,
     },
     cardIcon: {
       width: 48,

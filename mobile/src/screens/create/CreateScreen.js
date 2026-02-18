@@ -19,11 +19,11 @@ export default function CreateScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Create</Text>
-        <Text style={styles.subtitle}>Post a job, sell an item, upload a video, or go live</Text>
         <TouchableOpacity style={styles.closeBtn} onPress={close} activeOpacity={0.8}>
-          <MaterialIcons name="close" size={24} color={colors.text} />
+          <MaterialIcons name="close" size={28} color={colors.text} />
         </TouchableOpacity>
+        <Text style={styles.title}>CREATE CONTENT</Text>
+        <View style={{ width: 44 }} />
       </View>
 
       {kycFaceVerified && (
@@ -92,6 +92,51 @@ export default function CreateScreen() {
 
       <TouchableOpacity
         style={styles.card}
+        onPress={() => { close(); navigation.navigate("VideoReels", { screen: "VideoUpload" }); }}
+        activeOpacity={0.8}
+      >
+        <View style={[styles.cardIcon, { backgroundColor: (colors.primary || "#6366f1") + "20" }]}>
+          <MaterialIcons name="videocam" size={28} color={colors.primary || "#6366f1"} />
+        </View>
+        <View style={styles.cardBody}>
+          <Text style={styles.cardTitle}>SHOOT SHORT</Text>
+          <Text style={styles.cardDesc}>Record a new video</Text>
+        </View>
+        <MaterialIcons name="chevron-right" size={24} color={colors.textMuted} />
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.card}
+        onPress={() => { close(); navigation.navigate("VideoReels", { screen: "VideoUpload" }); }}
+        activeOpacity={0.8}
+      >
+        <View style={[styles.cardIcon, { backgroundColor: (colors.primary || "#6366f1") + "20" }]}>
+          <MaterialIcons name="photo-library" size={28} color={colors.primary || "#6366f1"} />
+        </View>
+        <View style={styles.cardBody}>
+          <Text style={styles.cardTitle}>FROM GALLERY</Text>
+          <Text style={styles.cardDesc}>Upload saved videos</Text>
+        </View>
+        <MaterialIcons name="chevron-right" size={24} color={colors.textMuted} />
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.card}
+        onPress={() => { close(); navigation.navigate("Live", { screen: "LiveHostSetup" }); }}
+        activeOpacity={0.8}
+      >
+        <View style={[styles.cardIcon, { backgroundColor: (colors.error || "#e53935") + "20" }]}>
+          <MaterialIcons name="live-tv" size={28} color={colors.error || "#e53935"} />
+        </View>
+        <View style={styles.cardBody}>
+          <Text style={styles.cardTitle}>GO LIVE</Text>
+          <Text style={styles.cardDesc}>Stream to community</Text>
+        </View>
+        <MaterialIcons name="chevron-right" size={24} color={colors.textMuted} />
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.card}
         onPress={() => { close(); navigation.navigate("VideoReels"); }}
         activeOpacity={0.8}
       >
@@ -133,23 +178,22 @@ function createStyles(colors, insets) {
       paddingBottom: insets.bottom + spacing.md,
     },
     header: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
       marginBottom: spacing.lg,
-      paddingRight: 44,
     },
     title: {
-      fontSize: 24,
+      fontSize: 20,
       fontWeight: "800",
       color: colors.text,
-      marginBottom: spacing.xs,
+      letterSpacing: 0.5,
     },
     subtitle: {
       fontSize: 14,
       color: colors.textMuted,
     },
     closeBtn: {
-      position: "absolute",
-      top: 0,
-      right: 0,
       width: 44,
       height: 44,
       justifyContent: "center",

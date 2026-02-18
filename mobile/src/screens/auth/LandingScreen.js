@@ -13,6 +13,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import * as Google from "expo-auth-session/providers/google";
 import * as Facebook from "expo-auth-session/providers/facebook";
@@ -132,18 +133,19 @@ export default function LandingScreen() {
   const toggleTheme = () => setTheme(theme === "dark" ? "light" : "dark");
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
-      <TouchableOpacity style={styles.themeToggle} onPress={toggleTheme}>
-        <Text style={styles.themeToggleText}>
-          {theme === "dark" ? "☀️ Light" : "🌙 Dark"}
-        </Text>
-      </TouchableOpacity>
+    <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <TouchableOpacity style={styles.themeToggle} onPress={toggleTheme}>
+          <Text style={styles.themeToggleText}>
+            {theme === "dark" ? "☀️ Light" : "🌙 Dark"}
+          </Text>
+        </TouchableOpacity>
 
-      <View style={styles.content}>
-        <Logo />
+        <View style={styles.content}>
+          <Logo />
 
         <TouchableOpacity
           style={styles.primaryBtn}
@@ -188,18 +190,19 @@ export default function LandingScreen() {
 
         <View style={styles.footer}>
           <Text style={styles.footerText}>
-            By joining, you agree to our <Text style={styles.link}>Terms</Text>{" "}
-            and <Text style={styles.link}>Privacy</Text>.
+            By joining, you agree to our Community Terms and Safety Guidelines.
           </Text>
         </View>
       </View>
     </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 function createStyles(colors) {
   return StyleSheet.create({
-    container: { flex: 1, backgroundColor: colors.background },
+    safe: { flex: 1, backgroundColor: "#f8fafc" },
+    container: { flex: 1, backgroundColor: "#f8fafc" },
     themeToggle: {
       position: "absolute",
       right: spacing.md,
@@ -222,10 +225,15 @@ function createStyles(colors) {
       alignItems: "center",
       justifyContent: "center",
       gap: spacing.sm,
-      backgroundColor: colors.primary,
-      borderRadius: 12,
+      backgroundColor: "#0f172a",
+      borderRadius: 20,
       paddingVertical: spacing.lg,
       marginBottom: spacing.lg,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.2,
+      shadowRadius: 8,
+      elevation: 4,
     },
     primaryBtnIcon: { fontSize: 22 },
     primaryBtnText: {
@@ -259,9 +267,15 @@ function createStyles(colors) {
       justifyContent: "center",
       gap: spacing.sm,
       paddingVertical: spacing.md,
-      borderRadius: 12,
+      borderRadius: 20,
       borderWidth: 1,
       borderColor: colors.border,
+      backgroundColor: colors.surface,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 6,
+      elevation: 2,
     },
     googleBtn: { backgroundColor: colors.surface },
     facebookBtn: { backgroundColor: "#1877f2" },

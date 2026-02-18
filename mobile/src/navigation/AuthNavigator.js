@@ -12,7 +12,7 @@ export default function AuthNavigator() {
     <Stack.Navigator
       screenOptions={{
         headerShown: false,
-        contentStyle: { backgroundColor: "#0f172a" },
+        contentStyle: { backgroundColor: "#f8fafc" },
       }}
     >
       <Stack.Screen name="Landing" component={LandingScreen} />
