@@ -26,6 +26,14 @@ function validatePatch(body = {}) {
             throw err("VALIDATION_ERROR", "displayName must be 2-50 chars");
         out.display_name = v;
     }
+    if (body.fullName !== undefined) {
+        const v = String(body.fullName || "").trim();
+        out.full_name = v.length > 120 ? v.slice(0, 120) : (v || null);
+    }
+    if (body.dob !== undefined) {
+        const v = body.dob ? new Date(body.dob) : null;
+        out.dob = v && !isNaN(v.getTime()) ? v.toISOString().slice(0, 10) : null;
+    }
 
     if (body.email !== undefined) {
         const v = String(body.email || "").trim().toLowerCase();

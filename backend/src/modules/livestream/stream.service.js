@@ -8,6 +8,7 @@ const { computeSplit } = require("../../utils/revenue.util");
 const walletDb = require("../wallet/wallet.mysql");
 const txDb = require("../wallet/transaction.mysql");
 const { pool } = require("../../config/mysql");
+const userDb = require("../users/user.mysql");
 
 function codeErr(code, message) {
     const e = new Error(message || code);
@@ -28,14 +29,30 @@ function giftById(giftId) {
     return payments.gifts.find((g) => g.giftId === giftId) || null;
 }
 
+function ageFromDob(dob) {
+    if (!dob) return null;
+    const d = new Date(dob);
+    if (isNaN(d.getTime())) return null;
+    const today = new Date();
+    let age = today.getFullYear() - d.getFullYear();
+    const m = today.getMonth() - d.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < d.getDate())) age -= 1;
+    return age;
+}
+
 async function createStream(user, body) {
     const hostId = toId(user);
     if (!hostId) throw codeErr("UNAUTHORIZED", "Auth required");
 
+    const hostUser = await userDb.getById(hostId);
+    if (!hostUser) throw codeErr("NOT_FOUND", "User not found");
+    if (!hostUser.otp_verified) throw codeErr("OTP_REQUIRED", "OTP verification required to go live");
+    const age = ageFromDob(hostUser.dob);
+    if (age == null || age < 18) throw codeErr("AGE_REQUIRED", "You must be 18 or older to host a stream");
+
     const title = cleanStr(body?.title, 120);
     const category = cleanStr(body?.category, 60);
 
-    // Create stream first without providerRoom, then set providerRoom using _id
     const doc = await Stream.create({
         hostId,
         title,
@@ -47,6 +64,7 @@ async function createStream(user, body) {
     });
 
     doc.providerRoom = `stream_${doc._id.toString()}`;
+    doc.channelName = doc.providerRoom;
     await doc.save();
 
     return doc.toObject();

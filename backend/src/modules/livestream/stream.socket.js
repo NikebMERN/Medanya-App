@@ -256,6 +256,29 @@ function registerStreamSocket(io, socket) {
         }
     });
 
+    socket.on("disconnect", async () => {
+        for (const streamId of joined) {
+            try {
+                const room = `stream:${streamId}`;
+                socket.leave(room);
+                await Stream.updateOne(
+                    { _id: streamId },
+                    { $inc: { viewerCount: -1 } },
+                ).catch(() => {});
+                const doc = await Stream.findById(streamId).lean().catch(() => null);
+                if (doc) {
+                    io.to(room).emit("stream:viewerCount", {
+                        streamId,
+                        viewerCount: Math.max(doc.viewerCount ?? 0, 0),
+                    });
+                }
+            } catch (e) {
+                logger.error("stream disconnect cleanup error", e);
+            }
+        }
+        joined.clear();
+    });
+
     socket.on("stream:kick", async (payload = {}, ack) => {
         try {
             const streamId = payload?.streamId;

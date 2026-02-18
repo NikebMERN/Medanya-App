@@ -3,6 +3,9 @@ const jobsDb = require("../jobs/job.mysql");
 const marketDb = require("../marketplace/market.mysql");
 const reportService = require("../reports/report.service");
 const MissingPerson = require("../missingPersons/missing.model");
+const Stream = require("../livestream/stream.model");
+const Video = require("../videos/video.model");
+const cache = require("../../config/redis");
 
 function encodeCursor(obj) {
     return Buffer.from(JSON.stringify(obj), "utf8").toString("base64");
@@ -107,7 +110,7 @@ function normalizeMissing(doc) {
 function normalizeReportSummary(s) {
     return {
         type: "report",
-        id: s.phoneNumberMasked, // masked identifier for feed
+        id: s.phoneNumberMasked,
         title: `Reported: ${s.employerName || s.phoneNumberMasked}`,
         summary: `${s.riskLevel.toUpperCase()} • ${s.totalReports} reports`,
         location: s.locationText || "",
@@ -116,6 +119,25 @@ function normalizeReportSummary(s) {
             riskLevel: s.riskLevel,
             totalReports: s.totalReports,
             phoneMasked: s.phoneNumberMasked,
+        },
+    };
+}
+
+function toFeedCard(type, data) {
+    return { type, data: { ...data }, createdAt: data.createdAt, _key: makeKey(type, data.id) };
+}
+
+function normalizeVideoCard(v) {
+    return {
+        id: v._id.toString(),
+        title: v.caption ? (v.caption.length > 60 ? v.caption.slice(0, 60) + "…" : v.caption) : "Video",
+        summary: (v.tags || []).slice(0, 3).join(" · ") || "Short video",
+        createdAt: toIsoDate(v.createdAt),
+        preview: {
+            videoUrl: v.videoUrl,
+            thumbnailUrl: v.thumbnailUrl || "",
+            likeCount: v.likeCount ?? 0,
+            commentCount: v.commentCount ?? 0,
         },
     };
 }
@@ -210,7 +232,89 @@ async function getHighlights({ limit = 20 } = {}) {
     return { items: merged.slice(0, l).map(({ _key, ...r }) => r) };
 }
 
+const TAB_TYPES = {
+    all: ["job", "report", "missing_person", "marketplace", "video"],
+    alerts: ["report"],
+    jobs: ["job"],
+    missing: ["missing_person"],
+    market: ["marketplace"],
+};
+
+async function getHomeFeed({ tab = "all", cursor, limit = 20 } = {}) {
+    const l = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 50);
+    const cursorObj = decodeCursor(cursor);
+    const types = TAB_TYPES[tab] || TAB_TYPES.all;
+    const perSource = Math.min(l * 3, 40);
+
+    if (!cursor) {
+        const cacheKey = `feed:home:${tab}`;
+        const cached = await cache.get(cacheKey);
+        if (cached && Array.isArray(cached.items)) {
+            return { items: cached.items, nextCursor: cached.nextCursor };
+        }
+    }
+
+    const [jobs, market, reportSummaries, missing, videos] = await Promise.all([
+        types.includes("job") ? jobsDb.listRecentJobsForFeed({ limit: perSource }) : [],
+        types.includes("marketplace") ? marketDb.listRecentMarketplaceForFeed({ limit: perSource }) : [],
+        types.includes("report") ? reportService.listBlacklistSummariesForFeed({ limit: perSource }) : [],
+        types.includes("missing_person") ? MissingPerson.find({ status: "active" }).sort({ createdAt: -1 }).limit(perSource).lean() : [],
+        types.includes("video") ? Video.find({ status: { $in: ["ACTIVE", "approved"] } }).sort({ createdAt: -1 }).limit(perSource).lean() : [],
+    ]);
+
+    const cards = [];
+    jobs.forEach((row) => {
+        const d = normalizeJob(row);
+        cards.push(toFeedCard("JOB", d));
+    });
+    reportSummaries.forEach((s) => {
+        const d = normalizeReportSummary(s);
+        cards.push(toFeedCard("ALERT", d));
+    });
+    missing.forEach((doc) => {
+        const d = normalizeMissing(doc);
+        cards.push(toFeedCard("MISSING", d));
+    });
+    market.forEach((row) => {
+        const d = normalizeMarket(row);
+        cards.push(toFeedCard("MARKET", d));
+    });
+    videos.forEach((v) => {
+        const d = normalizeVideoCard(v);
+        cards.push(toFeedCard("VIDEO_CARD", d));
+    });
+
+    cards.sort(compareDesc);
+    const filtered = filterByCursor(cards, cursorObj);
+    const pageItems = filtered.slice(0, l);
+    const last = pageItems[pageItems.length - 1];
+    const nextCursor = pageItems.length === l && last ? encodeCursor({ t: last.createdAt, k: last._key }) : null;
+
+    const items = pageItems.map(({ type, data, createdAt }) => ({ type, data, createdAt }));
+
+    if (!cursor) await cache.set(`feed:home:${tab}`, { items, nextCursor }, 45);
+    return { items, nextCursor };
+}
+
+async function getLiveStreamsForHome({ limit = 10 } = {}) {
+    const l = Math.min(Math.max(parseInt(limit, 10) || 10, 1), 20);
+    const streams = await Stream.find({ status: "live" })
+        .sort({ viewerCount: -1, startedAt: -1 })
+        .limit(l)
+        .lean();
+    return streams.map((s) => ({
+        streamId: s._id.toString(),
+        hostId: s.hostId,
+        title: s.title || "Live",
+        viewerCount: s.viewerCount ?? 0,
+        channelName: s.channelName || s.providerRoom,
+        startedAt: s.startedAt,
+    }));
+}
+
 module.exports = {
     getFeed,
     getHighlights,
+    getHomeFeed,
+    getLiveStreamsForHome,
 };

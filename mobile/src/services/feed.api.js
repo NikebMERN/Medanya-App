@@ -28,3 +28,26 @@ export async function getHighlights(params = {}) {
     items: Array.isArray(d?.items) ? d.items : [],
   };
 }
+
+export async function getHomeFeed(params = {}) {
+  const res = await client.get("/feed/home", {
+    params: {
+      tab: params.tab ?? "all",
+      cursor: params.cursor ?? undefined,
+      limit: params.limit ?? 20,
+    },
+  });
+  const d = res?.data ?? res;
+  return {
+    items: Array.isArray(d?.items) ? d.items : [],
+    nextCursor: d?.nextCursor ?? null,
+  };
+}
+
+export async function getLiveStreams(params = {}) {
+  const res = await client.get("/feed/home/live", {
+    params: { limit: params.limit ?? 10 },
+  });
+  const d = res?.data ?? res;
+  return { streams: Array.isArray(d?.streams) ? d.streams : [] };
+}

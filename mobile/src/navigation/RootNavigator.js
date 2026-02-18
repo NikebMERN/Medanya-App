@@ -6,6 +6,9 @@ import { HeaderBackProvider } from "../context/HeaderBackContext";
 import AuthNavigator from "./AuthNavigator";
 import MainTabs from "./MainTabs";
 import ProfileCreationScreen from "../screens/auth/ProfileCreationScreen";
+import CreateScreen from "../screens/create/CreateScreen";
+import VideosStack from "./VideosStack";
+import LivestreamStack from "./LivestreamStack";
 import linking from "./linking";
 
 const Stack = createNativeStackNavigator();
@@ -36,6 +39,9 @@ export default function RootNavigator() {
         <HeaderBackProvider>
           <Stack.Navigator screenOptions={{ headerShown: false }}>
             <Stack.Screen name="Main" component={MainTabs} />
+            <Stack.Screen name="Create" component={CreateScreen} options={{ presentation: "modal" }} />
+            <Stack.Screen name="VideoReels" component={VideosStack} options={{ animation: "fade" }} />
+            <Stack.Screen name="Live" component={LivestreamStack} options={{ animation: "fade" }} />
           </Stack.Navigator>
         </HeaderBackProvider>
       )}

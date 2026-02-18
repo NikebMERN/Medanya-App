@@ -40,10 +40,9 @@ The backend has a seed script that creates or updates an admin user by phone num
    Edit `backend/src/database/seeds/admin.seed.js` and change the `phone` constant at the top to your desired number (e.g. your own phone in E.164 format). Then run `npm run seed` again.
 
 3. **Log in from the admin panel**  
-   - Enter that phone number (e.g. `+251935657526`) and click “Send OTP”.
-   - If the backend uses Firebase Phone Auth, you must either:
-     - Add this number as a **test number** in Firebase Console (Authentication → Sign-in method → Phone → Phone numbers for testing), and use the fixed test code, or
-     - Use the same OTP flow as the mobile app (e.g. reCAPTCHA / client-side Firebase) if you integrate it in the admin app.
+   - Enter that phone number (e.g. `+251900000001`) and click “Send OTP”.
+   - **Development bypass (no Firebase):** In the backend `.env`, set `ADMIN_TEST_PHONES` to a comma-separated list of phone numbers (digits only, e.g. `251900000001`). When `NODE_ENV=development`, the backend will skip Firebase for those numbers and accept the fixed OTP code (default `123456`, or set `ADMIN_TEST_OTP_CODE`). Example: `ADMIN_TEST_PHONES=251900000001,251935657526`.
+   - **With Firebase:** Add the number as a test number in Firebase Console (Authentication → Phone → Phone numbers for testing) and use the code Firebase shows, or use the mobile app flow with reCAPTCHA.
    - After entering the correct OTP, the backend returns a JWT and user object. If `user.role === "admin"`, the panel stores the token and redirects to the dashboard.
 
 ## Build

@@ -8,12 +8,14 @@ async function insertSubmission({
     last4,
     cloudinary_url_private,
     selfie_image_url = null,
+    full_name = null,
+    birthdate = null,
     status = "pending",
 }) {
     const [result] = await pool.query(
-        `INSERT INTO kyc_submissions (user_id, doc_type, doc_hash, last4, cloudinary_url_private, selfie_image_url, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [user_id, doc_type, doc_hash || null, last4 || null, cloudinary_url_private || null, selfie_image_url || null, status],
+        `INSERT INTO kyc_submissions (user_id, doc_type, doc_hash, last4, cloudinary_url_private, selfie_image_url, full_name, birthdate, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [user_id, doc_type, doc_hash || null, last4 || null, cloudinary_url_private || null, selfie_image_url || null, full_name || null, birthdate || null, status],
     );
     return result.insertId;
 }
@@ -42,6 +44,17 @@ async function findByUserId(userId) {
     return rows;
 }
 
+async function countByDocHash(docHash, excludeUserId = null) {
+    let sql = `SELECT COUNT(*) AS c FROM kyc_submissions WHERE doc_hash = ?`;
+    const params = [docHash];
+    if (excludeUserId != null) {
+        sql += ` AND user_id != ?`;
+        params.push(excludeUserId);
+    }
+    const [[row]] = await pool.query(sql, params);
+    return row?.c ?? 0;
+}
+
 async function updateById(id, fields) {
     const allowed = [
         "status",
@@ -49,6 +62,12 @@ async function updateById(id, fields) {
         "reviewed_at",
         "reject_reason",
         "retention_delete_at",
+        "extracted_name",
+        "extracted_dob",
+        "face_match_score",
+        "name_match_score",
+        "doc_quality_ok",
+        "doc_hash_duplicate",
     ];
     const set = [];
     const params = [];
@@ -74,12 +93,23 @@ async function listByStatus(status, { page = 1, limit = 20 } = {}) {
     const l = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100);
     const offset = (p - 1) * l;
 
-    const where = status ? `WHERE status = ?` : "";
-    const params = status ? [status, l, offset] : [l, offset];
+    let where = "";
+    let countParams = [];
+    let listParams = [];
+    if (status) {
+        if (status === "pending_manual") {
+            where = "WHERE status IN ('pending_manual', 'pending')";
+        } else {
+            where = "WHERE status = ?";
+            countParams = [status];
+            listParams = [status];
+        }
+    }
+    listParams = [...listParams, l, offset];
 
     const [[countRow]] = await pool.query(
         `SELECT COUNT(*) AS total FROM kyc_submissions ${where}`,
-        status ? [status] : [],
+        countParams,
     );
 
     const [rows] = await pool.query(
@@ -89,7 +119,7 @@ async function listByStatus(status, { page = 1, limit = 20 } = {}) {
          ${where}
          ORDER BY k.created_at DESC
          LIMIT ? OFFSET ?`,
-        params,
+        listParams,
     );
 
     return { page: p, limit: l, total: countRow.total, submissions: rows };
@@ -102,4 +132,5 @@ module.exports = {
     findByUserId,
     updateById,
     listByStatus,
+    countByDocHash,
 };

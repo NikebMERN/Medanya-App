@@ -103,6 +103,14 @@ async function create(user, body) {
     const seller = await userDb.getById(seller_id);
     if (!seller) throw codeErr("UNAUTHORIZED", "User not found");
     if (!seller.kyc_face_verified) throw codeErr("FORBIDDEN", "Face verification required. Complete identity verification and have your face matched to your document before listing items.");
+    if (seller.dob) {
+        const today = new Date();
+        const dob = new Date(seller.dob);
+        let age = today.getFullYear() - dob.getFullYear();
+        const m = today.getMonth() - dob.getMonth();
+        if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age -= 1;
+        if (age < 18) throw codeErr("FORBIDDEN", "You must be at least 18 years old to list items for sale.");
+    }
 
     await fraudService.requireOtpVerified(seller_id);
     await fraudService.checkListingRateLimit(seller_id);

@@ -14,7 +14,7 @@ const getFeed = async (req, res) => {
         const data = await feedService.getFeed({
             cursor: req.query.cursor,
             limit: req.query.limit,
-            types: req.query.types, // "job,report,missing_person,marketplace"
+            types: req.query.types,
         });
         return res.json({ success: true, ...data });
     } catch (err) {
@@ -31,4 +31,26 @@ const highlights = async (req, res) => {
     }
 };
 
-module.exports = { getFeed, highlights };
+const getHomeFeed = async (req, res) => {
+    try {
+        const data = await feedService.getHomeFeed({
+            tab: req.query.tab || "all",
+            cursor: req.query.cursor,
+            limit: req.query.limit,
+        });
+        return res.json({ success: true, ...data });
+    } catch (err) {
+        return sendErr(res, err);
+    }
+};
+
+const getLiveStreams = async (req, res) => {
+    try {
+        const streams = await feedService.getLiveStreamsForHome({ limit: req.query.limit });
+        return res.json({ success: true, streams });
+    } catch (err) {
+        return sendErr(res, err);
+    }
+};
+
+module.exports = { getFeed, highlights, getHomeFeed, getLiveStreams };

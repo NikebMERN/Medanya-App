@@ -84,6 +84,14 @@ async function createJob(reqUser, body) {
     const user = await userDb.getById(userId);
     if (!user) throw codeErr("UNAUTHORIZED", "User not found");
     if (!user.kyc_face_verified) throw codeErr("FORBIDDEN", "Face verification required. Complete identity verification and have your face matched to your document before posting jobs.");
+    if (user.dob) {
+        const today = new Date();
+        const dob = new Date(user.dob);
+        let age = today.getFullYear() - dob.getFullYear();
+        const m = today.getMonth() - dob.getMonth();
+        if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age -= 1;
+        if (age < 18) throw codeErr("FORBIDDEN", "You must be at least 18 years old to post jobs.");
+    }
 
     await fraudService.requireOtpVerified(userId);
     await fraudService.checkJobRateLimit(userId);

@@ -37,7 +37,7 @@ const create = async (req, res) => {
         const video = await service.createVideo(req.user, req.body);
         const io = req.app.get("io");
 
-        if (video.status === "approved") {
+        if (video.status === "ACTIVE") {
             emit(io, "videos:new", { video });
             emit(io, "feed:new", {
                 type: "video",
@@ -75,13 +75,39 @@ const detail = async (req, res) => {
 
 const like = async (req, res) => {
     try {
-        const data = await service.toggleLike(req.user, req.params.id);
+        const data = await service.likeVideo(req.user, req.params.id);
         const io = req.app.get("io");
 
         emitRoom(io, `video:${req.params.id}`, "videos:like", {
             videoId: req.params.id,
             likedBy: req.user.id ?? req.user.userId,
             liked: data.liked,
+            likeCount: data.likeCount,
+        });
+        emitRoom(io, `video:${req.params.id}`, "video_liked", {
+            videoId: req.params.id,
+            likeCount: data.likeCount,
+        });
+
+        return res.json({ success: true, ...data });
+    } catch (err) {
+        return sendErr(res, err);
+    }
+};
+
+const unlike = async (req, res) => {
+    try {
+        const data = await service.unlikeVideo(req.user, req.params.id);
+        const io = req.app.get("io");
+
+        emitRoom(io, `video:${req.params.id}`, "videos:like", {
+            videoId: req.params.id,
+            likedBy: req.user.id ?? req.user.userId,
+            liked: false,
+            likeCount: data.likeCount,
+        });
+        emitRoom(io, `video:${req.params.id}`, "video_liked", {
+            videoId: req.params.id,
             likeCount: data.likeCount,
         });
 
@@ -101,8 +127,25 @@ const comment = async (req, res) => {
             comment: data.comment,
             commentCount: data.commentCount,
         });
+        emitRoom(io, `video:${req.params.id}`, "video_commented", {
+            videoId: req.params.id,
+            commentCount: data.commentCount,
+            commentPreview: {
+                userId: data.comment?.userId,
+                text: data.comment?.text,
+            },
+        });
 
         return res.status(201).json({ success: true, ...data });
+    } catch (err) {
+        return sendErr(res, err);
+    }
+};
+
+const listComments = async (req, res) => {
+    try {
+        const data = await service.listComments(req.params.id, req.query);
+        return res.json({ success: true, ...data });
     } catch (err) {
         return sendErr(res, err);
     }
@@ -142,6 +185,18 @@ const report = async (req, res) => {
         });
 
         return res.status(201).json({ success: true, ...data });
+    } catch (err) {
+        return sendErr(res, err);
+    }
+};
+
+const remove = async (req, res) => {
+    try {
+        const data = await service.deleteByOwner(req.user, req.params.id);
+        const io = req.app.get("io");
+        emit(io, "videos:status", { videoId: req.params.id, status: data.status });
+        emitRoom(io, `video:${req.params.id}`, "video_removed", { videoId: req.params.id, status: data.status });
+        return res.json({ success: true, ...data });
     } catch (err) {
         return sendErr(res, err);
     }
@@ -204,9 +259,12 @@ module.exports = {
     list,
     detail,
     like,
+    unlike,
     comment,
+    listComments,
     deleteComment,
     report,
+    remove,
     adminList,
     approve,
     reject,

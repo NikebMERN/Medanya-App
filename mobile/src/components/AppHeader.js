@@ -100,7 +100,15 @@ function AppHeaderComponent({ navigation, route, focusedRouteName }) {
           </TouchableOpacity>
         </View>
         <View style={styles.right}>
-          <TouchableOpacity style={styles.iconBtn} activeOpacity={0.8}>
+          <TouchableOpacity
+            style={styles.iconBtn}
+            activeOpacity={0.8}
+            onPress={() => {
+              let nav = navigation;
+              while (nav?.getParent?.()) nav = nav.getParent();
+              nav?.navigate?.("VideoReels", { screen: "ReelsFeed" });
+            }}
+          >
             <Text style={styles.playIcon}>▶</Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -139,12 +147,12 @@ function AppHeaderComponent({ navigation, route, focusedRouteName }) {
               <>
                 <TouchableOpacity style={styles.menuItem} onPress={handlePostJob} activeOpacity={0.7}>
                   <MaterialIcons name="work" size={22} color={colors.text} />
-                  <Text style={styles.menuItemText}>Post a job</Text>
+                  <Text style={styles.menuItemText}>Create job</Text>
                   <MaterialIcons name="chevron-right" size={20} color={colors.textSecondary} />
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.menuItem} onPress={handleSellItem} activeOpacity={0.7}>
                   <MaterialIcons name="storefront" size={22} color={colors.text} />
-                  <Text style={styles.menuItemText}>Sell an item</Text>
+                  <Text style={styles.menuItemText}>Trade</Text>
                   <MaterialIcons name="chevron-right" size={20} color={colors.textSecondary} />
                 </TouchableOpacity>
               </>

@@ -55,4 +55,25 @@ const authMiddleware = async (req, res, next) => {
     }
 };
 
+/** Same as auth but does not reject: sets req.user if valid token, else leaves req.user undefined. */
+const optionalAuth = async (req, res, next) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || typeof authHeader !== "string") return next();
+    const parts = authHeader.trim().split(/\s+/);
+    const token = parts[0] === "Bearer" ? parts[1] : parts[0];
+    if (!token || typeof token !== "string") return next();
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const userId = decoded.userId ?? decoded.id;
+        if (!userId) return next();
+        const [rows] = await pool.query("SELECT is_banned FROM users WHERE id = ?", [userId]);
+        if (!rows.length || rows[0].is_banned) return next();
+        req.user = { id: String(userId), userId: String(userId), role: decoded.role, phone_number: decoded.phone ?? decoded.phone_number };
+        return next();
+    } catch {
+        return next();
+    }
+};
+
 module.exports = authMiddleware;
+module.exports.optional = optionalAuth;

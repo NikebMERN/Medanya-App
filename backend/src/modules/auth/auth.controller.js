@@ -99,6 +99,13 @@ const verifyOtpAndLoginServer = async (req, res, next) => {
                 code: err.code,
             });
         }
+        if (err.code === "PHONE_BANNED" || err.code === "USER_BANNED") {
+            return res.status(err.status || 403).json({
+                success: false,
+                message: err.message,
+                code: err.code,
+            });
+        }
         next(err);
     }
 };

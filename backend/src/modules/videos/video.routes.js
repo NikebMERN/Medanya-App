@@ -39,10 +39,12 @@ const reportLimiter = rateLimit({ windowMs: 60_000, max: 6 });
 // Public
 router.get("/videos", controller.list);
 router.get("/videos/:id", controller.detail);
+router.get("/videos/:id/comments", controller.listComments);
 
 // User (auth)
 router.post("/videos", auth, createLimiter, controller.create);
 router.post("/videos/:id/like", auth, controller.like);
+router.delete("/videos/:id/like", auth, controller.unlike);
 router.post("/videos/:id/comments", auth, commentLimiter, controller.comment);
 router.delete(
     "/videos/:id/comments/:commentId",
@@ -50,6 +52,7 @@ router.delete(
     controller.deleteComment,
 );
 router.post("/videos/:id/report", auth, reportLimiter, controller.report);
+router.delete("/videos/:id", auth, controller.remove);
 
 // Admin moderation
 router.get("/admin/videos", auth, requireRole("admin"), controller.adminList);

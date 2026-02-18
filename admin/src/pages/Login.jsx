@@ -30,10 +30,7 @@ export default function Login() {
     setError("");
     try {
       const phoneE164 = data.phone.replace(/\D/g, "").replace(/^/, "+");
-      await api.post("/auth/otp/send", {
-        phone: phoneE164,
-        ...(phoneE164.length >= 9 ? {} : {}),
-      });
+      await api.post("/auth/otp/send", { phone: phoneE164 });
       setPhone(data.phone);
       setStep("otp");
     } catch (e) {

@@ -20,6 +20,8 @@ const severeAbuseRoutes = require("./modules/severeAbuse/abuse.routes");
 const userRoutes = require("./modules/users/user.routes");
 const roomRoutes = require("./modules/communityRooms/room.routes");
 const kycRoutes = require("./modules/kyc/kyc.routes");
+const moderationRoutes = require("./modules/moderation/moderation.routes");
+const recommendationRoutes = require("./modules/recommendations/recommendation.routes");
 
 router.use("/auth", authRoutes);
 
@@ -43,6 +45,9 @@ router.use("/", marketRoutes);
 
 // ✅ FEED
 router.use("/", feedRoutes);
+
+// ✅ VIDEO RECOMMENDATIONS (mount before video routes so /videos/recommendations is matched first)
+router.use("/", recommendationRoutes);
 
 // ✅ VIDEOS
 router.use("/", videoRoutes);
@@ -74,6 +79,9 @@ router.use("/kyc", kycRoutes);
 
 // ✅ COMMUNITY ROOMS (posts + comments + moderation)
 router.use("/", roomRoutes);
+
+// ✅ Moderation: content reports + admin queue + video/stream actions
+router.use("/", moderationRoutes);
 
 router.get("/protected", authMiddleware, (req, res) => {
     res.json({

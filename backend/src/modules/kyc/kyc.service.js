@@ -2,7 +2,7 @@
 const crypto = require("crypto");
 const db = require("./kyc.mysql");
 const userDb = require("../users/user.mysql");
-const { cloudinary, isConfigured } = require("../../config/cloudinary");
+const { runVerificationPipeline } = require("../../services/kycVerification.service");
 
 const DOC_TYPES = new Set(["passport", "fayda", "resident_id", "other"]);
 const SALT = process.env.KYC_HASH_SALT || "medanya-kyc-salt-v1";
@@ -33,25 +33,22 @@ function last4(value) {
     return s.length >= 4 ? s.slice(-4) : null;
 }
 
-async function submit(reqUser, { docType, docNumber, frontImageUrl, backImageUrl, selfieImageUrl, consent }) {
+async function submit(reqUser, { docType, docNumber, frontImageUrl, backImageUrl, selfieImageUrl, fullName, birthdate, consent }) {
     const userId = getUserId(reqUser);
     if (!consent) throw err("VALIDATION_ERROR", "Consent required for KYC submission");
     const docNum = docNumber != null ? String(docNumber).trim() : "";
     if (!docNum) throw err("VALIDATION_ERROR", "Document number is required");
+
+    const fullNameVal = fullName != null ? String(fullName).trim().slice(0, 120) : null;
+    const birthdateVal = birthdate ? (new Date(birthdate).toISOString().slice(0, 10)) : null;
 
     const doc = DOC_TYPES.has(docType) ? docType : "other";
     const docHash = hashDocNumber(docNum);
     const last4Val = last4(docNum);
 
     let cloudinaryUrlPrivate = null;
-    if (frontImageUrl) {
-        cloudinaryUrlPrivate = frontImageUrl;
-    }
-    if (backImageUrl) {
-        cloudinaryUrlPrivate = cloudinaryUrlPrivate
-            ? `${cloudinaryUrlPrivate}|${backImageUrl}`
-            : backImageUrl;
-    }
+    if (frontImageUrl) cloudinaryUrlPrivate = frontImageUrl;
+    if (backImageUrl) cloudinaryUrlPrivate = cloudinaryUrlPrivate ? `${cloudinaryUrlPrivate}|${backImageUrl}` : backImageUrl;
     if (!cloudinaryUrlPrivate) throw err("VALIDATION_ERROR", "At least one document image required");
     const selfieUrl = selfieImageUrl ? String(selfieImageUrl).trim().slice(0, 600) : null;
     if (!selfieUrl) throw err("VALIDATION_ERROR", "Selfie photo is required to match your face with the document");
@@ -63,8 +60,19 @@ async function submit(reqUser, { docType, docNumber, frontImageUrl, backImageUrl
         last4: last4Val,
         cloudinary_url_private: cloudinaryUrlPrivate,
         selfie_image_url: selfieUrl,
-        status: "pending",
+        full_name: fullNameVal,
+        birthdate: birthdateVal,
+        status: "pending_auto",
     });
+
+    let result;
+    try {
+        result = await runVerificationPipeline(id);
+    } catch (e) {
+        await db.updateById(id, { status: "pending_manual" });
+        await userDb.updateKyc(userId, { kyc_status: "pending_manual", kyc_level: 0 });
+        throw e;
+    }
 
     const sub = await db.findById(id);
     return {
@@ -72,6 +80,7 @@ async function submit(reqUser, { docType, docNumber, frontImageUrl, backImageUrl
         status: sub.status,
         doc_type: sub.doc_type,
         created_at: sub.created_at,
+        verification: result ? { allPass: result.allPass, status: result.status } : undefined,
     };
 }
 
@@ -107,17 +116,17 @@ async function adminListByStatus(status, query) {
 async function adminApprove(submissionId, adminUserId, { faceVerified = false } = {}) {
     const sub = await db.findById(submissionId);
     if (!sub) throw err("NOT_FOUND", "KYC submission not found");
-    if (sub.status !== "pending") throw err("VALIDATION_ERROR", "Submission already processed");
+    if (sub.status !== "pending" && sub.status !== "pending_manual") throw err("VALIDATION_ERROR", "Submission already processed");
 
     await db.updateById(submissionId, {
-        status: "approved",
+        status: "verified_manual",
         reviewed_by: adminUserId,
         reviewed_at: new Date(),
         reject_reason: null,
     });
 
     await userDb.updateKyc(sub.user_id, {
-        kyc_status: "verified",
+        kyc_status: "verified_manual",
         kyc_level: 2,
         kyc_face_verified: !!faceVerified,
     });
@@ -128,7 +137,7 @@ async function adminApprove(submissionId, adminUserId, { faceVerified = false } 
 async function adminReject(submissionId, adminUserId, reason) {
     const sub = await db.findById(submissionId);
     if (!sub) throw err("NOT_FOUND", "KYC submission not found");
-    if (sub.status !== "pending") throw err("VALIDATION_ERROR", "Submission already processed");
+    if (sub.status !== "pending" && sub.status !== "pending_manual") throw err("VALIDATION_ERROR", "Submission already processed");
 
     await db.updateById(submissionId, {
         status: "rejected",

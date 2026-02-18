@@ -3,7 +3,7 @@ const { pool } = require("../../config/mysql");
 
 async function getById(userId) {
     const [rows] = await pool.query(
-        `SELECT id, phone_number, email, display_name, avatar_url, neighborhood, last_lat, last_lng, bio, preferred_theme, role, is_verified,
+        `SELECT id, phone_number, email, display_name, full_name, dob, avatar_url, neighborhood, last_lat, last_lng, bio, preferred_theme, role, is_verified,
             otp_verified, kyc_status, kyc_level, kyc_face_verified, safety_acknowledged_at,
             privacy_hide_phone, account_private, notification_enabled, is_banned, banned_reason, is_active,
             created_at, updated_at
@@ -18,6 +18,8 @@ async function getById(userId) {
 async function updateById(userId, fields) {
     const allowed = {
         display_name: fields.display_name,
+        full_name: fields.full_name,
+        dob: fields.dob,
         email: fields.email,
         avatar_url: fields.avatar_url,
         neighborhood: fields.neighborhood,

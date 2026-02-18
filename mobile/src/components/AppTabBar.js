@@ -101,7 +101,11 @@ export default function AppTabBar({ state, descriptors, navigation }) {
       <View style={styles.bar}>
         {leftTabs.map((route, index) => renderTab(route, index))}
         <View style={styles.fabWrap}>
-          <TouchableOpacity style={styles.fab} activeOpacity={0.8}>
+          <TouchableOpacity
+            style={styles.fab}
+            activeOpacity={0.8}
+            onPress={() => navigation.getParent()?.navigate?.("Create")}
+          >
             <MaterialIcons name="add" size={28} color={colors.white} />
           </TouchableOpacity>
         </View>

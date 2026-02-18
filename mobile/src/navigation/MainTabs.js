@@ -3,7 +3,7 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { getFocusedRouteNameFromRoute } from "@react-navigation/native";
 import AppHeader from "../components/AppHeader";
 import AppTabBar from "../components/AppTabBar";
-import FeedScreen from "../screens/home/FeedScreen";
+import HomeScreen from "../screens/home/HomeScreen";
 import ChatStack from "./ChatStack";
 import JobsStack from "./JobsStack";
 import MarketplaceStack from "./MarketplaceStack";
@@ -44,7 +44,7 @@ export default function MainTabs() {
       tabBar={(props) => <AppTabBar {...props} />}
       screenOptions={screenOptions}
     >
-      <Tab.Screen name="Home" component={FeedScreen} options={{ title: "MEDANYA" }} />
+      <Tab.Screen name="Home" component={HomeScreen} options={{ title: "MEDANYA" }} />
       <Tab.Screen name="Jobs" component={JobsStack} options={{ title: "Jobs" }} />
       <Tab.Screen name="Marketplace" component={MarketplaceStack} options={{ title: "Marketplace" }} />
       <Tab.Screen name="Safety" component={SafetyStack} options={{ title: "Safety" }} />

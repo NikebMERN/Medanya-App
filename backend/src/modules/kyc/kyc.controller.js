@@ -36,7 +36,7 @@ async function getStatus(req, res) {
 
 async function adminList(req, res) {
     try {
-        const status = req.query.status || "pending";
+        const status = req.query.status || "pending_manual";
         const result = await service.adminListByStatus(status, {
             page: req.query.page,
             limit: req.query.limit,
