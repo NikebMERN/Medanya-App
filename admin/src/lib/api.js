@@ -38,7 +38,10 @@ export const adminApi = {
   health: () => api.get("/admin/health"),
   users: (params) => api.get("/admin/users", { params }),
   reportedUsers: (params) => api.get("/admin/reported-users", { params }),
-  reportedUsers: (params) => api.get("/admin/reported-users", { params }),
+  reportContext: (userId, reporterId) =>
+    api.get(`/admin/reported-users/${userId}/context`, { params: reporterId ? { reporterId } : {} }),
+  markUserSafe: (userId) => api.post(`/admin/reported-users/${userId}/safe`),
+  getUserFullData: (userId) => api.get(`/admin/users/${userId}/full`),
   setUserRole: (userId, role) => api.patch(`/admin/users/${userId}/role`, { role }),
   banUser: (userId, banned) => api.patch(`/admin/users/${userId}/ban`, { banned }),
   getUserRisk: (userId) => api.get(`/admin/users/${userId}/risk`),
@@ -51,4 +54,9 @@ export const adminApi = {
   kycReject: (submissionId, body) => api.patch(`/admin/kyc/${submissionId}/reject`, body),
   reviewsListings: () => api.get("/admin/reviews/listings"),
   updateListingStatus: (type, id, body) => api.patch(`/admin/reviews/listings/${type}/${id}`, body),
+  moderationCounts: () => api.get("/admin/moderation/counts"),
+  moderationQueue: (params) => api.get("/admin/moderation/queue", { params }),
+  moderationItem: (targetType, targetId) =>
+    api.get("/admin/moderation/item", { params: { targetType, targetId } }),
+  moderationAction: (body) => api.patch("/admin/moderation/action", body),
 };

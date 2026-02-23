@@ -43,6 +43,16 @@ async function confirmDataChange(req, res) {
     }
 }
 
+async function adminGetSubmission(req, res) {
+    try {
+        const result = await service.adminGetSubmission(req.params.id);
+        if (!result) return res.status(404).json({ error: { code: "NOT_FOUND", message: "KYC submission not found" } });
+        res.json({ success: true, ...result });
+    } catch (e) {
+        sendErr(res, e);
+    }
+}
+
 async function adminList(req, res) {
     try {
         const status = req.query.status || "pending_manual";
@@ -129,6 +139,7 @@ module.exports = {
     submit,
     getStatus,
     confirmDataChange,
+    adminGetSubmission,
     adminList,
     adminApprove,
     adminReject,

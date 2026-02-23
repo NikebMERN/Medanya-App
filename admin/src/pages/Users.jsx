@@ -1,9 +1,11 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { adminApi } from "../lib/api";
 import { DataTable } from "../components/DataTable";
 
 export default function Users() {
+  const navigate = useNavigate();
   const [page, setPage] = useState(1);
   const [query, setQuery] = useState("");
 
@@ -77,7 +79,13 @@ export default function Users() {
         </div>
       ) : (
         <>
-          <DataTable columns={columns} data={users} keyField="id" emptyMessage="No users" />
+          <DataTable
+            columns={columns}
+            data={users}
+            keyField="id"
+            emptyMessage="No users"
+            onRowClick={(row) => navigate(`/users/${row.id}`)}
+          />
           {total > 0 && (
             <div className="mt-4 flex items-center gap-4 text-sm text-slate-600">
               <span>Total: {total}</span>

@@ -4,6 +4,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
 import { MaterialIcons } from "@expo/vector-icons";
+import { useAuthStore } from "../../store/auth.store";
+import * as activityApi from "../../services/activity.api";
 
 export default function LivePlayerScreen({ route, navigation }) {
   const { streamId, stream: routeStream, isHost } = route?.params ?? {};
@@ -11,6 +13,13 @@ export default function LivePlayerScreen({ route, navigation }) {
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors, insets), [colors, insets]);
   const [viewerCount, setViewerCount] = useState(routeStream?.viewerCount ?? 0);
+  const userId = useAuthStore((s) => s.user)?.id ?? useAuthStore((s) => s.user)?.userId;
+
+  useEffect(() => {
+    if (streamId && userId) {
+      activityApi.logActivity({ action: "enter_livestream", targetType: "livestream", targetId: String(streamId) });
+    }
+  }, [streamId, userId]);
 
   useEffect(() => {
     // Socket join stream room and listen for viewer_count_update / stream:viewerCount

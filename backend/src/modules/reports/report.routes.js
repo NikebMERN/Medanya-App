@@ -28,8 +28,8 @@ function createRateLimiter({ windowMs = 60_000, max = 6 }) {
 }
 const reportLimiter = createRateLimiter({ windowMs: 60_000, max: 4 });
 
-// Reports (JWT)
-router.post("/reports", auth, reportLimiter, controller.createReport);
+// Reports (JWT) — blacklist/scam uses /reports/blacklist; unified content reports use POST /reports
+router.post("/reports/blacklist", auth, reportLimiter, controller.createReport);
 router.post("/reports/listings", auth, reportLimiter, controller.createListingReport);
 router.get("/reports/mine", auth, controller.mine);
 

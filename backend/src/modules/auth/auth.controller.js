@@ -23,6 +23,8 @@ const verifyOtpAndLogin = async (req, res, next) => {
 
         const token = issueJWT(user);
 
+        const dobVal = user.dob;
+        const dobStr = dobVal instanceof Date ? dobVal.toISOString().slice(0, 10) : (dobVal ? String(dobVal) : null);
         res.json({
             success: true,
             token,
@@ -31,11 +33,14 @@ const verifyOtpAndLogin = async (req, res, next) => {
                 phone: user.phone_number,
                 role: user.role,
                 display_name: user.display_name ?? null,
+                full_name: user.full_name ?? null,
                 email: user.email ?? null,
                 neighborhood: user.neighborhood ?? null,
                 avatar_url: user.avatar_url ?? null,
+                dob: dobStr,
                 otp_verified: !!user.otp_verified,
                 kyc_face_verified: !!(user.kyc_face_verified),
+                account_private: !!user.account_private,
             },
         });
     } catch (err) {
@@ -77,6 +82,8 @@ const verifyOtpAndLoginServer = async (req, res, next) => {
         }
 
         const token = issueJWT(user);
+        const dobVal = user.dob;
+        const dobStr = dobVal instanceof Date ? dobVal.toISOString().slice(0, 10) : (dobVal ? String(dobVal) : null);
         res.json({
             success: true,
             token,
@@ -85,11 +92,14 @@ const verifyOtpAndLoginServer = async (req, res, next) => {
                 phone: user.phone_number,
                 role: user.role,
                 display_name: user.display_name ?? null,
+                full_name: user.full_name ?? null,
                 email: user.email ?? null,
                 neighborhood: user.neighborhood ?? null,
                 avatar_url: user.avatar_url ?? null,
+                dob: dobStr,
                 otp_verified: !!user.otp_verified,
                 kyc_face_verified: !!(user.kyc_face_verified),
+                account_private: !!user.account_private,
             },
         });
     } catch (err) {

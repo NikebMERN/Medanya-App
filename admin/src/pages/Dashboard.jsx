@@ -1,73 +1,122 @@
-import { useQuery } from "@tanstack/react-query";
-import { adminApi } from "../lib/api";
-import { Users, FileCheck, Shield, AlertCircle } from "lucide-react";
+import * as React from "react";
+import { useNavigate } from "react-router-dom";
+import { Button, useDataProvider } from "react-admin";
+import { Card, CardContent, Typography } from "@mui/material";
+
+const CardWithLink = ({ title, value, to }) => {
+  const navigate = useNavigate();
+  return (
+    <Card
+      sx={{
+        cursor: to ? "pointer" : "default",
+        "&:hover": to ? { boxShadow: 2 } : {},
+        minWidth: 160,
+        flex: 1,
+      }}
+      onClick={() => to && navigate(to)}
+    >
+      <CardContent>
+        <Typography color="textSecondary" variant="body2">
+          {title}
+        </Typography>
+        <Typography variant="h4" component="p" sx={{ mt: 1, fontWeight: 600 }}>
+          {value ?? "—"}
+        </Typography>
+      </CardContent>
+    </Card>
+  );
+};
 
 export default function Dashboard() {
-  const { data: health } = useQuery({
-    queryKey: ["admin", "health"],
-    queryFn: () => adminApi.health().then((r) => r.data),
-  });
-  const { data: usersData } = useQuery({
-    queryKey: ["admin", "users"],
-    queryFn: () => adminApi.users({ page: 1, limit: 1 }).then((r) => r.data),
-  });
-  const { data: kycData } = useQuery({
-    queryKey: ["admin", "kyc"],
-    queryFn: () => adminApi.kycList({ status: "pending" }).then((r) => r.data),
-  });
+  const [counts, setCounts] = React.useState(null);
+  const dataProvider = useDataProvider();
 
-  const cards = [
-    {
-      label: "Total users",
-      value: usersData?.total ?? "—",
-      icon: Users,
-      color: "bg-blue-500",
-    },
-    {
-      label: "Pending KYC",
-      value: kycData?.total ?? "—",
-      icon: FileCheck,
-      color: "bg-amber-500",
-    },
-    {
-      label: "KYC queue",
-      value: kycData?.submissions?.length ?? 0,
-      icon: Shield,
-      color: "bg-emerald-500",
-    },
-    {
-      label: "Server",
-      value: health?.ok ? "OK" : "—",
-      icon: AlertCircle,
-      color: "bg-slate-500",
-    },
-  ];
+  React.useEffect(() => {
+    dataProvider
+      .getList("moderationQueue", {
+        filter: { status: "PENDING" },
+        pagination: { page: 1, perPage: 1 },
+        sort: { field: "createdAt", order: "DESC" },
+      })
+      .then((r) => {
+        setCounts((c) => ({ ...c, pending: r.total }));
+        return dataProvider.getList("moderationQueue", {
+          filter: { status: "PENDING", priority: "URGENT" },
+          pagination: { page: 1, perPage: 1 },
+          sort: { field: "createdAt", order: "DESC" },
+        });
+      })
+      .then((r) => setCounts((c) => ({ ...c, urgent: r.total })))
+      .catch(() => {});
+
+    fetch("/api/admin/moderation/counts", {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("medanya_admin_token")}`,
+      },
+    })
+      .then((res) => res.json())
+      .then((d) => {
+        if (d.success)
+          setCounts((c) => ({
+            ...c,
+            pending: d.pending ?? c?.pending,
+            urgent: d.urgent ?? c?.urgent,
+            bannedUsers: d.bannedUsers,
+          }));
+      })
+      .catch(() => {});
+
+    fetch("/api/admin/kyc?status=pending_manual&limit=1", {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("medanya_admin_token")}`,
+      },
+    })
+      .then((res) => res.json())
+      .then((d) => {
+        if (d.success)
+          setCounts((c) => ({ ...c, pendingKyc: d.total ?? 0 }));
+      })
+      .catch(() => {});
+  }, [dataProvider]);
+
+  const navigate = useNavigate();
+  const c = counts ?? {};
 
   return (
-    <div>
-      <h1 className="text-2xl font-bold text-slate-900 mb-6">Dashboard</h1>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {cards.map((c) => (
-          <div
-            key={c.label}
-            className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-slate-500">{c.label}</span>
-              <div className={`rounded-lg p-2 ${c.color}`}>
-                <c.icon className="h-5 w-5 text-white" />
-              </div>
-            </div>
-            <p className="mt-2 text-2xl font-bold text-slate-900">{c.value}</p>
-          </div>
-        ))}
-      </div>
-      <div className="mt-8 rounded-xl border border-slate-200 bg-white p-6">
-        <h2 className="text-lg font-semibold text-slate-900 mb-2">Quick actions</h2>
-        <p className="text-slate-600 text-sm">
-          Use the sidebar to open Moderation (KYC), Users, and Settings.
-        </p>
-      </div>
-    </div>
+    <Card>
+      <CardContent>
+        <Typography variant="h5" component="h2" gutterBottom>
+          Medanya Admin
+        </Typography>
+        <Typography color="textSecondary" variant="body2" sx={{ mb: 2 }}>
+          Queue-based moderation • Ban hammer
+        </Typography>
+
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 16, marginBottom: 24 }}>
+          <CardWithLink title="Pending moderation" value={c.pending} to="/moderationQueue" />
+          <CardWithLink title="Urgent items" value={c.urgent} to="/moderationQueue" />
+          <CardWithLink title="Pending KYC" value={c.pendingKyc} to="/kycSubmissions" />
+          <CardWithLink title="Banned users" value={c.bannedUsers} />
+        </div>
+
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <Button
+            label="Moderation Queue"
+            onClick={() => navigate("/moderationQueue")}
+            variant="contained"
+          />
+          <Button
+            label="KYC Review"
+            onClick={() => navigate("/kycSubmissions")}
+            variant="outlined"
+          />
+          <Button
+            label="Users Search"
+            onClick={() => navigate("/users")}
+            variant="outlined"
+          />
+        </div>
+      </CardContent>
+    </Card>
   );
 }

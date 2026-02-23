@@ -23,7 +23,7 @@ const MissingPersonSchema = new mongoose.Schema(
 
         status: {
             type: String,
-            enum: ["active", "found", "closed"],
+            enum: ["active", "found", "closed", "pending_review"],
             default: "active",
             index: true,
         },

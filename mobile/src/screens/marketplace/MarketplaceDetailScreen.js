@@ -21,6 +21,7 @@ import { spacing } from "../../theme/spacing";
 import { useAuthStore } from "../../store/auth.store";
 import * as marketplaceApi from "../../services/marketplace.api";
 import * as chatApi from "../../services/chat.api";
+import * as activityApi from "../../services/activity.api";
 import SafetyModal from "../../components/common/SafetyModal";
 import ReportOptionsModal from "../../components/common/ReportOptionsModal";
 
@@ -62,6 +63,16 @@ export default function MarketplaceDetailScreen() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (item && userId) {
+      activityApi.logActivity({
+        action: "view_marketplace",
+        targetType: "marketplace",
+        targetId: String(itemId),
+      });
+    }
+  }, [item, itemId, userId]);
 
   const doChatWithSeller = useCallback(async () => {
     const sellerId = item?.seller_id ?? item?.sellerId;

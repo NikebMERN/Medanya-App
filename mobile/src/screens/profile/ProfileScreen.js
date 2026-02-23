@@ -261,6 +261,11 @@ export default function ProfileScreen() {
             <Text style={[styles.riskDropdownTitle, { color: colors.text }]}>
               Your safety score — {riskBars}/5
             </Text>
+            {riskBars < 5 && (riskBreakdown?.daysToFullVerify ?? 0) > 0 ? (
+              <Text style={[styles.riskDropdownDaysLeft, { color: colors.primary }]}>
+                {riskBreakdown.daysToFullVerify} days left to fully verify (5/5)
+              </Text>
+            ) : null}
             <Text style={[styles.riskDropdownSubtitle, { color: colors.textMuted }]}>
               {riskBars >= 5 ? "You've maxed out your safety score!" : "Complete these to reach 5/5:"}
             </Text>
@@ -273,7 +278,14 @@ export default function ProfileScreen() {
                   style={styles.riskCheckIcon}
                 />
                 <View style={styles.riskCheckContent}>
-                  <Text style={[styles.riskCheckLabel, { color: colors.text }]}>{item.label}</Text>
+                  <View style={styles.riskCheckLabelRow}>
+                    <Text style={[styles.riskCheckLabel, { color: colors.text }]}>{item.label}</Text>
+                    {!item.met && (item.daysLeft ?? 0) > 0 ? (
+                      <Text style={[styles.riskCheckDaysLeft, { color: colors.primary }]}>
+                        {item.daysLeft} days left
+                      </Text>
+                    ) : null}
+                  </View>
                   <Text style={[styles.riskCheckTip, { color: colors.textMuted }]}>
                     {item.met ? item.tip : item.action}
                   </Text>
@@ -515,6 +527,12 @@ function createStyles(colors) {
       marginBottom: spacing.md,
       fontStyle: typography.fontStyle,
     },
+    riskDropdownDaysLeft: {
+      fontSize: 14,
+      fontWeight: "700",
+      marginBottom: spacing.sm,
+      fontStyle: typography.fontStyle,
+    },
     riskCheckItem: {
       flexDirection: "row",
       alignItems: "flex-start",
@@ -528,10 +546,22 @@ function createStyles(colors) {
     riskCheckContent: {
       flex: 1,
     },
+    riskCheckLabelRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      flexWrap: "wrap",
+      gap: spacing.xs,
+    },
     riskCheckLabel: {
       fontSize: 14,
       fontWeight: "600",
       marginBottom: 2,
+      fontStyle: typography.fontStyle,
+    },
+    riskCheckDaysLeft: {
+      fontSize: 12,
+      fontWeight: "700",
       fontStyle: typography.fontStyle,
     },
     riskCheckTip: {

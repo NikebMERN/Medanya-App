@@ -22,6 +22,8 @@ const roomRoutes = require("./modules/communityRooms/room.routes");
 const kycRoutes = require("./modules/kyc/kyc.routes");
 const moderationRoutes = require("./modules/moderation/moderation.routes");
 const recommendationRoutes = require("./modules/recommendations/recommendation.routes");
+const activityRoutes = require("./modules/activity/activity.routes");
+const unifiedReportRoutes = require("./modules/unifiedReports/report.routes");
 
 router.use("/auth", authRoutes);
 
@@ -34,7 +36,13 @@ router.use("/chats", chatRoutes);
 // ✅ JOBS
 router.use("/jobs", jobRoutes);
 
-// ✅ REPORTS
+// ✅ ACTIVITY (for report context - last 20 min)
+router.use("/", activityRoutes);
+
+// ✅ UNIFIED REPORTS (POST /reports) — must be before legacy report routes
+router.use("/", unifiedReportRoutes);
+
+// ✅ REPORTS (blacklist, listings, admin)
 router.use("/", reportRoutes);
 
 // ✅ MISSING PERSONS

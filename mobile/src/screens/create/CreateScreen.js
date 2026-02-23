@@ -6,14 +6,14 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
 import { useAuthStore } from "../../store/auth.store";
-import { canPostVideo, canPostJobs } from "../../utils/age";
+import { canPostVideo, canPostJobs, getDobFromUser } from "../../utils/age";
 
 export default function CreateScreen() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const colors = useThemeColors();
   const user = useAuthStore((s) => s.user);
-  const dob = user?.dob ?? "";
+  const dob = getDobFromUser(user);
   const kycFaceVerified = user?.kyc_face_verified ?? user?.kycFaceVerified ?? false;
   const canVideo = canPostVideo(dob) || canPostJobs(dob) || kycFaceVerified;
   const styles = useMemo(() => createStyles(colors, insets), [colors, insets]);

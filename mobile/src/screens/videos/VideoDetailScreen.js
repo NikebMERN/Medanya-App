@@ -3,7 +3,9 @@ import { View, Text, StyleSheet, FlatList, TextInput, TouchableOpacity, Activity
 import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
 import { MaterialIcons } from "@expo/vector-icons";
+import { useAuthStore } from "../../store/auth.store";
 import * as videosApi from "../../api/videos.api";
+import * as activityApi from "../../services/activity.api";
 import ReportModal from "./ReportModal";
 
 export default function VideoDetailScreen({ route, navigation }) {
@@ -32,9 +34,18 @@ export default function VideoDetailScreen({ route, navigation }) {
     }
   }, [videoId, navigation]);
 
+  const user = useAuthStore((s) => s.user);
+  const userId = user?.id ?? user?.userId;
+
   useEffect(() => {
     if (videoId) load();
   }, [videoId, load]);
+
+  useEffect(() => {
+    if (video && userId) {
+      activityApi.logActivity({ action: "view_video", targetType: "video", targetId: String(videoId) });
+    }
+  }, [video, videoId, userId]);
 
   const submitComment = useCallback(async () => {
     const text = String(commentText || "").trim();

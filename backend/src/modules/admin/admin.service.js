@@ -155,6 +155,7 @@ const listReportedUsers = async ({ page = 1, limit = 20 }) => {
 
     const agg = await ListingReport.aggregate([
         { $match: { targetType: "user" } },
+        { $sort: { createdAt: 1 } },
         {
             $group: {
                 _id: "$targetId",
@@ -162,7 +163,9 @@ const listReportedUsers = async ({ page = 1, limit = 20 }) => {
                 reasons: { $push: "$reason" },
                 latestAt: { $max: "$createdAt" },
                 latestReason: { $last: "$reason" },
+                latestCustomReason: { $last: "$customReason" },
                 latestDescription: { $last: "$description" },
+                latestContextSourceUrl: { $last: "$contextSourceUrl" },
                 reporterIds: { $addToSet: "$reporterId" },
             },
         },
@@ -189,20 +192,29 @@ const listReportedUsers = async ({ page = 1, limit = 20 }) => {
     );
     const userMap = Object.fromEntries(rows.map((u) => [String(u.id), u]));
 
-    const reportedUsers = agg.map((a) => {
-        const u = userMap[a._id] || {};
-        const bars = Math.min(5, Math.ceil((a.reportCount || 0) / 2));
-        const riskLabel = a.reportCount >= 5 ? "risky" : a.reportCount >= 2 ? "half-safe" : "safe";
-        return {
-            ...u,
-            reportCount: a.reportCount,
-            latestReportAt: a.latestAt,
-            latestReason: a.latestReason,
-            latestDescription: a.latestDescription,
-            risk_score: bars,
-            risk_label: riskLabel,
-        };
-    });
+    const reportedUsers = await Promise.all(
+        agg.map(async (a) => {
+            const u = userMap[a._id] || {};
+            const reportsCount = a.reportCount || 0;
+            const bars = await computeUserRiskScore(u, reportsCount);
+            const riskLabel = getRiskLabel(bars);
+            const latestReason =
+                a.latestReason === "other" && a.latestCustomReason
+                    ? a.latestCustomReason
+                    : a.latestReason;
+            return {
+                ...u,
+                reportCount: a.reportCount,
+                latestReportAt: a.latestAt,
+                latestReason,
+                latestDescription: a.latestDescription,
+                latestContextSourceUrl: a.latestContextSourceUrl || "",
+                reporterIds: a.reporterIds || [],
+                risk_score: bars,
+                risk_label: riskLabel,
+            };
+        }),
+    );
 
     return {
         page: p,
@@ -239,9 +251,114 @@ const getUserRisk = async (userId) => {
     };
 };
 
+const activityService = require("../activity/activity.service");
+const chatService = require("../chats/chat.service");
+const userDb = require("../users/user.mysql");
+const Chat = require("../chats/chat.model");
+const Video = require("../videos/video.model");
+const Stream = require("../livestream/stream.model");
+
+const getUserFullData = async (userId) => {
+    const uid = String(userId);
+    const user = await userDb.getById(userId, { forSelf: true });
+    if (!user) return null;
+
+    const [
+        jobsRows,
+        marketplaceRows,
+        jobAppsRows,
+        deviceRows,
+        frRequesterRows,
+        frTargetRows,
+        kycRows,
+        reportsAgainst,
+        reportsBy,
+        activities,
+        chats,
+        videos,
+        streams,
+        riskData,
+    ] = await Promise.all([
+        pool.query("SELECT * FROM jobs WHERE created_by = ? ORDER BY created_at DESC LIMIT 100", [uid]),
+        pool.query("SELECT * FROM marketplace_items WHERE seller_id = ? ORDER BY created_at DESC LIMIT 100", [uid]),
+        pool.query("SELECT ja.*, j.title as job_title FROM job_applications ja LEFT JOIN jobs j ON j.id = ja.job_id WHERE ja.applicant_id = ? ORDER BY ja.created_at DESC LIMIT 100", [uid]),
+        pool.query("SELECT * FROM user_device_tokens WHERE user_id = ?", [uid]).catch(() => [[], []]),
+        pool.query("SELECT * FROM follow_requests WHERE requester_id = ?", [uid]).catch(() => [[], []]),
+        pool.query("SELECT * FROM follow_requests WHERE target_id = ?", [uid]).catch(() => [[], []]),
+        pool.query("SELECT id, user_id, doc_type, status, reviewed_at, created_at FROM kyc_submissions WHERE user_id = ? ORDER BY created_at DESC", [uid]).catch(() => [[], []]),
+        ListingReport.find({ targetType: "user", targetId: uid }).sort({ createdAt: -1 }).limit(50).lean(),
+        ListingReport.find({ reporterId: uid }).sort({ createdAt: -1 }).limit(50).lean(),
+        activityService.getRecentActivities(uid, 60 * 24 * 7, 100),
+        Chat.find({ participants: uid }).limit(50).lean(),
+        Video.find({ $or: [{ uploaderId: uid }, { createdBy: uid }] }).sort({ createdAt: -1 }).limit(50).lean(),
+        Stream.find({ hostId: uid }).sort({ startedAt: -1 }).limit(50).lean(),
+        getUserRisk(uid),
+    ]);
+
+    const [followsFollowerRows, followsFollowingRows, blocksByRows, blockedByRows] = await Promise.all([
+        pool.query("SELECT f.*, u.display_name as following_name FROM follows f JOIN users u ON u.id = f.following_id WHERE f.follower_id = ? LIMIT 100", [uid]),
+        pool.query("SELECT f.*, u.display_name as follower_name FROM follows f JOIN users u ON u.id = f.follower_id WHERE f.following_id = ? LIMIT 100", [uid]),
+        pool.query("SELECT * FROM user_blocks WHERE blocker_id = ?", [uid]).catch(() => [[], []]),
+        pool.query("SELECT * FROM user_blocks WHERE blocked_id = ?", [uid]).catch(() => [[], []]),
+    ]);
+
+    return {
+        mysql: {
+            user,
+            jobs: jobsRows[0] || [],
+            marketplaceItems: marketplaceRows[0] || [],
+            jobApplications: jobAppsRows[0] || [],
+            deviceTokens: deviceRows[0] || [],
+            followRequestsAsRequester: frRequesterRows[0] || [],
+            followRequestsAsTarget: frTargetRows[0] || [],
+            kycSubmissions: kycRows[0] || [],
+            followsAsFollower: followsFollowerRows[0] || [],
+            followsAsFollowing: followsFollowingRows[0] || [],
+            blocksByUser: blocksByRows[0] || [],
+            blockedByOthers: blockedByRows[0] || [],
+        },
+        mongo: {
+            reportsAgainst: reportsAgainst || [],
+            reportsBy: reportsBy || [],
+            activities: activities || [],
+            chats: chats || [],
+            videos: videos || [],
+            streams: streams || [],
+        },
+        risk: riskData,
+    };
+};
+
+const markUserSafe = async (userId) => {
+    const uid = String(userId);
+    const result = await ListingReport.deleteMany({
+        targetType: "user",
+        targetId: uid,
+    });
+    return { deleted: result.deletedCount ?? 0 };
+};
+
+const getReportContext = async (reportedUserId, reporterId) => {
+    const reported = String(reportedUserId);
+    const reporter = reporterId ? String(reporterId) : null;
+    const [activities, chatMessages] = await Promise.all([
+        activityService.getRecentActivities(reported, 20, 50),
+        reporter
+            ? chatService.getMessagesBetweenUsersForAdmin(reporter, reported, 100)
+            : Promise.resolve([]),
+    ]);
+    return {
+        activities,
+        chatMessages,
+    };
+};
+
 module.exports = {
     listUsers,
     listReportedUsers,
+    markUserSafe,
+    getUserFullData,
+    getReportContext,
     setUserRole,
     banUser,
     getAdminCount,

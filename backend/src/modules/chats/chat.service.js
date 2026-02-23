@@ -867,9 +867,32 @@ async function markMessagesRead(currentUserId, { chatId, messageIds = [] }) {
     return true;
 }
 
+async function getMessagesBetweenUsersForAdmin(userIdA, userIdB, limit = 100) {
+    const A = toIdString(userIdA);
+    const B = toIdString(userIdB);
+    if (!A || !B || A === B) return [];
+    const directKey = normalizePairKey(A, B);
+    if (!directKey) return [];
+    const chat = await Chat.findOne({ type: "direct", directKey }).lean();
+    if (!chat) return [];
+    const messages = await Message.find({ chatId: chat._id })
+        .sort({ createdAt: 1 })
+        .limit(limit)
+        .lean();
+    return messages.map((m) => ({
+        _id: m._id,
+        senderId: m.senderId,
+        type: m.type,
+        text: m.text,
+        mediaUrl: m.mediaUrl,
+        createdAt: m.createdAt,
+    }));
+}
+
 module.exports = {
     MAX_GROUP_SIZE,
     startDirectChat,
+    getMessagesBetweenUsersForAdmin,
     createGroupChat,
     listChats,
     getChatMeta,

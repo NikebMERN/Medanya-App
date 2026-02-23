@@ -1,6 +1,6 @@
 import { cn } from "../lib/cn";
 
-export function DataTable({ columns, data, keyField = "id", emptyMessage = "No data" }) {
+export function DataTable({ columns, data, keyField = "id", emptyMessage = "No data", onRowClick }) {
   return (
     <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
       <table className="min-w-full divide-y divide-slate-200">
@@ -25,7 +25,11 @@ export function DataTable({ columns, data, keyField = "id", emptyMessage = "No d
             </tr>
           ) : (
             data.map((row) => (
-              <tr key={row[keyField]} className="hover:bg-slate-50">
+              <tr
+                key={row[keyField]}
+                className={cn("hover:bg-slate-50", onRowClick && "cursor-pointer")}
+                onClick={() => onRowClick?.(row)}
+              >
                 {columns.map((col) => (
                   <td
                     key={col.key}

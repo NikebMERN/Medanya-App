@@ -12,8 +12,10 @@ const ListingReportSchema = new mongoose.Schema(
         targetId: { type: String, required: true, index: true },
         reporterId: { type: String, required: true, index: true },
         reason: { type: String, default: "" },
+        customReason: { type: String, default: "" }, // when reason is "other"
         description: { type: String, default: "" },
         mediaUrls: { type: [String], default: [] },
+        contextSourceUrl: { type: String, default: "" }, // video/livestream URL when report is about that
     },
     { timestamps: true },
 );

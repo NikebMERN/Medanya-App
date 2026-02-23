@@ -13,8 +13,9 @@ export const REPORT_REASONS = [
   { value: "other", label: "Other" },
 ];
 
+/** Report scammer (blacklist) — phone/employer based. */
 export async function createReport(body) {
-  const { data } = await client.post("/reports", {
+  const { data } = await client.post("/reports/blacklist", {
     phoneNumber: body.phoneNumber,
     employerName: body.employerName || undefined,
     reason: body.reason,
@@ -61,13 +62,47 @@ export async function searchBlacklist(params = {}) {
   };
 }
 
+/** Unified report target types. */
+export const REPORT_TARGET_TYPES = ["JOB", "MARKET_ITEM", "MISSING_PERSON", "VIDEO", "LIVESTREAM", "USER"];
+
+/** Unified report reasons. */
+export const UNIFIED_REPORT_REASONS = [
+  "SCAM_FRAUD", "HARASSMENT", "HATE", "NUDITY_SEXUAL", "GORE_VIOLENCE", "CHILD_SAFETY", "SPAM", "OTHER",
+];
+
+/** Create a unified content report (POST /reports). */
+export async function createUnifiedReport(body) {
+  const { data } = await client.post("/reports", {
+    targetType: body.targetType,
+    targetId: String(body.targetId),
+    reason: body.reason || "OTHER",
+    description: body.description || "",
+    mediaUrls: Array.isArray(body.mediaUrls) ? body.mediaUrls : [],
+  });
+  return data;
+}
+
+/** User report reasons (for targetType: "user"). */
+export const USER_REPORT_REASONS = [
+  { value: "unpaid_salary", label: "Unpaid salary" },
+  { value: "fraud_scam", label: "Fraud / Scam" },
+  { value: "physical_abuse", label: "Physical abuse" },
+  { value: "sexual_harassment", label: "Sexual harassment" },
+  { value: "passport_confiscation", label: "Passport confiscation" },
+  { value: "video_content", label: "Inappropriate video content" },
+  { value: "livestream_content", label: "Inappropriate livestream" },
+  { value: "other", label: "Other" },
+];
+
 /** Report a job, marketplace listing, or user. */
 export async function createListingReport(body) {
   const { data } = await client.post("/reports/listings", {
     targetType: body.targetType,
     targetId: String(body.targetId),
     reason: body.reason || "",
+    customReason: body.customReason || "",
     description: body.description || "",
+    contextSourceUrl: body.contextSourceUrl || "",
     mediaUrls: Array.isArray(body.mediaUrls) ? body.mediaUrls : [],
   });
   return data?.report ?? data;

@@ -1,9 +1,11 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { adminApi } from "../lib/api";
 import { DataTable } from "../components/DataTable";
 
 export default function Kyc() {
+  const navigate = useNavigate();
   const [page, setPage] = useState(1);
   const [query, setQuery] = useState("");
   const [otpModal, setOtpModal] = useState({ open: false, userId: null, otp: "", loading: false, error: null });
@@ -80,6 +82,7 @@ export default function Kyc() {
       key: "actions",
       label: "Actions",
       render: (_, row) => (
+        <div onClick={(e) => e.stopPropagation()}>
         <button
           type="button"
           onClick={() => {
@@ -90,6 +93,7 @@ export default function Kyc() {
         >
           View data (OTP)
         </button>
+        </div>
       ),
     },
   ];
@@ -121,7 +125,13 @@ export default function Kyc() {
         <div className="rounded-lg border border-slate-200 bg-white p-8 text-center text-slate-500">Loading…</div>
       ) : (
         <>
-          <DataTable columns={columns} data={users} keyField="id" emptyMessage="No users" />
+          <DataTable
+            columns={columns}
+            data={users}
+            keyField="id"
+            emptyMessage="No users"
+            onRowClick={(row) => navigate(`/users/${row.id}`)}
+          />
           {total > 0 && (
             <div className="mt-4 flex items-center gap-4 text-sm text-slate-600">
               <span>Total: {total}</span>

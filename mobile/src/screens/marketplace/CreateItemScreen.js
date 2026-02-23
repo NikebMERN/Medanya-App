@@ -22,7 +22,7 @@ import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
 import { useAuthStore } from "../../store/auth.store";
 import { uploadToCloudinary } from "../../utils/env";
-import { canUseMarketplace } from "../../utils/age";
+import { canUseMarketplace, getDobFromUser } from "../../utils/age";
 import * as marketplaceApi from "../../services/marketplace.api";
 import { CURRENCY_OPTIONS } from "../../store/jobs.store";
 
@@ -94,7 +94,7 @@ export default function CreateItemScreen() {
       Alert.alert("Public account required", "Your account must be public to sell items. Change it in Profile → Edit Profile.");
       return;
     }
-    if (!canUseMarketplace(user?.dob ?? "")) {
+    if (!canUseMarketplace(getDobFromUser(user))) {
       Alert.alert("Age requirement", "You must be 16 or older to list items. Add your date of birth in Edit Profile.");
       return;
     }

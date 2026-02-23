@@ -22,7 +22,7 @@ import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
 import { useAuthStore } from "../../store/auth.store";
 import { uploadToCloudinary } from "../../utils/env";
-import { canPostJobs } from "../../utils/age";
+import { canPostJobs, getDobFromUser } from "../../utils/age";
 import * as jobsApi from "../../services/jobs.api";
 import { JOB_CATEGORY_OPTIONS, CURRENCY_OPTIONS } from "../../store/jobs.store";
 
@@ -89,7 +89,7 @@ export default function CreateJobScreen() {
       Alert.alert("Login required", "Please sign in to post a job.");
       return;
     }
-    if (!canPostJobs(user?.dob ?? "")) {
+    if (!canPostJobs(getDobFromUser(user))) {
       Alert.alert("Age requirement", "You must be 18 or older to post jobs. Add your date of birth in Edit Profile.");
       return;
     }

@@ -28,7 +28,9 @@ async function createListingReport(reporterId, body) {
     if (!targetId) throw err("VALIDATION_ERROR", "targetId required");
 
     const reason = String(body.reason || "").trim().slice(0, 100);
+    const customReason = reason === "other" ? String(body.customReason || body.description || "").trim().slice(0, 500) : "";
     const description = String(body.description || "").trim().slice(0, 1000);
+    const contextSourceUrl = String(body.contextSourceUrl || "").trim().slice(0, 500);
     const mediaUrls = Array.isArray(body.mediaUrls)
         ? body.mediaUrls.slice(0, 6).filter((u) => typeof u === "string")
         : [];
@@ -48,8 +50,10 @@ async function createListingReport(reporterId, body) {
         targetId,
         reporterId: reporter,
         reason,
+        customReason,
         description,
         mediaUrls,
+        contextSourceUrl,
     });
 
     // Increment reports_count and maybe hide (job / marketplace only)

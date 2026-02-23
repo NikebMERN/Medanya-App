@@ -153,6 +153,28 @@ async function getStatus(reqUser) {
     };
 }
 
+async function adminGetSubmission(id) {
+    const sub = await db.findById(id);
+    if (!sub) return null;
+    const user = await userDb.getById(sub.user_id, { forSelf: false });
+    return {
+        id: sub.id,
+        user_id: sub.user_id,
+        doc_type: sub.doc_type,
+        status: sub.status,
+        cloudinary_url_private: sub.cloudinary_url_private,
+        selfie_image_url: sub.selfie_image_url,
+        full_name: sub.full_name,
+        birthdate: sub.birthdate,
+        extracted_name: sub.extracted_name,
+        extracted_dob: sub.extracted_dob,
+        face_match_score: sub.face_match_score,
+        name_match_score: sub.name_match_score,
+        created_at: sub.created_at,
+        user: user ? { display_name: user.display_name } : null,
+    };
+}
+
 async function adminListByStatus(status, query) {
     return db.listByStatus(status, query);
 }
@@ -426,6 +448,7 @@ module.exports = {
     submit,
     getStatus,
     confirmDataChange,
+    adminGetSubmission,
     adminListByStatus,
     adminApprove,
     adminReject,

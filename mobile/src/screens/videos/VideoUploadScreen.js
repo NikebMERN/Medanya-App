@@ -8,7 +8,7 @@ import * as ImagePicker from "expo-image-picker";
 import { uploadToCloudinary } from "../../utils/env";
 import * as videosApi from "../../api/videos.api";
 import { useAuthStore } from "../../store/auth.store";
-import { canPostVideo, canPostJobs } from "../../utils/age";
+import { canPostVideo, canPostJobs, getDobFromUser } from "../../utils/age";
 import GuestGate from "../../components/GuestGate";
 
 export default function VideoUploadScreen({ navigation }) {
@@ -61,7 +61,8 @@ export default function VideoUploadScreen({ navigation }) {
 
   const submit = useCallback(async () => {
     const kycVerified = user?.kyc_face_verified ?? user?.kycFaceVerified ?? false;
-  if (!canPostVideo(user?.dob ?? "") && !canPostJobs(user?.dob ?? "") && !kycVerified) return Alert.alert("Age requirement", "You must be 16+ (or 18+ with verified identity) to post videos. Add your date of birth in Edit Profile or complete Identity Verification.");
+    const dob = getDobFromUser(user);
+    if (!canPostVideo(dob) && !canPostJobs(dob) && !kycVerified) return Alert.alert("Age requirement", "You must be 16+ (or 18+ with verified identity) to post videos. Add your date of birth in Edit Profile or complete Identity Verification.");
     if (!videoUri) return Alert.alert("Required", "Select a video.");
     if (!thumbUri) return Alert.alert("Required", "Select a thumbnail image.");
     setUploading(true);
@@ -77,7 +78,7 @@ export default function VideoUploadScreen({ navigation }) {
     } finally {
       setUploading(false);
     }
-  }, [videoUri, thumbUri, caption, navigation, user?.dob]);
+  }, [videoUri, thumbUri, caption, navigation, user]);
 
   return (
     <View style={styles.container}>

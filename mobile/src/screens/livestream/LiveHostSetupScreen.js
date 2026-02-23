@@ -4,7 +4,7 @@ import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
 import { useLivestreamStore } from "../../store/livestream.store";
 import { useAuthStore } from "../../store/auth.store";
-import { canLiveStream } from "../../utils/age";
+import { canLiveStream, getDobFromUser } from "../../utils/age";
 
 export default function LiveHostSetupScreen({ navigation }) {
   const user = useAuthStore((s) => s.user);
@@ -16,7 +16,7 @@ export default function LiveHostSetupScreen({ navigation }) {
   const { createStream, error } = useLivestreamStore();
 
   const handleStart = async () => {
-    if (!canLiveStream(user?.dob ?? "")) {
+    if (!canLiveStream(getDobFromUser(user))) {
       Alert.alert("Age requirement", "You must be 16 or older to host a live stream. Add your date of birth in Edit Profile.");
       return;
     }

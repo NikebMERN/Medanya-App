@@ -15,6 +15,11 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
 import { useHomeStore, TABS } from "../../store/home.store";
+import JobCard from "../../components/feed/JobCard";
+import MissingCard from "../../components/feed/MissingCard";
+import AlertCard from "../../components/feed/AlertCard";
+import MarketCard from "../../components/feed/MarketCard";
+import VideoPreviewCard from "../../components/feed/VideoPreviewCard";
 
 function LiveHeroCard({ stream, onPress, colors }) {
   const styles = useMemo(() => heroStyles(colors), [colors]);
@@ -124,60 +129,41 @@ function activeStyles(colors) {
   });
 }
 
-function MixedCard({ item, onPress, colors }) {
+function FeedCard({ item, onPress, colors }) {
   const { type, data } = item;
-  const styles = useMemo(() => cardStyles(colors), [colors]);
-  const imageUri = data?.preview?.imageUrl ?? data?.preview?.photoUrl ?? data?.preview?.thumbnailUrl;
-  const typeLabel =
-    type === "JOB" ? "Job" : type === "ALERT" ? "Alert" : type === "MISSING" ? "Missing" : type === "MARKET" ? "Market" : type === "VIDEO_CARD" ? "Video" : type;
-  const typeColor = type === "ALERT" ? (data?.preview?.riskLevel === "dangerous" ? colors.error : colors.warning) : colors.primary;
 
-  return (
-    <TouchableOpacity style={styles.card} onPress={() => onPress(item)} activeOpacity={0.8}>
-      {imageUri ? (
-        <Image source={{ uri: imageUri }} style={styles.image} resizeMode="cover" />
-      ) : (
-        <View style={styles.imagePlaceholder}>
-          <MaterialIcons
-            name={type === "JOB" ? "work" : type === "MARKET" ? "storefront" : type === "MISSING" ? "person-search" : type === "ALERT" ? "warning" : "videocam"}
-            size={32}
-            color={colors.textMuted}
-          />
-        </View>
-      )}
-      <View style={styles.body}>
-        <View style={[styles.typeBadge, { backgroundColor: typeColor + "30" }]}>
-          <Text style={[styles.typeText, { color: typeColor }]}>{typeLabel}</Text>
-        </View>
-        <Text style={styles.title} numberOfLines={1}>{data?.title ?? "—"}</Text>
-        {data?.summary ? <Text style={styles.summary} numberOfLines={2}>{data.summary}</Text> : null}
-      </View>
-      <MaterialIcons name="chevron-right" size={22} color={colors.textMuted} />
-    </TouchableOpacity>
-  );
-}
-
-function cardStyles(colors) {
-  return StyleSheet.create({
-    card: {
-      flexDirection: "row",
-      alignItems: "center",
-      backgroundColor: colors.surface,
-      borderRadius: 12,
-      marginHorizontal: spacing.md,
-      marginBottom: spacing.sm,
-      overflow: "hidden",
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    image: { width: 72, height: 72 },
-    imagePlaceholder: { width: 72, height: 72, backgroundColor: colors.surfaceLight, justifyContent: "center", alignItems: "center" },
-    body: { flex: 1, padding: spacing.md },
-    typeBadge: { alignSelf: "flex-start", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, marginBottom: 4 },
-    typeText: { fontSize: 11, fontWeight: "700" },
-    title: { fontSize: 15, fontWeight: "600", color: colors.text },
-    summary: { fontSize: 13, color: colors.textSecondary, marginTop: 2 },
-  });
+  switch (type) {
+    case "JOB":
+      return (
+        <JobCard
+          data={data}
+          onPress={() => onPress(item)}
+          onChat={() => onPress(item)}
+          onApply={() => onPress(item)}
+        />
+      );
+    case "MISSING":
+      return (
+        <MissingCard
+          data={data}
+          onPress={() => onPress(item)}
+          onCall={() => {}}
+          onShare={() => {}}
+        />
+      );
+    case "ALERT":
+      return <AlertCard data={data} onPress={() => onPress(item)} />;
+    case "MARKET":
+      return <MarketCard data={data} onPress={() => onPress(item)} />;
+    case "VIDEO_CARD":
+      return <VideoPreviewCard data={data} onPress={() => onPress(item)} />;
+    default:
+      return (
+        <TouchableOpacity onPress={() => onPress(item)} style={{ padding: spacing.md }}>
+          <Text style={{ color: colors.text }}>{type} — {data?.title ?? ""}</Text>
+        </TouchableOpacity>
+      );
+  }
 }
 
 export default function HomeScreen() {
@@ -250,7 +236,7 @@ export default function HomeScreen() {
   );
 
   const renderItem = useCallback(
-    ({ item }) => <MixedCard item={item} onPress={handleCardPress} colors={colors} />,
+    ({ item }) => <FeedCard item={item} onPress={handleCardPress} colors={colors} />,
     [handleCardPress, colors]
   );
 

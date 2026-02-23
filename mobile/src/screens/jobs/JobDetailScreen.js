@@ -18,6 +18,7 @@ import { spacing } from "../../theme/spacing";
 import { useAuthStore } from "../../store/auth.store";
 import * as jobsApi from "../../services/jobs.api";
 import * as chatApi from "../../services/chat.api";
+import * as activityApi from "../../services/activity.api";
 import SafetyModal from "../../components/common/SafetyModal";
 import ReportOptionsModal from "../../components/common/ReportOptionsModal";
 
@@ -59,6 +60,16 @@ export default function JobDetailScreen() {
   useEffect(() => {
     loadJob();
   }, [loadJob]);
+
+  useEffect(() => {
+    if (job && userId) {
+      activityApi.logActivity({
+        action: "view_job",
+        targetType: "job",
+        targetId: String(jobId),
+      });
+    }
+  }, [job, jobId, userId]);
 
   const handleApply = useCallback(async () => {
     if (!jobId) return;
