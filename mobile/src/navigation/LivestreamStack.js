@@ -32,7 +32,7 @@ export default function LivestreamStack() {
     <Suspense fallback={<LazyFallback />}>
       <Stack.Navigator screenOptions={rootScreenOptions}>
         <Stack.Screen name="LiveList" component={LiveListScreen} options={{ animation: "none" }} />
-        <Stack.Screen name="LiveHostSetup" component={LiveHostSetupScreen} options={{ ...subScreenOptions, title: "Go live" }} />
+        <Stack.Screen name="LiveHostSetup" component={LiveHostSetupScreen} options={{ headerShown: false }} />
         <Stack.Screen name="LivePlayer" component={LivePlayerScreen} options={{ headerShown: false, animation: "none" }} />
       </Stack.Navigator>
     </Suspense>

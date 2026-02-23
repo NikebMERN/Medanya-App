@@ -1,17 +1,22 @@
 // src/modules/users/user.mysql.js
 const { pool } = require("../../config/mysql");
 
-async function getById(userId) {
+async function getById(userId, options = {}) {
+    const { forSelf = false } = options;
     const [rows] = await pool.query(
         `SELECT id, phone_number, email, display_name, full_name, dob, avatar_url, neighborhood, last_lat, last_lng, bio, preferred_theme, role, is_verified,
             otp_verified, kyc_status, kyc_level, kyc_face_verified, safety_acknowledged_at,
-            privacy_hide_phone, account_private, notification_enabled, is_banned, banned_reason, is_active,
+            privacy_hide_phone, account_private, hide_personal_data, notification_enabled, is_banned, banned_reason, is_active,
             created_at, updated_at
      FROM users WHERE id = ? LIMIT 1`,
         [userId],
     );
     const row = rows[0] || null;
     if (row && row.account_private !== undefined) row.account_private = Boolean(row.account_private);
+    if (row && row.hide_personal_data && !forSelf) {
+        row.full_name = null;
+        row.dob = null;
+    }
     return row;
 }
 
@@ -29,6 +34,7 @@ async function updateById(userId, fields) {
         preferred_theme: fields.preferred_theme,
         privacy_hide_phone: fields.privacy_hide_phone,
         account_private: fields.account_private,
+        hide_personal_data: fields.hide_personal_data,
         notification_enabled: fields.notification_enabled,
         safety_acknowledged_at: fields.safety_acknowledged_at,
     };

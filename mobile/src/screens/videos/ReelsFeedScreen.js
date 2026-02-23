@@ -13,11 +13,13 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useThemeColors } from "../../theme/useThemeColors";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useVideosStore } from "../../store/videos.store";
+import { useAuthStore } from "../../store/auth.store";
 
 export default function ReelsFeedScreen({ navigation }) {
   const { height: windowHeight, width: windowWidth } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const colors = useThemeColors();
+  const isGuest = useAuthStore((s) => s.user)?.isGuest ?? false;
   const itemHeight = windowHeight;
   const styles = useMemo(() => createStyles(colors, itemHeight), [colors, itemHeight]);
   const { videos, loading, loadMore, refresh, error, optimisticToggleLike } = useVideosStore();
@@ -55,7 +57,7 @@ export default function ReelsFeedScreen({ navigation }) {
           >
             <MaterialIcons name="open-in-new" size={28} color={colors.white} />
             <Text style={styles.countText}>Open</Text>
-          </View>
+          </TouchableOpacity>
         </View>
       </View>
     </View>
@@ -86,18 +88,27 @@ export default function ReelsFeedScreen({ navigation }) {
         ListEmptyComponent={
           <View style={[styles.center, { height: itemHeight }]}>
             <Text style={styles.emptyTitle}>No videos yet</Text>
-            <TouchableOpacity style={styles.uploadBtn} onPress={() => navigation?.navigate?.("VideoUpload")}>
-              <Text style={styles.uploadBtnText}>Upload video</Text>
-            </TouchableOpacity>
+            {!isGuest && (
+              <TouchableOpacity style={styles.uploadBtn} onPress={() => navigation?.getParent?.()?.navigate?.("Create")}>
+                <Text style={styles.uploadBtnText}>Create</Text>
+              </TouchableOpacity>
+            )}
           </View>
         }
       />
-      <TouchableOpacity
-        style={[styles.backBtn, { top: insets.top + 8 }]}
-        onPress={() => navigation?.goBack?.()}
-      >
-        <MaterialIcons name="close" size={28} color={colors.white} />
-      </TouchableOpacity>
+      <View style={[styles.topBar, { top: insets.top + 8 }]}>
+        <TouchableOpacity style={styles.topBarBtn} onPress={() => navigation?.goBack?.()}>
+          <MaterialIcons name="close" size={28} color={colors.white} />
+        </TouchableOpacity>
+        {!isGuest && (
+          <TouchableOpacity
+            style={styles.topBarBtn}
+            onPress={() => navigation?.getParent?.()?.navigate?.("Create")}
+          >
+            <MaterialIcons name="add" size={28} color={colors.white} />
+          </TouchableOpacity>
+        )}
+      </View>
     </View>
   );
 }
@@ -127,6 +138,7 @@ function createStyles(colors, itemHeight) {
     emptyTitle: { color: colors.text, fontSize: 18, fontWeight: "800" },
     uploadBtn: { marginTop: 16, paddingVertical: 12, paddingHorizontal: 24, borderRadius: 12, backgroundColor: colors.primary },
     uploadBtnText: { color: colors.white, fontWeight: "700" },
-    backBtn: { position: "absolute", left: 12, width: 44, height: 44, justifyContent: "center", alignItems: "center", zIndex: 10 },
+    topBar: { position: "absolute", left: 12, right: 12, flexDirection: "row", justifyContent: "space-between", alignItems: "center", zIndex: 10 },
+    topBarBtn: { width: 44, height: 44, justifyContent: "center", alignItems: "center" },
   });
 }

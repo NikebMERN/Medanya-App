@@ -5,6 +5,7 @@ const fraudService = require("../../services/fraudPrevention.service");
 
 const validateCreate = (body) => {
     const title = String(body.title || "").trim();
+    const description = body.description != null ? String(body.description || "").trim() : null;
     const category = String(body.category || "").trim();
     const salary = body.salary !== undefined ? String(body.salary).trim() : null;
     const location = String(body.location || "").trim();
@@ -13,6 +14,8 @@ const validateCreate = (body) => {
 
     if (!title || title.length > 120)
         throw codeErr("VALIDATION_ERROR", "Invalid title");
+    if (description != null && description.length > 2000)
+        throw codeErr("VALIDATION_ERROR", "Description too long");
     if (!category || category.length > 60)
         throw codeErr("VALIDATION_ERROR", "Invalid category");
     if (!location || location.length > 120)
@@ -22,12 +25,14 @@ const validateCreate = (body) => {
     if (image_url && image_url.length > 500)
         throw codeErr("VALIDATION_ERROR", "Invalid image_url");
 
-    return { title, category, salary, location, contact_phone, image_url };
+    return { title, description: description || null, category, salary, location, contact_phone, image_url };
 };
 
 const validateUpdate = (body) => {
     const out = {};
     if (body.title !== undefined) out.title = String(body.title || "").trim();
+    if (body.description !== undefined)
+        out.description = body.description == null ? null : String(body.description || "").trim();
     if (body.category !== undefined)
         out.category = String(body.category || "").trim();
     if (body.salary !== undefined)
@@ -42,6 +47,8 @@ const validateUpdate = (body) => {
 
     if (out.title !== undefined && (!out.title || out.title.length > 120))
         throw codeErr("VALIDATION_ERROR", "Invalid title");
+    if (out.description !== undefined && out.description != null && out.description.length > 2000)
+        throw codeErr("VALIDATION_ERROR", "Description too long");
     if (out.category !== undefined && (!out.category || out.category.length > 60))
         throw codeErr("VALIDATION_ERROR", "Invalid category");
     if (
@@ -99,7 +106,7 @@ async function createJob(reqUser, body) {
     const data = validateCreate(body);
     const { score, matchedKeywords, status } = await fraudService.computeRiskScore(userId, {
         title: data.title,
-        description: null,
+        description: data.description,
         location: data.location,
     });
 

@@ -6,5 +6,6 @@ const controller = require("./kyc.controller");
 
 router.post("/submit", auth, controller.submit);
 router.get("/status", auth, controller.getStatus);
+router.post("/submissions/:submissionId/confirm-data-change", auth, controller.confirmDataChange);
 
 module.exports = router;

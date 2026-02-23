@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useMemo } from "react";
+import React, { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import {
   View,
   Text,
@@ -11,7 +11,7 @@ import {
   RefreshControl,
   Platform,
 } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
@@ -49,6 +49,7 @@ export default function MarketplaceListScreen() {
 
   const [searchInput, setSearchInput] = useState(keyword);
   const [refreshing, setRefreshing] = useState(false);
+  const isFirstFocus = useRef(true);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -70,6 +71,16 @@ export default function MarketplaceListScreen() {
   useEffect(() => {
     load();
   }, [category]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (isFirstFocus.current) {
+        isFirstFocus.current = false;
+        return;
+      }
+      load();
+    }, [load])
+  );
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -100,7 +111,7 @@ export default function MarketplaceListScreen() {
           )}
           <View style={styles.cardBody}>
             <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
-            <Text style={styles.cardPrice}>{item.price != null ? `AED ${item.price}` : ""}</Text>
+            <Text style={styles.cardPrice}>{item.price != null ? `${item.currency || "AED"} ${item.price}` : ""}</Text>
             {item.location ? (
               <View style={styles.cardLocation}>
                 <MaterialIcons name="location-on" size={12} color={colors.textMuted} />

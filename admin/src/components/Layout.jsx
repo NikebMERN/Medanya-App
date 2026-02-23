@@ -11,12 +11,14 @@ import {
   Menu,
   X,
   FileText,
+  AlertTriangle,
 } from "lucide-react";
 import { useState } from "react";
 
 const nav = [
   { path: "/", label: "Dashboard", icon: LayoutDashboard },
   { path: "/users", label: "Users", icon: Users },
+  { path: "/reported-users", label: "Reported Users", icon: AlertTriangle },
   { path: "/moderation", label: "Moderation", icon: FileCheck },
   { path: "/kyc", label: "KYC", icon: Shield },
   { path: "/settings", label: "Settings", icon: Settings },

@@ -1,6 +1,7 @@
 const {
     verifyFirebaseToken,
     findOrCreateUser,
+    findOrCreateGuestUser,
     issueJWT,
     sendOtp,
     verifyOtp,
@@ -110,8 +111,37 @@ const verifyOtpAndLoginServer = async (req, res, next) => {
     }
 };
 
+const guestLogin = async (req, res, next) => {
+    try {
+        const user = await findOrCreateGuestUser();
+        if (user.is_banned) {
+            return res.status(403).json({ success: false, message: "Guest access is disabled" });
+        }
+        const token = issueJWT(user);
+        res.json({
+            success: true,
+            token,
+            user: {
+                id: user.id,
+                phone: user.phone_number,
+                role: "guest",
+                display_name: "Guest",
+                email: null,
+                neighborhood: null,
+                avatar_url: null,
+                otp_verified: false,
+                kyc_face_verified: false,
+                isGuest: true,
+            },
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
 module.exports = {
     verifyOtpAndLogin,
     sendOtpHandler,
     verifyOtpAndLoginServer,
+    guestLogin,
 };

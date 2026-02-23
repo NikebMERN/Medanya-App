@@ -75,11 +75,12 @@ function CategoryChips({ selectedTab, onSelect, colors }) {
 
 function chipStyles(colors) {
   return StyleSheet.create({
-    scroll: { maxHeight: 44 },
-    container: { paddingHorizontal: spacing.md, paddingVertical: spacing.sm, gap: spacing.sm, flexDirection: "row", alignItems: "center" },
+    scroll: { flexGrow: 0 },
+    container: { paddingHorizontal: spacing.md, paddingVertical: spacing.sm, gap: spacing.sm, flexDirection: "row", alignItems: "center", flexWrap: "nowrap" },
     chip: {
       paddingHorizontal: spacing.md,
-      paddingVertical: 8,
+      paddingVertical: 10,
+      minHeight: 40,
       borderRadius: 20,
       backgroundColor: colors.surface,
       borderWidth: 1,

@@ -5,10 +5,20 @@ const health = async (req, res) => {
     return res.json({ ok: true, serverTime: new Date().toISOString() });
 };
 
-const listUsers = async (req, res, next) => {
+const listReportedUsers = async (req, res, next) => {
     try {
         const { page, limit } = req.query;
-        const data = await adminService.listUsers({ page, limit });
+        const data = await adminService.listReportedUsers({ page, limit });
+        return res.json({ success: true, ...data });
+    } catch (err) {
+        return next(err);
+    }
+};
+
+const listUsers = async (req, res, next) => {
+    try {
+        const { page, limit, query } = req.query;
+        const data = await adminService.listUsers({ page, limit, query });
         return res.json({ success: true, ...data });
     } catch (err) {
         return next(err);
@@ -48,4 +58,4 @@ const getUserRisk = async (req, res, next) => {
     }
 };
 
-module.exports = { health, listUsers, setUserRole, banUser, getUserRisk };
+module.exports = { health, listUsers, listReportedUsers, setUserRole, banUser, getUserRisk };

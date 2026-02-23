@@ -3,12 +3,8 @@
  */
 import client from "./client";
 
-export const KYC_DOC_TYPES = [
-  { value: "passport", label: "Passport", placeholder: "Passport number (e.g. A12345678)", hint: "Enter the passport number from the document." },
-  { value: "fayda", label: "Fayda eID", placeholder: "FIN (e.g. 784-XXXX-XXXXXXX-X)", hint: "Enter the 15-digit FIN from your Fayda eID card." },
-  { value: "resident_id", label: "Resident / Work ID", placeholder: "Emirates ID number", hint: "Enter the Emirates ID or resident permit number." },
-  { value: "other", label: "Other government ID", placeholder: "ID number from document", hint: "Enter the document number as shown." },
-];
+// Re-export from data module (single source of truth)
+export { KYC_DOC_TYPES, DEFAULT_DOC_TYPE } from "../data/kycDocTypes";
 
 export async function submitKyc(body) {
   const { data } = await client.post("/kyc/submit", {
@@ -17,8 +13,16 @@ export async function submitKyc(body) {
     frontImageUrl: body.frontImageUrl,
     backImageUrl: body.backImageUrl || undefined,
     selfieImageUrl: body.selfieImageUrl || undefined,
+    fullName: body.fullName || undefined,
+    birthdate: body.birthdate || undefined,
     consent: !!body.consent,
   });
+  return data;
+}
+
+/** Confirm changing profile data to match document (makes account private, hides personal data). */
+export async function confirmKycDataChange(submissionId) {
+  const { data } = await client.post(`/kyc/submissions/${submissionId}/confirm-data-change`);
   return data;
 }
 

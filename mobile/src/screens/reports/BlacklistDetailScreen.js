@@ -117,8 +117,10 @@ export default function BlacklistDetailScreen() {
         <Text style={styles.riskMeta}>{displaySummary.totalReports ?? 0} total reports</Text>
       </View>
       {displaySummary.employerName ? (
-        <Text style={styles.label}>Name</Text>
-        <Text style={styles.value}>{displaySummary.employerName}</Text>
+        <>
+          <Text style={styles.label}>Name</Text>
+          <Text style={styles.value}>{displaySummary.employerName}</Text>
+        </>
       ) : null}
       <Text style={styles.label}>Phone</Text>
       <Text style={styles.value}>{displaySummary.phoneNumber}</Text>

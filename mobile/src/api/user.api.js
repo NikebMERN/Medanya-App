@@ -6,6 +6,8 @@ import client from "./client";
 export async function updateMe(payload) {
   const body = {};
   if (payload.displayName !== undefined) body.displayName = payload.displayName;
+  if (payload.fullName !== undefined) body.fullName = payload.fullName;
+  if (payload.dob !== undefined) body.dob = payload.dob;
   if (payload.email !== undefined) body.email = payload.email;
   if (payload.neighborhood !== undefined) body.neighborhood = payload.neighborhood;
   if (payload.avatarUrl !== undefined) body.avatarUrl = payload.avatarUrl;

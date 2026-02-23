@@ -34,6 +34,15 @@ async function getStatus(req, res) {
     }
 }
 
+async function confirmDataChange(req, res) {
+    try {
+        const result = await service.confirmDataChange(req.user, req.params.submissionId);
+        res.json(result);
+    } catch (e) {
+        sendErr(res, e);
+    }
+}
+
 async function adminList(req, res) {
     try {
         const status = req.query.status || "pending_manual";
@@ -73,10 +82,58 @@ async function adminReject(req, res) {
     }
 }
 
+async function adminListUsersWithKyc(req, res) {
+    try {
+        const result = await service.adminListUsersWithKycStatus(req.query);
+        res.json({ success: true, ...result });
+    } catch (e) {
+        sendErr(res, e);
+    }
+}
+
+async function adminRequestOtp(req, res) {
+    try {
+        const result = await service.adminRequestOtp(req.user, req.body?.userId);
+        res.json({ success: true, ...result });
+    } catch (e) {
+        sendErr(res, e);
+    }
+}
+
+async function adminVerifyOtp(req, res) {
+    try {
+        const result = await service.adminVerifyOtp(
+            req.user,
+            req.body?.userId,
+            req.body?.otp,
+        );
+        res.json({ success: true, ...result });
+    } catch (e) {
+        sendErr(res, e);
+    }
+}
+
+async function adminGetUserKycData(req, res) {
+    try {
+        const result = await service.adminGetUserKycData(
+            req.user,
+            req.params.userId,
+        );
+        res.json({ success: true, data: result });
+    } catch (e) {
+        sendErr(res, e);
+    }
+}
+
 module.exports = {
     submit,
     getStatus,
+    confirmDataChange,
     adminList,
     adminApprove,
     adminReject,
+    adminListUsersWithKyc,
+    adminRequestOtp,
+    adminVerifyOtp,
+    adminGetUserKycData,
 };

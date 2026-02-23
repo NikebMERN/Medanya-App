@@ -36,12 +36,12 @@ export default function SafetyStack() {
     <Suspense fallback={<LazyFallback />}>
       <Stack.Navigator screenOptions={rootScreenOptions}>
         <Stack.Screen name="SafetyHub" component={SafetyHubScreen} options={{ animation: "none" }} />
-        <Stack.Screen name="ReportForm" component={ReportFormScreen} options={{ ...subScreenOptions, title: "Report" }} />
-        <Stack.Screen name="BlacklistSearch" component={BlacklistSearchScreen} options={{ ...subScreenOptions, title: "Blacklist" }} />
-        <Stack.Screen name="BlacklistDetail" component={BlacklistDetailScreen} options={{ ...subScreenOptions, title: "Detail" }} />
-        <Stack.Screen name="MissingList" component={MissingListScreen} options={{ ...subScreenOptions, title: "Missing alerts" }} />
-        <Stack.Screen name="MissingDetail" component={MissingDetailScreen} options={{ ...subScreenOptions, title: "Alert" }} />
-        <Stack.Screen name="MissingCreate" component={MissingCreateScreen} options={{ ...subScreenOptions, title: "Report missing" }} />
+        <Stack.Screen name="ReportForm" component={ReportFormScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="BlacklistSearch" component={BlacklistSearchScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="BlacklistDetail" component={BlacklistDetailScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="MissingList" component={MissingListScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="MissingDetail" component={MissingDetailScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="MissingCreate" component={MissingCreateScreen} options={{ headerShown: false }} />
       </Stack.Navigator>
     </Suspense>
   );

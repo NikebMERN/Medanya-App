@@ -3,8 +3,11 @@ import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator,
 import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
 import { useLivestreamStore } from "../../store/livestream.store";
+import { useAuthStore } from "../../store/auth.store";
+import { canLiveStream } from "../../utils/age";
 
 export default function LiveHostSetupScreen({ navigation }) {
+  const user = useAuthStore((s) => s.user);
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [title, setTitle] = useState("");
@@ -13,6 +16,10 @@ export default function LiveHostSetupScreen({ navigation }) {
   const { createStream, error } = useLivestreamStore();
 
   const handleStart = async () => {
+    if (!canLiveStream(user?.dob ?? "")) {
+      Alert.alert("Age requirement", "You must be 16 or older to host a live stream. Add your date of birth in Edit Profile.");
+      return;
+    }
     if (!rulesAccepted) {
       Alert.alert("Rules required", "Please accept the community rules before going live.");
       return;
@@ -43,7 +50,7 @@ export default function LiveHostSetupScreen({ navigation }) {
         onPress={() => setRulesAccepted(!rulesAccepted)}
         activeOpacity={0.8}
       >
-        <Text style={styles.checkText}>I accept the community rules and am 18+</Text>
+        <Text style={styles.checkText}>I accept the community rules and am 16+</Text>
       </TouchableOpacity>
       <TouchableOpacity
         style={[styles.startBtn, starting && styles.startBtnDisabled]}

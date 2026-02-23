@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useMemo } from "react";
+import React, { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,8 @@ import {
   ActivityIndicator,
   Alert,
   Dimensions,
+  Modal,
+  Pressable,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRoute, useNavigation } from "@react-navigation/native";
@@ -39,6 +41,9 @@ export default function MarketplaceDetailScreen() {
   const [chatting, setChatting] = useState(false);
   const [safetyModal, setSafetyModal] = useState({ visible: false, action: "chat" });
   const [reportModalVisible, setReportModalVisible] = useState(false);
+  const [imageViewerVisible, setImageViewerVisible] = useState(false);
+  const [imageViewerIndex, setImageViewerIndex] = useState(0);
+  const imageViewerScrollRef = useRef(null);
 
   const load = useCallback(async () => {
     if (!itemId) return;
@@ -123,6 +128,7 @@ export default function MarketplaceDetailScreen() {
   const isSold = item.status === "sold";
   const sellerId = item.seller_id ?? item.sellerId;
   const isOwn = String(sellerId) === String(userId);
+  const priceCurrency = item.currency || "AED";
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -140,13 +146,38 @@ export default function MarketplaceDetailScreen() {
         </View>
       </View>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
-        {images[0] ? (
-          <Image source={{ uri: images[0] }} style={styles.hero} resizeMode="cover" />
+        {images.length > 0 ? (
+          <TouchableOpacity activeOpacity={1} onPress={() => { setImageViewerIndex(0); setImageViewerVisible(true); }}>
+            <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} style={styles.heroScroll}>
+              {images.map((uri, i) => (
+                <Image key={i} source={{ uri }} style={styles.hero} resizeMode="cover" />
+              ))}
+            </ScrollView>
+          </TouchableOpacity>
         ) : (
           <View style={[styles.hero, styles.heroPlaceholder]}>
             <MaterialIcons name="image-not-supported" size={56} color={colors.textMuted} />
           </View>
         )}
+        <Modal visible={imageViewerVisible} transparent animationType="fade">
+          <Pressable style={styles.imageViewerOverlay} onPress={() => setImageViewerVisible(false)}>
+            <ScrollView
+              ref={imageViewerScrollRef}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              style={styles.imageViewerScroll}
+              contentContainerStyle={styles.imageViewerContent}
+            >
+              {images.map((uri, i) => (
+                <View key={i} style={styles.imageViewerItem}>
+                  <Image source={{ uri }} style={styles.imageViewerImage} resizeMode="contain" />
+                </View>
+              ))}
+            </ScrollView>
+            <Text style={styles.imageViewerClose}>Tap to close</Text>
+          </Pressable>
+        </Modal>
         {isSold ? (
           <View style={styles.soldBanner}>
             <Text style={styles.soldBannerText}>SOLD</Text>
@@ -172,7 +203,7 @@ export default function MarketplaceDetailScreen() {
             )}
           </View>
           <Text style={styles.title}>{item.title}</Text>
-          <Text style={styles.price}>AED {item.price != null ? item.price : "—"}</Text>
+          <Text style={styles.price}>{priceCurrency} {item.price != null ? item.price : "—"}</Text>
           {item.category ? <Text style={styles.meta}>Category: {item.category}</Text> : null}
           {item.location ? (
             <View style={styles.row}>
@@ -226,7 +257,8 @@ function createStyles(colors, _paddingTop = 0) {
     center: { flex: 1, justifyContent: "center", alignItems: "center", padding: spacing.lg },
     scroll: { flex: 1 },
     content: { paddingBottom: spacing.xl },
-    hero: { width: "100%", height: 280, backgroundColor: colors.surfaceLight },
+    heroScroll: { width: Dimensions.get("window").width, height: 280 },
+    hero: { width: Dimensions.get("window").width, height: 280, backgroundColor: colors.surfaceLight },
     heroPlaceholder: { justifyContent: "center", alignItems: "center" },
     soldBanner: { position: "absolute", top: 300, alignSelf: "center", backgroundColor: colors.error, paddingVertical: 8, paddingHorizontal: 24, borderRadius: 8 },
     soldBannerText: { fontSize: 18, fontWeight: "800", color: colors.white },
@@ -242,5 +274,11 @@ function createStyles(colors, _paddingTop = 0) {
     chatBtnText: { fontSize: 16, fontWeight: "600", color: colors.white },
     errorText: { fontSize: 15, color: colors.error, textAlign: "center", marginBottom: spacing.sm },
     retryText: { fontSize: 15, fontWeight: "600", color: colors.primary },
+    imageViewerOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.95)", justifyContent: "center" },
+    imageViewerScroll: { flex: 1 },
+    imageViewerContent: { alignItems: "center" },
+    imageViewerItem: { width: Dimensions.get("window").width, height: Dimensions.get("window").height - 100, justifyContent: "center" },
+    imageViewerImage: { width: "100%", height: "100%" },
+    imageViewerClose: { position: "absolute", bottom: 40, alignSelf: "center", color: "rgba(255,255,255,0.7)", fontSize: 14 },
   });
 }

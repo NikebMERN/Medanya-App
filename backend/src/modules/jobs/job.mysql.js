@@ -4,6 +4,7 @@ const { pool } = require("../../config/mysql");
 const insertJob = async ({
     created_by,
     title,
+    description,
     category,
     salary,
     location,
@@ -17,12 +18,13 @@ const insertJob = async ({
     const [result] = await pool.query(
         `
     INSERT INTO jobs
-    (created_by, title, category, salary, location, contact_phone, image_url, risk_score, matched_keywords, status)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    (created_by, title, description, category, salary, location, contact_phone, image_url, risk_score, matched_keywords, status)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
         [
             created_by,
             title,
+            description || null,
             category,
             salary || null,
             location,
@@ -140,6 +142,7 @@ const searchJobs = async ({ q, category, location, page = 1, limit = 20 }) => {
 const updateJob = async (id, fields) => {
     const allowed = [
         "title",
+        "description",
         "category",
         "salary",
         "location",

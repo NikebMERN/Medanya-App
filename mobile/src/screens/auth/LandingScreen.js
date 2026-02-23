@@ -130,6 +130,24 @@ export default function LandingScreen() {
     fbPromptAsync({ useProxy: false });
   };
 
+  const handleGuestLogin = async () => {
+    setError("");
+    setLoading(true);
+    try {
+      const { loginAsGuest } = await import("../../api/auth.api");
+      const res = await loginAsGuest();
+      if (res.token && res.user) {
+        setAuth(res.token, res.user);
+      } else {
+        setError("Guest sign-in failed. Please try again.");
+      }
+    } catch (e) {
+      setError(e?.response?.data?.message || "Could not continue as guest.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const toggleTheme = () => setTheme(theme === "dark" ? "light" : "dark");
 
   return (
@@ -186,6 +204,16 @@ export default function LandingScreen() {
           </TouchableOpacity>
         </View>
 
+        <TouchableOpacity
+          style={styles.guestBtn}
+          onPress={handleGuestLogin}
+          disabled={loading}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.guestBtnText}>Continue as guest</Text>
+          <Text style={styles.guestBtnSubtext}>Watch videos without signing in</Text>
+        </TouchableOpacity>
+
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
         <View style={styles.footer}>
@@ -201,8 +229,8 @@ export default function LandingScreen() {
 
 function createStyles(colors) {
   return StyleSheet.create({
-    safe: { flex: 1, backgroundColor: "#f8fafc" },
-    container: { flex: 1, backgroundColor: "#f8fafc" },
+    safe: { flex: 1, backgroundColor: colors.background },
+    container: { flex: 1, backgroundColor: colors.background },
     themeToggle: {
       position: "absolute",
       right: spacing.md,
@@ -211,6 +239,8 @@ function createStyles(colors) {
       paddingHorizontal: spacing.md,
       borderRadius: 8,
       backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
       zIndex: 1,
     },
     themeToggleText: { fontSize: 14, color: colors.text, fontWeight: "600" },
@@ -225,7 +255,7 @@ function createStyles(colors) {
       alignItems: "center",
       justifyContent: "center",
       gap: spacing.sm,
-      backgroundColor: "#0f172a",
+      backgroundColor: colors.primary,
       borderRadius: 20,
       paddingVertical: spacing.lg,
       marginBottom: spacing.lg,
@@ -278,7 +308,7 @@ function createStyles(colors) {
       elevation: 2,
     },
     googleBtn: { backgroundColor: colors.surface },
-    facebookBtn: { backgroundColor: "#1877f2" },
+    facebookBtn: { backgroundColor: "#1877f2", borderColor: "#1877f2" },
     socialIcon: { fontSize: 18, fontWeight: "700", color: colors.text },
     socialLabel: {
       fontSize: 14,
@@ -288,6 +318,26 @@ function createStyles(colors) {
     },
     facebookLabel: { color: colors.white },
     facebookIcon: { color: colors.white },
+    guestBtn: {
+      marginTop: spacing.md,
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.lg,
+      alignItems: "center",
+      borderTopWidth: 1,
+      borderBottomWidth: 1,
+      borderColor: colors.border,
+    },
+    guestBtnText: {
+      fontSize: 15,
+      fontWeight: "600",
+      color: colors.textSecondary,
+      letterSpacing: 0.3,
+    },
+    guestBtnSubtext: {
+      fontSize: 12,
+      color: colors.textMuted,
+      marginTop: 2,
+    },
     error: { color: colors.error, fontSize: 13, marginBottom: spacing.sm },
     footer: { marginTop: "auto", paddingTop: spacing.xl },
     footerText: { color: colors.textMuted, fontSize: 12, textAlign: "center" },

@@ -50,6 +50,7 @@ export async function getJob(jobId) {
 export async function createJob(body) {
   const { data } = await client.post("/jobs", {
     title: body.title,
+    description: body.description || undefined,
     category: body.category,
     salary: body.salary || undefined,
     location: body.location,

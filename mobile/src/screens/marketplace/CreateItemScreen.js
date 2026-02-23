@@ -11,6 +11,8 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Modal,
+  Pressable,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
@@ -20,7 +22,9 @@ import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
 import { useAuthStore } from "../../store/auth.store";
 import { uploadToCloudinary } from "../../utils/env";
+import { canUseMarketplace } from "../../utils/age";
 import * as marketplaceApi from "../../services/marketplace.api";
+import { CURRENCY_OPTIONS } from "../../store/jobs.store";
 
 const CATEGORIES = ["electronics", "furniture", "clothing", "other"];
 
@@ -35,8 +39,11 @@ export default function CreateItemScreen() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("");
+  const [customCategory, setCustomCategory] = useState("");
   const [location, setLocation] = useState("");
   const [price, setPrice] = useState("");
+  const [priceCurrency, setPriceCurrency] = useState("ETB");
+  const [currencyModalVisible, setCurrencyModalVisible] = useState(false);
   const [imageUrls, setImageUrls] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -53,7 +60,7 @@ export default function CreateItemScreen() {
         return;
       }
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions?.Images ?? "images",
+        mediaTypes: ["images"],
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.8,
@@ -77,9 +84,18 @@ export default function CreateItemScreen() {
     setImageUrls((prev) => prev.filter((_, i) => i !== index));
   }, []);
 
+  const accountPrivate = user?.account_private ?? user?.accountPrivate ?? false;
   const handleSubmit = useCallback(async () => {
     if (!isLoggedIn) {
       Alert.alert("Login required", "Please sign in to list an item.");
+      return;
+    }
+    if (accountPrivate) {
+      Alert.alert("Public account required", "Your account must be public to sell items. Change it in Profile → Edit Profile.");
+      return;
+    }
+    if (!canUseMarketplace(user?.dob ?? "")) {
+      Alert.alert("Age requirement", "You must be 16 or older to list items. Add your date of birth in Edit Profile.");
       return;
     }
     if (!kycFaceVerified) {
@@ -100,9 +116,9 @@ export default function CreateItemScreen() {
       Alert.alert("Required", "Description is required.");
       return;
     }
-    const c = category.trim();
+    const c = (category === "other" ? customCategory.trim() : category.trim()).toLowerCase().replace(/\s+/g, "_");
     if (!c) {
-      Alert.alert("Required", "Category is required.");
+      Alert.alert("Required", category === "other" ? "Please enter the category." : "Category is required.");
       return;
     }
     const loc = location.trim();
@@ -123,6 +139,7 @@ export default function CreateItemScreen() {
         category: c,
         location: loc,
         price: p,
+        currency: priceCurrency,
         image_urls: imageUrls.length > 0 ? imageUrls : [],
       });
       Alert.alert("Posted", "Your item has been listed.", [
@@ -143,7 +160,7 @@ export default function CreateItemScreen() {
     } finally {
       setSubmitting(false);
     }
-  }, [isLoggedIn, kycFaceVerified, title, description, category, location, price, imageUrls, navigation]);
+  }, [isLoggedIn, accountPrivate, kycFaceVerified, title, description, category, customCategory, location, price, priceCurrency, imageUrls, navigation, user]);
 
   if (!isLoggedIn) {
     return (
@@ -223,12 +240,56 @@ export default function CreateItemScreen() {
             </TouchableOpacity>
           ))}
         </View>
+        {category === "other" && (
+          <TextInput
+            style={[styles.input, { marginTop: spacing.sm }]}
+            placeholder="Enter category (e.g. Books)"
+            placeholderTextColor={colors.textMuted}
+            value={customCategory}
+            onChangeText={setCustomCategory}
+          />
+        )}
 
         <Text style={styles.label}>Location *</Text>
         <TextInput style={styles.input} placeholder="Where is the item?" placeholderTextColor={colors.textMuted} value={location} onChangeText={setLocation} />
 
-        <Text style={styles.label}>Price (AED) *</Text>
-        <TextInput style={styles.input} placeholder="0" placeholderTextColor={colors.textMuted} value={price} onChangeText={setPrice} keyboardType="decimal-pad" />
+        <Text style={styles.label}>Price *</Text>
+        <View style={styles.salaryRow}>
+          <TextInput
+            style={[styles.input, styles.salaryInput]}
+            placeholder="0"
+            placeholderTextColor={colors.textMuted}
+            value={price}
+            onChangeText={setPrice}
+            keyboardType="decimal-pad"
+          />
+          <TouchableOpacity style={styles.currencyBtn} onPress={() => setCurrencyModalVisible(true)}>
+            <Text style={styles.currencyBtnText}>{priceCurrency}</Text>
+            <MaterialIcons name="arrow-drop-down" size={20} color={colors.textSecondary} />
+          </TouchableOpacity>
+        </View>
+        <Modal visible={currencyModalVisible} transparent animationType="fade">
+          <Pressable style={styles.modalOverlay} onPress={() => setCurrencyModalVisible(false)}>
+            <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Select currency</Text>
+              <ScrollView style={styles.modalList}>
+                {CURRENCY_OPTIONS.map((opt) => (
+                  <TouchableOpacity
+                    key={opt.value}
+                    style={[styles.modalItem, priceCurrency === opt.value && { backgroundColor: colors.primary + "20" }]}
+                    onPress={() => {
+                      setPriceCurrency(opt.value);
+                      setCurrencyModalVisible(false);
+                    }}
+                  >
+                    <Text style={[styles.modalItemText, { color: colors.text }]}>{opt.label}</Text>
+                    {priceCurrency === opt.value && <MaterialIcons name="check" size={20} color={colors.primary} />}
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          </Pressable>
+        </Modal>
 
         <TouchableOpacity style={[styles.submitBtn, submitting && styles.submitBtnDisabled]} onPress={handleSubmit} disabled={submitting}>
           {submitting ? <ActivityIndicator size="small" color={colors.white} /> : <Text style={styles.submitBtnText}>Post listing</Text>}
@@ -251,7 +312,17 @@ function createStyles(colors) {
     content: { padding: spacing.md, paddingBottom: spacing.xl },
     label: { fontSize: 14, fontWeight: "600", color: colors.text, marginBottom: spacing.xs, marginTop: spacing.sm },
     input: { backgroundColor: colors.surfaceLight, borderRadius: 12, padding: spacing.md, fontSize: 15, color: colors.text, borderWidth: 1, borderColor: colors.border },
+    salaryRow: { flexDirection: "row", gap: spacing.sm, alignItems: "center" },
+    salaryInput: { flex: 1 },
+    currencyBtn: { flexDirection: "row", alignItems: "center", backgroundColor: colors.surfaceLight, borderRadius: 12, paddingHorizontal: spacing.md, paddingVertical: spacing.md, borderWidth: 1, borderColor: colors.border, minWidth: 90 },
+    currencyBtnText: { fontSize: 15, fontWeight: "600", color: colors.text, marginRight: 4 },
     textArea: { minHeight: 100, textAlignVertical: "top" },
+    modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", padding: spacing.lg },
+    modalContent: { borderRadius: 16, maxHeight: 400 },
+    modalTitle: { fontSize: 18, fontWeight: "700", padding: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border },
+    modalList: { maxHeight: 300 },
+    modalItem: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border },
+    modalItemText: { fontSize: 16 },
     imageRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginBottom: spacing.sm },
     imageWrap: { position: "relative" },
     thumb: { width: 80, height: 80, borderRadius: 8 },

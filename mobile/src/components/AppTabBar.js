@@ -5,6 +5,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useThemeColors } from "../theme/useThemeColors";
 import { spacing } from "../theme/spacing";
 import { useChatStore } from "../store/chat.store";
+import { useAuthStore } from "../store/auth.store";
 
 const TAB_CONFIG = [
   { name: "Home", label: "HOME", icon: "home", rootScreen: null },
@@ -19,6 +20,8 @@ export default function AppTabBar({ state, descriptors, navigation }) {
   const insets = useSafeAreaInsets();
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors, insets.bottom), [colors, insets.bottom]);
+  const user = useAuthStore((s) => s.user);
+  const isGuest = user?.isGuest ?? false;
   const unreadByChatId = useChatStore((s) => s.unreadByChatId) || {};
   const totalUnread = useMemo(
     () => Object.values(unreadByChatId).reduce((sum, n) => sum + Math.max(0, Number(n) || 0), 0),
@@ -101,13 +104,15 @@ export default function AppTabBar({ state, descriptors, navigation }) {
       <View style={styles.bar}>
         {leftTabs.map((route, index) => renderTab(route, index))}
         <View style={styles.fabWrap}>
-          <TouchableOpacity
-            style={styles.fab}
-            activeOpacity={0.8}
-            onPress={() => navigation.getParent()?.navigate?.("Create")}
-          >
-            <MaterialIcons name="add" size={28} color={colors.white} />
-          </TouchableOpacity>
+          {!isGuest && (
+            <TouchableOpacity
+              style={styles.fab}
+              activeOpacity={0.8}
+              onPress={() => navigation.getParent()?.navigate?.("Create")}
+            >
+              <MaterialIcons name="add" size={28} color={colors.white} />
+            </TouchableOpacity>
+          )}
         </View>
         {rightTabs.map((route, index) => renderTab(route, index + 3))}
       </View>

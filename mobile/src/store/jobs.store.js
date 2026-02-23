@@ -10,6 +10,33 @@ export const JOB_CATEGORIES = [
   { value: "cleaner", label: "Cleaner" },
   { value: "driver", label: "Driver" },
   { value: "nanny", label: "Nanny" },
+  { value: "cook", label: "Cook" },
+  { value: "babysitter", label: "Babysitter" },
+  { value: "elderly_care", label: "Elderly Care" },
+  { value: "gardener", label: "Gardener" },
+  { value: "security", label: "Security" },
+  { value: "receptionist", label: "Receptionist" },
+  { value: "sales", label: "Sales" },
+  { value: "delivery", label: "Delivery" },
+  { value: "mechanic", label: "Mechanic" },
+  { value: "electrician", label: "Electrician" },
+  { value: "plumber", label: "Plumber" },
+  { value: "painter", label: "Painter" },
+  { value: "other", label: "Others" },
+];
+
+export const JOB_CATEGORY_OPTIONS = JOB_CATEGORIES.filter((c) => c.value);
+
+export const CURRENCY_OPTIONS = [
+  { value: "ETB", label: "ETB (Birr)" },
+  { value: "USD", label: "USD" },
+  { value: "AED", label: "AED (Dirham)" },
+  { value: "EUR", label: "EUR" },
+  { value: "GBP", label: "GBP" },
+  { value: "SAR", label: "SAR (Riyal)" },
+  { value: "KES", label: "KES (Shilling)" },
+  { value: "NGN", label: "NGN (Naira)" },
+  { value: "EGP", label: "EGP (Pound)" },
 ];
 
 export const useJobsStore = create((set, get) => ({

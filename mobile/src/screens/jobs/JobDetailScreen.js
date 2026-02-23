@@ -251,7 +251,7 @@ export default function JobDetailScreen() {
         </View>
         <Text style={styles.title}>{job.title}</Text>
         <View style={styles.meta}>
-          <Text style={styles.category}>{job.category || "Job"}</Text>
+          <Text style={styles.category}>{(job.category || "Job").replace(/_/g, " ")}</Text>
           {avgRating != null && (
             <View style={styles.rating}>
               <MaterialIcons name="star" size={16} color={colors.warning} />
@@ -262,6 +262,9 @@ export default function JobDetailScreen() {
             </View>
           )}
         </View>
+        {(job.description || job.desc) ? (
+          <Text style={styles.description}>{job.description || job.desc}</Text>
+        ) : null}
         {job.salary ? (
           <View style={styles.row}>
             <MaterialIcons name="attach-money" size={20} color={colors.textSecondary} />
@@ -380,7 +383,8 @@ function createStyles(colors, paddingTop = 0) {
     },
     body: { padding: spacing.md },
     title: { fontSize: 22, fontWeight: "700", color: colors.text, marginBottom: spacing.sm },
-    meta: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.md },
+    meta: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.sm },
+    description: { fontSize: 15, lineHeight: 22, color: colors.textSecondary, marginBottom: spacing.md },
     category: {
       fontSize: 14,
       fontWeight: "600",

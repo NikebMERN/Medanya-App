@@ -39,8 +39,8 @@ export default function JobsStack() {
     <Suspense fallback={<LazyFallback />}>
       <Stack.Navigator screenOptions={rootScreenOptions}>
         <Stack.Screen name="JobsList" component={JobsListScreen} options={{ animation: "none" }} />
-        <Stack.Screen name="JobDetail" component={JobDetailScreen} options={{ ...subScreenOptions, title: "Job" }} />
-        <Stack.Screen name="CreateJob" component={CreateJobScreen} options={{ ...subScreenOptions, title: "Create job" }} />
+        <Stack.Screen name="JobDetail" component={JobDetailScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="CreateJob" component={CreateJobScreen} options={{ headerShown: false }} />
       </Stack.Navigator>
     </Suspense>
   );

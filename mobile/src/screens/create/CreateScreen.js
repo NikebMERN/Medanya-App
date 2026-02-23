@@ -1,20 +1,42 @@
 import React, { useMemo } from "react";
-import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, Alert } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
 import { useAuthStore } from "../../store/auth.store";
+import { canPostVideo, canPostJobs } from "../../utils/age";
 
 export default function CreateScreen() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const colors = useThemeColors();
-  const kycFaceVerified = useAuthStore((s) => s.user?.kyc_face_verified ?? s.user?.kycFaceVerified ?? false);
+  const user = useAuthStore((s) => s.user);
+  const dob = user?.dob ?? "";
+  const kycFaceVerified = user?.kyc_face_verified ?? user?.kycFaceVerified ?? false;
+  const canVideo = canPostVideo(dob) || canPostJobs(dob) || kycFaceVerified;
   const styles = useMemo(() => createStyles(colors, insets), [colors, insets]);
 
   const close = () => navigation.goBack();
+
+  const navVideo = () => {
+    if (!canVideo) {
+      Alert.alert("Age requirement", "You must be 16+ (or 18+ with verified identity) to post videos. Add your date of birth in Edit Profile or complete Identity Verification.");
+      return;
+    }
+    close();
+    navigation.navigate("VideoCreate");
+  };
+
+  const navLive = () => {
+    if (!canVideo) {
+      Alert.alert("Age requirement", "You must be 16+ (or 18+ with verified identity) to go live. Add your date of birth in Edit Profile or complete Identity Verification.");
+      return;
+    }
+    close();
+    navigation.navigate("Live", { screen: "LiveHostSetup" });
+  };
 
   return (
     <View style={styles.container}>
@@ -22,130 +44,28 @@ export default function CreateScreen() {
         <TouchableOpacity style={styles.closeBtn} onPress={close} activeOpacity={0.8}>
           <MaterialIcons name="close" size={28} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.title}>CREATE CONTENT</Text>
+        <Text style={styles.title}>CREATE</Text>
         <View style={{ width: 44 }} />
       </View>
 
-      {kycFaceVerified && (
-        <>
-          <TouchableOpacity
-            style={styles.card}
-            onPress={() => { close(); navigation.navigate("Main", { screen: "Jobs", params: { screen: "CreateJob" } }); }}
-            activeOpacity={0.8}
-          >
-            <View style={[styles.cardIcon, { backgroundColor: colors.primary + "20" }]}>
-              <MaterialIcons name="work" size={28} color={colors.primary} />
-            </View>
-            <View style={styles.cardBody}>
-              <Text style={styles.cardTitle}>Create job</Text>
-              <Text style={styles.cardDesc}>Post a job for workers</Text>
-            </View>
-            <MaterialIcons name="chevron-right" size={24} color={colors.textMuted} />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.card}
-            onPress={() => { close(); navigation.navigate("Main", { screen: "Marketplace", params: { screen: "CreateItem" } }); }}
-            activeOpacity={0.8}
-          >
-            <View style={[styles.cardIcon, { backgroundColor: colors.primary + "20" }]}>
-              <MaterialIcons name="storefront" size={28} color={colors.primary} />
-            </View>
-            <View style={styles.cardBody}>
-              <Text style={styles.cardTitle}>Trade</Text>
-              <Text style={styles.cardDesc}>Sell an item on the marketplace</Text>
-            </View>
-            <MaterialIcons name="chevron-right" size={24} color={colors.textMuted} />
-          </TouchableOpacity>
-        </>
-      )}
-
-      <TouchableOpacity
-        style={styles.card}
-        onPress={() => { close(); navigation.navigate("Live", { screen: "LiveList" }); }}
-        activeOpacity={0.8}
-      >
+      <TouchableOpacity style={styles.card} onPress={navVideo} activeOpacity={0.8}>
         <View style={[styles.cardIcon, { backgroundColor: (colors.primary || "#6366f1") + "20" }]}>
           <MaterialIcons name="videocam" size={28} color={colors.primary || "#6366f1"} />
         </View>
         <View style={styles.cardBody}>
-          <Text style={styles.cardTitle}>Watch live</Text>
-          <Text style={styles.cardDesc}>Browse and join live streams</Text>
+          <Text style={styles.cardTitle}>Create video</Text>
+          <Text style={styles.cardDesc}>Record or upload from gallery (16+)</Text>
         </View>
         <MaterialIcons name="chevron-right" size={24} color={colors.textMuted} />
       </TouchableOpacity>
 
-      <TouchableOpacity
-        style={styles.card}
-        onPress={() => { close(); navigation.navigate("Live", { screen: "LiveHostSetup" }); }}
-        activeOpacity={0.8}
-      >
+      <TouchableOpacity style={styles.card} onPress={navLive} activeOpacity={0.8}>
         <View style={[styles.cardIcon, { backgroundColor: (colors.error || "#e53935") + "20" }]}>
           <MaterialIcons name="live-tv" size={28} color={colors.error || "#e53935"} />
         </View>
         <View style={styles.cardBody}>
           <Text style={styles.cardTitle}>Go live</Text>
-          <Text style={styles.cardDesc}>Start your own live stream (18+)</Text>
-        </View>
-        <MaterialIcons name="chevron-right" size={24} color={colors.textMuted} />
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={styles.card}
-        onPress={() => { close(); navigation.navigate("VideoReels", { screen: "VideoUpload" }); }}
-        activeOpacity={0.8}
-      >
-        <View style={[styles.cardIcon, { backgroundColor: (colors.primary || "#6366f1") + "20" }]}>
-          <MaterialIcons name="videocam" size={28} color={colors.primary || "#6366f1"} />
-        </View>
-        <View style={styles.cardBody}>
-          <Text style={styles.cardTitle}>SHOOT SHORT</Text>
-          <Text style={styles.cardDesc}>Record a new video</Text>
-        </View>
-        <MaterialIcons name="chevron-right" size={24} color={colors.textMuted} />
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={styles.card}
-        onPress={() => { close(); navigation.navigate("VideoReels", { screen: "VideoUpload" }); }}
-        activeOpacity={0.8}
-      >
-        <View style={[styles.cardIcon, { backgroundColor: (colors.primary || "#6366f1") + "20" }]}>
-          <MaterialIcons name="photo-library" size={28} color={colors.primary || "#6366f1"} />
-        </View>
-        <View style={styles.cardBody}>
-          <Text style={styles.cardTitle}>FROM GALLERY</Text>
-          <Text style={styles.cardDesc}>Upload saved videos</Text>
-        </View>
-        <MaterialIcons name="chevron-right" size={24} color={colors.textMuted} />
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={styles.card}
-        onPress={() => { close(); navigation.navigate("Live", { screen: "LiveHostSetup" }); }}
-        activeOpacity={0.8}
-      >
-        <View style={[styles.cardIcon, { backgroundColor: (colors.error || "#e53935") + "20" }]}>
-          <MaterialIcons name="live-tv" size={28} color={colors.error || "#e53935"} />
-        </View>
-        <View style={styles.cardBody}>
-          <Text style={styles.cardTitle}>GO LIVE</Text>
-          <Text style={styles.cardDesc}>Stream to community</Text>
-        </View>
-        <MaterialIcons name="chevron-right" size={24} color={colors.textMuted} />
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={styles.card}
-        onPress={() => { close(); navigation.navigate("VideoReels"); }}
-        activeOpacity={0.8}
-      >
-        <View style={[styles.cardIcon, { backgroundColor: (colors.primary || "#6366f1") + "20" }]}>
-          <MaterialIcons name="movie" size={28} color={colors.primary || "#6366f1"} />
-        </View>
-        <View style={styles.cardBody}>
-          <Text style={styles.cardTitle}>Reels</Text>
-          <Text style={styles.cardDesc}>Watch or upload short videos</Text>
+          <Text style={styles.cardDesc}>Start a livestream (16+)</Text>
         </View>
         <MaterialIcons name="chevron-right" size={24} color={colors.textMuted} />
       </TouchableOpacity>

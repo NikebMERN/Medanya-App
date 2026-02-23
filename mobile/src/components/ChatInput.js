@@ -149,9 +149,7 @@ export default function ChatInput({
         Alert.alert("Permission needed", "Allow access to photos to send images and videos.");
         return;
       }
-      const mediaTypes = Platform.OS === "ios"
-        ? ["images", "videos"]
-        : (ImagePicker.MediaTypeOptions?.All ?? "all");
+      const mediaTypes = ["images", "videos"];
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes,
         allowsEditing: false,
@@ -190,7 +188,7 @@ export default function ChatInput({
         return;
       }
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions?.Images ?? "images",
+        mediaTypes: ["images"],
         allowsEditing: false,
         quality: 0.8,
       });

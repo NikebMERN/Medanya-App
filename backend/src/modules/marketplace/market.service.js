@@ -33,6 +33,7 @@ function validateCreate(body) {
     const category = cleanStr(body.category, 60);
     const location = cleanStr(body.location, 120);
     const price = parsePrice(body.price);
+    const currency = cleanStr(body.currency, 10) || "AED";
 
     const image_urls = Array.isArray(body.image_urls)
         ? body.image_urls
@@ -49,7 +50,7 @@ function validateCreate(body) {
     if (price === null)
         throw codeErr("VALIDATION_ERROR", "price must be a valid number");
 
-    return { title, description, category, location, price, image_urls };
+    return { title, description, category, location, price, currency, image_urls };
 }
 
 function validateUpdate(body) {
@@ -102,6 +103,7 @@ async function create(user, body) {
 
     const seller = await userDb.getById(seller_id);
     if (!seller) throw codeErr("UNAUTHORIZED", "User not found");
+    if (seller.account_private) throw codeErr("FORBIDDEN", "Your account must be public to sell items. Change it in Profile → Edit Profile.");
     if (!seller.kyc_face_verified) throw codeErr("FORBIDDEN", "Face verification required. Complete identity verification and have your face matched to your document before listing items.");
     if (seller.dob) {
         const today = new Date();
@@ -109,7 +111,7 @@ async function create(user, body) {
         let age = today.getFullYear() - dob.getFullYear();
         const m = today.getMonth() - dob.getMonth();
         if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age -= 1;
-        if (age < 18) throw codeErr("FORBIDDEN", "You must be at least 18 years old to list items for sale.");
+        if (age < 16) throw codeErr("FORBIDDEN", "You must be at least 16 years old to list items for sale.");
     }
 
     await fraudService.requireOtpVerified(seller_id);

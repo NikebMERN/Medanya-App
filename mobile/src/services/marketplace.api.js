@@ -54,6 +54,7 @@ export async function createItem(body) {
     category: body.category,
     location: body.location,
     price: body.price,
+    currency: body.currency || "AED",
     image_urls: Array.isArray(body.image_urls) ? body.image_urls : body.image_urls ? [body.image_urls] : [],
   });
   return data?.item ?? data;

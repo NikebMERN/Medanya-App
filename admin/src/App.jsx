@@ -9,6 +9,7 @@ import Moderation from "./pages/Moderation";
 import Kyc from "./pages/Kyc";
 import Settings from "./pages/Settings";
 import AuditLog from "./pages/AuditLog";
+import ReportedUsers from "./pages/ReportedUsers";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -37,6 +38,7 @@ function AppRoutes() {
       >
         <Route index element={<Dashboard />} />
         <Route path="users" element={<Users />} />
+        <Route path="reported-users" element={<ReportedUsers />} />
         <Route path="moderation" element={<Moderation />} />
         <Route path="kyc" element={<Kyc />} />
         <Route path="settings" element={<Settings />} />

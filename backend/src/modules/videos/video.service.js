@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 const Video = require("./video.model");
 const VideoLike = require("./videoLike.model");
 const VideoComment = require("./videoComment.model");
+const userDb = require("../users/user.mysql");
 const { createReportAndCheckThreshold } = require("../../services/reportThreshold.service");
 
 function codeErr(code, message) {
@@ -41,9 +42,26 @@ function isActiveStatus(s) {
     return ns === "ACTIVE";
 }
 
+function ageFromDob(dob) {
+    if (!dob) return null;
+    const d = new Date(dob);
+    if (isNaN(d.getTime())) return null;
+    const today = new Date();
+    let age = today.getFullYear() - d.getFullYear();
+    const m = today.getMonth() - d.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < d.getDate())) age -= 1;
+    return age;
+}
+
 async function createVideo(user, body) {
     const userId = toId(user?.id ?? user?.userId);
     if (!userId) throw codeErr("UNAUTHORIZED", "Auth required");
+    if (user?.role === "guest") throw codeErr("FORBIDDEN", "Guest users cannot upload videos. Sign in to upload.");
+
+    const uploader = await userDb.getById(userId);
+    if (!uploader) throw codeErr("UNAUTHORIZED", "User not found");
+    const age = ageFromDob(uploader.dob);
+    if (age == null || age < 16) throw codeErr("AGE_REQUIRED", "You must be 16 or older to post videos");
 
     const videoUrl = cleanStr(body.videoUrl, 800);
     const thumbnailUrl = cleanStr(body.thumbnailUrl, 800);

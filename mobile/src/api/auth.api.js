@@ -24,3 +24,11 @@ export async function loginWithFirebaseToken(idToken) {
   const { data } = await client.post("/auth/verify-otp", { idToken });
   return data;
 }
+
+/**
+ * Sign in as guest. Guest can only watch videos.
+ */
+export async function loginAsGuest() {
+  const { data } = await client.post("/auth/guest");
+  return data;
+}

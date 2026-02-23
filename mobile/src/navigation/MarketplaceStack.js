@@ -32,8 +32,8 @@ export default function MarketplaceStack() {
     <Suspense fallback={<LazyFallback />}>
       <Stack.Navigator screenOptions={rootScreenOptions}>
         <Stack.Screen name="MarketplaceList" component={MarketplaceListScreen} options={{ animation: "none" }} />
-        <Stack.Screen name="MarketplaceDetail" component={MarketplaceDetailScreen} options={{ ...subScreenOptions, title: "Item" }} />
-        <Stack.Screen name="CreateItem" component={CreateItemScreen} options={{ ...subScreenOptions, title: "Sell item" }} />
+        <Stack.Screen name="MarketplaceDetail" component={MarketplaceDetailScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="CreateItem" component={CreateItemScreen} options={{ headerShown: false }} />
       </Stack.Navigator>
     </Suspense>
   );

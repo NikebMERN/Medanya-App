@@ -71,6 +71,31 @@ const issueJWT = (user) => {
     );
 };
 
+/**
+ * Find or create a shared guest user. Guest users can only watch videos.
+ */
+async function findOrCreateGuestUser() {
+    const [rows] = await pool.query(
+        "SELECT * FROM users WHERE phone_number = ? LIMIT 1",
+        ["guest_medanya"]
+    );
+    if (rows.length) return rows[0];
+    try {
+        const [result] = await pool.query(
+            "INSERT INTO users (phone_number, display_name, role, is_verified) VALUES (?, ?, ?, 1)",
+            ["guest_medanya", "Guest", "guest", 1]
+        );
+        const [user] = await pool.query("SELECT * FROM users WHERE id = ?", [result.insertId]);
+        return user[0];
+    } catch (e) {
+        if (e.code === "ER_DUP_ENTRY") {
+            const [r] = await pool.query("SELECT * FROM users WHERE phone_number = ? LIMIT 1", ["guest_medanya"]);
+            return r[0];
+        }
+        throw e;
+    }
+}
+
 function toE164(normalized) {
     if (!normalized) return normalized;
     return normalized.startsWith("+") ? normalized : `+${normalized}`;
@@ -287,6 +312,7 @@ module.exports = {
     verifyFirebaseToken,
     findOrCreateUser,
     findOrCreateUserByPhone,
+    findOrCreateGuestUser,
     issueJWT,
     sendOtp,
     verifyOtp,

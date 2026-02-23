@@ -18,6 +18,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import Button from "../../components/ui/Button";
 import Input from "../../components/ui/Input";
+import DateOfBirthPicker from "../../components/ui/DateOfBirthPicker";
 import SubScreenHeader from "../../components/SubScreenHeader";
 import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
@@ -96,6 +97,12 @@ export default function EditProfileScreen() {
 
   const [displayName, setDisplayName] = useState(
     initialUser?.display_name ?? initialUser?.displayName ?? ""
+  );
+  const [fullName, setFullName] = useState(
+    initialUser?.full_name ?? initialUser?.fullName ?? ""
+  );
+  const [dob, setDob] = useState(
+    initialUser?.dob ?? ""
   );
   const [email, setEmail] = useState(initialUser?.email ?? "");
   const [neighborhood, setNeighborhood] = useState(
@@ -278,6 +285,8 @@ export default function EditProfileScreen() {
       }
       const payload = {
         displayName: name,
+        fullName: fullName.trim() || undefined,
+        dob: dob.trim() || undefined,
         email: email.trim(),
         neighborhood: neighborhood.trim() || undefined,
         bio: bioTrimmed || undefined,
@@ -369,6 +378,24 @@ export default function EditProfileScreen() {
             setError("");
           }}
           placeholder="Your name"
+        />
+        <Input
+          label="Full legal name (for identity verification)"
+          value={fullName}
+          onChangeText={(t) => {
+            setFullName(t);
+            setError("");
+          }}
+          placeholder="As on ID document"
+        />
+        <DateOfBirthPicker
+          label="Date of birth"
+          value={dob}
+          onChange={(v) => {
+            setDob(v);
+            setError("");
+          }}
+          placeholder="Select your date of birth"
         />
         <Input
           label="Email"

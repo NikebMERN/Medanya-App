@@ -14,15 +14,43 @@ export default function Users() {
 
   const users = data?.users ?? [];
   const total = data?.total ?? 0;
+  const verified = (u) => ["verified_auto", "verified_manual"].includes(u?.kyc_status || "") && u?.kyc_face_verified;
   const columns = [
     { key: "id", label: "ID" },
-    { key: "display_name", label: "Name" },
+    {
+      key: "display_name",
+      label: "Name",
+      render: (v, row) => (
+        <span className="flex items-center gap-1">
+          {v || "—"}
+          {verified(row) && (
+            <span className="text-emerald-600" title="Verified">
+              ✓
+            </span>
+          )}
+        </span>
+      ),
+    },
     {
       key: "phone_number",
       label: "Phone",
       render: (v) => (v ? `${String(v).slice(0, 4)}****${String(v).slice(-2)}` : "—"),
     },
     { key: "role", label: "Role" },
+    {
+      key: "risk_label",
+      label: "Risk",
+      render: (v, row) => {
+        const bars = row?.risk_score ?? 0;
+        const label = v || "risky";
+        const color = label === "safe" ? "text-emerald-600" : label === "half-safe" ? "text-amber-600" : "text-red-600";
+        return (
+          <span className={color} title={`${bars}/5 bars`}>
+            {label} ({bars}/5)
+          </span>
+        );
+      },
+    },
     {
       key: "is_banned",
       label: "Banned",

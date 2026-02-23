@@ -82,11 +82,114 @@ function eventRateLimitKey(userId) {
     return `rec:events:rl:${userId}`;
 }
 
+/** Bootstrap: connect to Redis (or use in-memory fallback). Does not throw. */
+async function connectRedis() {
+    await getRedis();
+}
+
+/** In-memory fallback for Redis when client is unavailable. Supports get, setEx, incr, expire, del. */
+const memStore = new Map();
+const memExpiry = new Map();
+
+async function memGet(key) {
+    const exp = memExpiry.get(key);
+    if (exp && Date.now() > exp) {
+        memStore.delete(key);
+        memExpiry.delete(key);
+        return null;
+    }
+    return memStore.get(key) ?? null;
+}
+
+async function memSetEx(key, ttlSeconds, val) {
+    memStore.set(key, val);
+    memExpiry.set(key, Date.now() + ttlSeconds * 1000);
+}
+
+async function memIncr(key) {
+    const v = (Number(memStore.get(key)) || 0) + 1;
+    memStore.set(key, String(v));
+    return v;
+}
+
+async function memExpire(key, ttlSeconds) {
+    memExpiry.set(key, Date.now() + ttlSeconds * 1000);
+}
+
+async function memDel(key) {
+    memStore.delete(key);
+    memExpiry.delete(key);
+}
+
+/**
+ * Redis client proxy for auth/OTP flows.
+ * Uses real Redis when available, otherwise in-memory fallback.
+ */
+const redisClient = {
+    async get(key) {
+        const redis = await getRedis();
+        if (redis) {
+            try {
+                return await redis.get(key);
+            } catch {
+                return null;
+            }
+        }
+        return memGet(key);
+    },
+    async setEx(key, ttlSeconds, val) {
+        const redis = await getRedis();
+        if (redis) {
+            try {
+                return await redis.setex(key, ttlSeconds, val);
+            } catch {
+                return memSetEx(key, ttlSeconds, val);
+            }
+        }
+        return memSetEx(key, ttlSeconds, val);
+    },
+    async incr(key) {
+        const redis = await getRedis();
+        if (redis) {
+            try {
+                return await redis.incr(key);
+            } catch {
+                return memIncr(key);
+            }
+        }
+        return memIncr(key);
+    },
+    async expire(key, ttlSeconds) {
+        const redis = await getRedis();
+        if (redis) {
+            try {
+                return await redis.expire(key, ttlSeconds);
+            } catch {
+                return memExpire(key, ttlSeconds);
+            }
+        }
+        return memExpire(key, ttlSeconds);
+    },
+    async del(key) {
+        const redis = await getRedis();
+        if (redis) {
+            try {
+                return await redis.del(key);
+            } catch {
+                return memDel(key);
+            }
+        }
+        return memDel(key);
+    },
+};
+
 module.exports = {
+    connectRedis,
     getRedis,
     get,
     set,
     del,
+    redisClient,
     feedCandidatesKey,
     trendingKey,
     eventRateLimitKey,

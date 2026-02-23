@@ -3,28 +3,61 @@ const { pool } = require("../../config/mysql");
 const followDb = require("../users/follow.mysql");
 const ListingReport = require("../reports/listingReport.model");
 const { ALLOWED_ROLES, ROLES } = require("../../utils/roles.util");
+const { computeUserRiskScore, getRiskLabel } = require("../../utils/riskScore.util");
 
-const listUsers = async ({ page = 1, limit = 20 }) => {
+const listUsers = async ({ page = 1, limit = 20, query: searchQuery = "" }) => {
     const p = Math.max(parseInt(page, 10) || 1, 1);
     const l = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100);
     const offset = (p - 1) * l;
+    const q = String(searchQuery || "").trim();
+    const like = q ? `%${q}%` : null;
 
-    const [[countRow]] = await pool.query(`SELECT COUNT(*) AS total FROM users`);
+    let where = "";
+    const countParams = [];
+    const listParams = [];
+    if (like) {
+        where = "WHERE phone_number LIKE ? OR display_name LIKE ? OR CAST(id AS CHAR) LIKE ?";
+        countParams.push(like, like, like);
+        listParams.push(like, like, like);
+    }
+    listParams.push(l, offset);
+
+    const [[countRow]] = await pool.query(
+        `SELECT COUNT(*) AS total FROM users ${where}`,
+        countParams,
+    );
     const [rows] = await pool.query(
         `
-    SELECT id, phone_number, display_name, role, is_verified, is_banned, created_at, updated_at
+    SELECT id, phone_number, display_name, role, is_verified, is_banned,
+           otp_verified, kyc_status, kyc_level, kyc_face_verified, created_at, updated_at
     FROM users
+    ${where}
     ORDER BY created_at DESC
     LIMIT ? OFFSET ?
     `,
-        [l, offset],
+        listParams,
+    );
+
+    const users = await Promise.all(
+        rows.map(async (u) => {
+            const reportsCount = await ListingReport.countDocuments({
+                targetType: "user",
+                targetId: String(u.id),
+            }).catch(() => 0);
+            const bars = await computeUserRiskScore(u, reportsCount);
+            return {
+                ...u,
+                risk_score: bars,
+                risk_label: getRiskLabel(bars),
+            };
+        })
     );
 
     return {
         page: p,
         limit: l,
         total: countRow.total,
-        users: rows,
+        users,
     };
 };
 
@@ -115,6 +148,70 @@ const banUser = async (userId, banned) => {
     return result.affectedRows > 0;
 };
 
+const listReportedUsers = async ({ page = 1, limit = 20 }) => {
+    const p = Math.max(parseInt(page, 10) || 1, 1);
+    const l = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100);
+    const skip = (p - 1) * l;
+
+    const agg = await ListingReport.aggregate([
+        { $match: { targetType: "user" } },
+        {
+            $group: {
+                _id: "$targetId",
+                reportCount: { $sum: 1 },
+                reasons: { $push: "$reason" },
+                latestAt: { $max: "$createdAt" },
+                latestReason: { $last: "$reason" },
+                latestDescription: { $last: "$description" },
+                reporterIds: { $addToSet: "$reporterId" },
+            },
+        },
+        { $sort: { reportCount: -1, latestAt: -1 } },
+        { $skip: skip },
+        { $limit: l },
+    ]);
+
+    const [{ total }] = await ListingReport.aggregate([
+        { $match: { targetType: "user" } },
+        { $group: { _id: "$targetId" } },
+        { $count: "total" },
+    ]).then((r) => (r.length ? r : [{ total: 0 }]));
+    const targetIds = agg.map((a) => a._id).filter(Boolean);
+    if (targetIds.length === 0) {
+        return { page: p, limit: l, total, reportedUsers: [] };
+    }
+
+    const placeholders = targetIds.map(() => "?").join(",");
+    const [rows] = await pool.query(
+        `SELECT id, phone_number, display_name, role, is_banned, otp_verified, kyc_status, kyc_face_verified, created_at
+         FROM users WHERE id IN (${placeholders})`,
+        targetIds,
+    );
+    const userMap = Object.fromEntries(rows.map((u) => [String(u.id), u]));
+
+    const reportedUsers = agg.map((a) => {
+        const u = userMap[a._id] || {};
+        const bars = Math.min(5, Math.ceil((a.reportCount || 0) / 2));
+        const riskLabel = a.reportCount >= 5 ? "risky" : a.reportCount >= 2 ? "half-safe" : "safe";
+        return {
+            ...u,
+            reportCount: a.reportCount,
+            latestReportAt: a.latestAt,
+            latestReason: a.latestReason,
+            latestDescription: a.latestDescription,
+            risk_score: bars,
+            risk_label: riskLabel,
+        };
+    });
+
+    return {
+        page: p,
+        limit: l,
+        total,
+        reportedUsers,
+    };
+};
+
 const getUserRisk = async (userId) => {
     const uid = String(userId);
     const userReports = await ListingReport.countDocuments({
@@ -144,6 +241,7 @@ const getUserRisk = async (userId) => {
 
 module.exports = {
     listUsers,
+    listReportedUsers,
     setUserRole,
     banUser,
     getAdminCount,

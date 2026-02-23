@@ -24,6 +24,7 @@ function AppHeaderComponent({ navigation, route, focusedRouteName }) {
   const logout = useAuthStore((s) => s.logout);
   const theme = useThemeStore((s) => s.theme);
   const setTheme = useThemeStore((s) => s.setTheme);
+  const isGuest = user?.isGuest ?? false;
   const avatarUrl = user?.avatar_url ?? user?.avatarUrl;
   const displayName = user?.display_name ?? user?.displayName ?? "";
   const accountPrivate = user?.account_private ?? user?.accountPrivate;
@@ -111,7 +112,16 @@ function AppHeaderComponent({ navigation, route, focusedRouteName }) {
           >
             <Text style={styles.playIcon}>▶</Text>
           </TouchableOpacity>
-          <TouchableOpacity
+          {isGuest ? (
+            <TouchableOpacity
+              style={styles.signInBtn}
+              activeOpacity={0.8}
+              onPress={handleLogout}
+            >
+              <Text style={styles.signInBtnText}>Sign In</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
               style={styles.avatarBtn}
               activeOpacity={0.8}
               onPress={() => setMenuVisible(true)}
@@ -126,6 +136,7 @@ function AppHeaderComponent({ navigation, route, focusedRouteName }) {
                 </View>
               )}
             </TouchableOpacity>
+          )}
         </View>
       </View>
 
@@ -285,6 +296,18 @@ function createStyles(colors, paddingTop, paddingBottom = 0) {
       fontSize: 16,
       fontWeight: "700",
       color: colors.text,
+      fontStyle: typography.fontStyle,
+    },
+    signInBtn: {
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.md,
+      borderRadius: 12,
+      backgroundColor: colors.primary,
+    },
+    signInBtnText: {
+      fontSize: 14,
+      fontWeight: "700",
+      color: colors.white,
       fontStyle: typography.fontStyle,
     },
     menuOverlay: {

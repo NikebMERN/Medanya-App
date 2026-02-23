@@ -11,6 +11,7 @@ import {
   Pressable,
   useWindowDimensions,
   RefreshControl,
+  Animated,
 } from "react-native";
 import {
   PinchGestureHandler,
@@ -123,6 +124,9 @@ export default function ProfileScreen() {
     storeUser?.avatarUrl,
     storeUser?.display_name,
     storeUser?.displayName,
+    storeUser?.full_name,
+    storeUser?.fullName,
+    storeUser?.dob,
     storeUser?.bio,
     storeUser?.neighborhood,
     storeUser?.account_private,
@@ -156,6 +160,25 @@ export default function ProfileScreen() {
   const followerCount = user?.followerCount ?? 0;
   const followingCount = user?.followingCount ?? 0;
   const accountPrivate = user?.account_private ?? user?.accountPrivate;
+  const riskBars = user?.risk_score ?? 0;
+  const riskLabel = user?.risk_label ?? "risky";
+  const riskBreakdown = user?.risk_breakdown ?? { score: 0, label: "risky", items: [] };
+  const [riskDropdownVisible, setRiskDropdownVisible] = useState(false);
+  const fillAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.spring(fillAnim, {
+      toValue: riskBars / 5,
+      useNativeDriver: false,
+      tension: 50,
+      friction: 8,
+    }).start();
+  }, [riskBars, fillAnim]);
+
+  const fillWidth = fillAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["0%", "100%"],
+  });
 
   const toggleTheme = () => setTheme(theme === "dark" ? "light" : "dark");
 
@@ -195,6 +218,72 @@ export default function ProfileScreen() {
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
       }
     >
+      {/* Risk/Safety score - cool filling bar (tappable for checklist) */}
+      <TouchableOpacity
+        style={styles.riskCard}
+        onPress={() => setRiskDropdownVisible((v) => !v)}
+        activeOpacity={1}
+      >
+        <View style={styles.riskHeader}>
+          <MaterialIcons
+            name={riskLabel === "safe" ? "shield" : riskLabel === "half-safe" ? "security" : "warning"}
+            size={18}
+            color={riskLabel === "safe" ? colors.primary : riskLabel === "half-safe" ? colors.warning : colors.error}
+          />
+          <Text style={[styles.riskLabel, { color: riskLabel === "safe" ? colors.primary : riskLabel === "half-safe" ? colors.warning : colors.error }]}>
+            {riskLabel === "safe" ? "SAFE" : riskLabel === "half-safe" ? "HALF SAFE" : "RISKY"}
+          </Text>
+          <View style={styles.riskHeaderRight}>
+            <Text style={[styles.riskBarsText, { color: colors.textMuted }]}>
+              {riskBars}/5
+            </Text>
+            <MaterialIcons
+              name={riskDropdownVisible ? "expand-less" : "expand-more"}
+              size={22}
+              color={colors.textMuted}
+            />
+          </View>
+        </View>
+        <View style={[styles.barTrack, { backgroundColor: colors.surfaceLight }]}>
+          <Animated.View
+            style={[
+              styles.barFill,
+              {
+                width: fillWidth,
+                backgroundColor: riskLabel === "safe" ? colors.primary : riskLabel === "half-safe" ? (colors.warning || "#f59e0b") : (colors.error || "#e53935"),
+              },
+            ]}
+          />
+        </View>
+
+        {riskDropdownVisible && (
+          <View style={styles.riskDropdown}>
+            <Text style={[styles.riskDropdownTitle, { color: colors.text }]}>
+              Your safety score — {riskBars}/5
+            </Text>
+            <Text style={[styles.riskDropdownSubtitle, { color: colors.textMuted }]}>
+              {riskBars >= 5 ? "You've maxed out your safety score!" : "Complete these to reach 5/5:"}
+            </Text>
+            {riskBreakdown.items?.map((item) => (
+              <View key={item.id} style={[styles.riskCheckItem, { borderColor: colors.border }]}>
+                <MaterialIcons
+                  name={item.met ? "check-circle" : "radio-button-unchecked"}
+                  size={22}
+                  color={item.met ? colors.success : colors.textMuted}
+                  style={styles.riskCheckIcon}
+                />
+                <View style={styles.riskCheckContent}>
+                  <Text style={[styles.riskCheckLabel, { color: colors.text }]}>{item.label}</Text>
+                  <Text style={[styles.riskCheckTip, { color: colors.textMuted }]}>
+                    {item.met ? item.tip : item.action}
+                  </Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+      </TouchableOpacity>
+
       {/* Profile header card - gradient style */}
       <View style={styles.headerCard}>
         <View style={styles.headerRow}>
@@ -370,6 +459,86 @@ function createStyles(colors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
     content: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.xxl },
+    riskCard: {
+      backgroundColor: colors.surface,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: spacing.md,
+      marginBottom: spacing.lg,
+    },
+    riskHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      marginBottom: spacing.sm,
+    },
+    riskLabel: {
+      fontSize: 12,
+      fontWeight: "800",
+      letterSpacing: 0.5,
+      fontStyle: typography.fontStyle,
+    },
+    barTrack: {
+      height: 10,
+      borderRadius: 5,
+      overflow: "hidden",
+    },
+    barFill: {
+      height: "100%",
+      borderRadius: 5,
+    },
+    riskHeaderRight: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+    },
+    riskBarsText: {
+      fontSize: 12,
+      fontWeight: "700",
+      fontStyle: typography.fontStyle,
+    },
+    riskDropdown: {
+      marginTop: spacing.md,
+      paddingTop: spacing.md,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+    },
+    riskDropdownTitle: {
+      fontSize: 15,
+      fontWeight: "800",
+      marginBottom: 4,
+      fontStyle: typography.fontStyle,
+    },
+    riskDropdownSubtitle: {
+      fontSize: 13,
+      marginBottom: spacing.md,
+      fontStyle: typography.fontStyle,
+    },
+    riskCheckItem: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      paddingVertical: spacing.sm,
+      borderBottomWidth: 1,
+    },
+    riskCheckIcon: {
+      marginRight: spacing.sm,
+      marginTop: 2,
+    },
+    riskCheckContent: {
+      flex: 1,
+    },
+    riskCheckLabel: {
+      fontSize: 14,
+      fontWeight: "600",
+      marginBottom: 2,
+      fontStyle: typography.fontStyle,
+    },
+    riskCheckTip: {
+      fontSize: 12,
+      lineHeight: 18,
+      fontStyle: typography.fontStyle,
+    },
     loader: { flex: 1, justifyContent: "center", alignItems: "center" },
     headerCard: {
       backgroundColor: colors.surfaceLight,

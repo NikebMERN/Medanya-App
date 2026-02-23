@@ -11,6 +11,9 @@ const FollowersListScreen = React.lazy(() => import("../screens/profile/Follower
 const FollowingListScreen = React.lazy(() => import("../screens/profile/FollowingListScreen"));
 const UserProfileScreen = React.lazy(() => import("../screens/profile/UserProfileScreen"));
 const KycScreen = React.lazy(() => import("../screens/profile/KycScreen"));
+const KycDocUploadScreen = React.lazy(() => import("../screens/profile/KycDocUploadScreen"));
+const KycSelfieScreen = React.lazy(() => import("../screens/profile/KycSelfieScreen"));
+const KycMismatchScreen = React.lazy(() => import("../screens/profile/KycMismatchScreen"));
 
 const Stack = createNativeStackNavigator();
 
@@ -41,6 +44,9 @@ export default function ProfileStack() {
         <Stack.Screen name="FollowingList" component={FollowingListScreen} />
         <Stack.Screen name="UserProfile" component={UserProfileScreen} />
         <Stack.Screen name="Kyc" component={KycScreen} />
+        <Stack.Screen name="KycDocUpload" component={KycDocUploadScreen} />
+        <Stack.Screen name="KycSelfie" component={KycSelfieScreen} />
+        <Stack.Screen name="KycMismatch" component={KycMismatchScreen} />
       </Stack.Navigator>
     </Suspense>
   );

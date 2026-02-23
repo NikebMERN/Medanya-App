@@ -87,16 +87,24 @@ function validatePatch(body = {}) {
     return out;
 }
 
+const { computeUserRiskScore, getRiskLabel, getRiskBreakdown } = require("../../utils/riskScore.util");
+const ListingReport = require("../reports/listingReport.model");
+
 async function me(reqUser) {
     const userId = getUserId(reqUser);
-    const user = await db.getById(userId);
+    const user = await db.getById(userId, { forSelf: true });
     if (!user) throw err("NOT_FOUND", "User not found");
-    const [followers, following] = await Promise.all([
+    const [followers, following, reportsCount] = await Promise.all([
         followDb.countFollowers(userId),
         followDb.countFollowing(userId),
+        ListingReport.countDocuments({ targetType: "user", targetId: String(userId) }).catch(() => 0),
     ]);
     user.followerCount = followers;
     user.followingCount = following;
+    const bars = await computeUserRiskScore(user, reportsCount);
+    user.risk_score = bars;
+    user.risk_label = getRiskLabel(bars);
+    user.risk_breakdown = getRiskBreakdown(user, reportsCount);
     return user;
 }
 
@@ -272,13 +280,15 @@ async function getPublicProfile(reqUser, targetUserId) {
     if (blockedByMe || blockedMe) throw err("NOT_FOUND", "User not found");
     const user = await db.getById(targetId);
     if (!user || !user.is_active) throw err("NOT_FOUND", "User not found");
-    const [followerCount, followingCount, isFollowing, followsMe, followRequestPending] = await Promise.all([
+    const [followerCount, followingCount, isFollowing, followsMe, followRequestPending, reportsCount] = await Promise.all([
         followDb.countFollowers(targetId),
         followDb.countFollowing(targetId),
         followDb.isFollowing(currentUserId, targetId),
         followDb.isFollowing(targetId, currentUserId),
         followDb.getPendingRequest(currentUserId, targetId),
+        ListingReport.countDocuments({ targetType: "user", targetId }).catch(() => 0),
     ]);
+    const bars = await computeUserRiskScore(user, reportsCount);
     const out = {
         id: user.id,
         display_name: user.display_name,
@@ -292,6 +302,9 @@ async function getPublicProfile(reqUser, targetUserId) {
         isFollowing: !!isFollowing,
         followsMe: !!followsMe,
         followRequestPending: !!followRequestPending,
+        risk_score: bars,
+        risk_label: getRiskLabel(bars),
+        kyc_face_verified: !!user.kyc_face_verified,
     };
     if (isFollowing && user.phone_number) out.phone_number = user.phone_number;
     return out;

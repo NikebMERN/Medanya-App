@@ -6,6 +6,7 @@ const insertItem = async ({
     title,
     description,
     price,
+    currency,
     category,
     location,
     image_urls,
@@ -14,17 +15,19 @@ const insertItem = async ({
     status: statusVal,
 }) => {
     const status = statusVal || "active";
+    const cur = currency || "AED";
     const [result] = await pool.query(
         `
     INSERT INTO marketplace_items
-    (seller_id, title, description, price, category, location, image_urls, risk_score, matched_keywords, status)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    (seller_id, title, description, price, currency, category, location, image_urls, risk_score, matched_keywords, status)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
         [
             seller_id,
             title,
             description,
             price,
+            cur,
             category,
             location,
             image_urls ? JSON.stringify(image_urls) : null,

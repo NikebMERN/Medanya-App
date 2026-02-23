@@ -48,7 +48,7 @@ async function createStream(user, body) {
     if (!hostUser) throw codeErr("NOT_FOUND", "User not found");
     if (!hostUser.otp_verified) throw codeErr("OTP_REQUIRED", "OTP verification required to go live");
     const age = ageFromDob(hostUser.dob);
-    if (age == null || age < 18) throw codeErr("AGE_REQUIRED", "You must be 18 or older to host a stream");
+    if (age == null || age < 16) throw codeErr("AGE_REQUIRED", "You must be 16 or older to host a stream");
 
     const title = cleanStr(body?.title, 120);
     const category = cleanStr(body?.category, 60);
