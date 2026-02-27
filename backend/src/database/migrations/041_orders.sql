@@ -1,0 +1,32 @@
+CREATE TABLE IF NOT EXISTS orders (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    buyer_id BIGINT UNSIGNED NOT NULL,
+    seller_id BIGINT UNSIGNED NOT NULL,
+    listing_id BIGINT UNSIGNED NOT NULL,
+    qty INT UNSIGNED NOT NULL DEFAULT 1,
+    total_cents INT UNSIGNED NOT NULL,
+    commission_cents INT UNSIGNED NOT NULL DEFAULT 0,
+    status ENUM(
+        'PENDING_PAYMENT',
+        'AUTHORIZED',
+        'COD_SELECTED',
+        'SHIPPED',
+        'DELIVERED_PENDING_CODE',
+        'COMPLETED',
+        'DISPUTED',
+        'CANCELED',
+        'EXPIRED'
+    ) NOT NULL DEFAULT 'PENDING_PAYMENT',
+    payment_method ENUM('STRIPE', 'COD') NOT NULL DEFAULT 'STRIPE',
+    stripe_payment_intent_id VARCHAR(128) NULL,
+    delivery_code_hash VARCHAR(128) NULL,
+    delivery_code_sent_at TIMESTAMP NULL,
+    address_json JSON NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_orders_buyer (buyer_id),
+    INDEX idx_orders_seller (seller_id),
+    INDEX idx_orders_listing (listing_id),
+    INDEX idx_orders_status (status),
+    INDEX idx_orders_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

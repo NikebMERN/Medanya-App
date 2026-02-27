@@ -1,11 +1,15 @@
 // src/modules/livestream/stream.model.js
 const mongoose = require("mongoose");
 
+const STREAM_FIELDS = ["GENERAL", "MARKETING", "EDUCATION", "MUSIC", "JOBS", "SAFETY"];
+
 const StreamSchema = new mongoose.Schema(
     {
         hostId: { type: String, required: true, index: true },
         title: { type: String, default: "" },
         category: { type: String, default: "" },
+        field: { type: String, enum: STREAM_FIELDS, default: "GENERAL", index: true },
+        tags: [{ type: String }],
 
         status: {
             type: String,

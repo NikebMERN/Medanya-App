@@ -27,9 +27,57 @@ const CardWithLink = ({ title, value, to }) => {
   );
 };
 
+const api = (path) => {
+  const base = import.meta.env?.VITE_API_URL || "";
+  return `${base}/api/admin${path}`;
+};
+
 export default function Dashboard() {
   const [counts, setCounts] = React.useState(null);
+  const [mlRetrain, setMlRetrain] = React.useState({ pending: null, labeledCount: 0 });
+  const [mlLoading, setMlLoading] = React.useState(false);
   const dataProvider = useDataProvider();
+
+  const fetchMlRetrain = React.useCallback(() => {
+    const token = localStorage.getItem("medanya_admin_token");
+    const headers = token ? { Authorization: `Bearer ${token}` } : {};
+    fetch(api("/ml/retrain-status"), { headers })
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.success) setMlRetrain({ pending: d.pending, labeledCount: d.labeledCount ?? 0 });
+      })
+      .catch(() => {});
+  }, []);
+
+  const doRequestRetrain = () => {
+    setMlLoading(true);
+    const token = localStorage.getItem("medanya_admin_token");
+    const headers = { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+    fetch(api("/ml/request-retrain"), { method: "POST", headers })
+      .then((r) => r.json())
+      .then((d) => { setMlLoading(false); if (d.success) fetchMlRetrain(); else alert(d.error || "Failed"); })
+      .catch(() => setMlLoading(false));
+  };
+
+  const doApproveRetrain = () => {
+    setMlLoading(true);
+    const token = localStorage.getItem("medanya_admin_token");
+    const headers = { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+    fetch(api("/ml/approve-retrain"), { method: "POST", headers })
+      .then((r) => r.json())
+      .then((d) => { setMlLoading(false); if (d.success) { alert("Retrain approved – training started"); fetchMlRetrain(); } else alert(d.error || "Failed"); })
+      .catch(() => setMlLoading(false));
+  };
+
+  const doRejectRetrain = () => {
+    setMlLoading(true);
+    const token = localStorage.getItem("medanya_admin_token");
+    const headers = { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+    fetch(api("/ml/reject-retrain"), { method: "POST", headers })
+      .then((r) => r.json())
+      .then((d) => { setMlLoading(false); if (d.success) fetchMlRetrain(); })
+      .catch(() => setMlLoading(false));
+  };
 
   React.useEffect(() => {
     const token = localStorage.getItem("medanya_admin_token");
@@ -52,7 +100,7 @@ export default function Dashboard() {
       .then((r) => setCounts((c) => ({ ...c, urgent: r.total })))
       .catch(() => {});
 
-    fetch("/api/admin/moderation/counts", { headers })
+    fetch(api("/moderation/counts"), { headers })
       .then((res) => res.json())
       .then((d) => {
         if (d.success)
@@ -65,7 +113,7 @@ export default function Dashboard() {
       })
       .catch(() => {});
 
-    fetch("/api/admin/kyc?status=pending_manual&limit=1", { headers })
+    fetch(api("/kyc?status=pending_manual&limit=1"), { headers })
       .then((res) => res.json())
       .then((d) => {
         if (d.success)
@@ -73,26 +121,28 @@ export default function Dashboard() {
       })
       .catch(() => {});
 
-    fetch("/api/admin/health", { headers })
+    fetch(api("/health"), { headers })
       .then((res) => res.json())
       .then((d) => {
         setCounts((c) => ({ ...c, serverOk: d?.ok === true }));
       })
       .catch(() => setCounts((c) => ({ ...c, serverOk: false })));
 
-    fetch("/api/admin/users?page=1&limit=1", { headers })
+    fetch(api("/users?page=1&limit=1"), { headers })
       .then((res) => res.json())
       .then((d) => {
         if (d.success && typeof d.total === "number")
           setCounts((c) => ({ ...c, totalUsers: d.total }));
       })
       .catch(() => {});
-  }, [dataProvider]);
+    fetchMlRetrain();
+  }, [dataProvider, fetchMlRetrain]);
 
   const navigate = useNavigate();
   const c = counts ?? {};
 
   return (
+    <>
     <Card>
       <CardContent>
         <Typography variant="h5" component="h2" gutterBottom>
@@ -128,7 +178,27 @@ export default function Dashboard() {
             variant="outlined"
           />
         </div>
+
       </CardContent>
     </Card>
+    <Card sx={{ mt: 3 }}>
+      <CardContent>
+        <Typography variant="h6" gutterBottom>Scam ML Retrain</Typography>
+        <Typography color="textSecondary" variant="body2" sx={{ mb: 2 }}>
+          Labeled samples: {mlRetrain.labeledCount}. Retrain runs only when you approve.
+        </Typography>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {mlRetrain.pending ? (
+            <>
+              <Button label="Approve retrain" onClick={doApproveRetrain} variant="contained" color="primary" disabled={mlLoading} />
+              <Button label="Reject" onClick={doRejectRetrain} variant="outlined" disabled={mlLoading} />
+            </>
+          ) : (
+            <Button label="Request retrain" onClick={doRequestRetrain} variant="outlined" disabled={mlLoading || mlRetrain.labeledCount < 200} />
+          )}
+        </div>
+      </CardContent>
+    </Card>
+    </>
   );
 }

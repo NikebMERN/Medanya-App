@@ -4,6 +4,8 @@ const Video = require("./video.model");
 const VideoLike = require("./videoLike.model");
 const VideoComment = require("./videoComment.model");
 const userDb = require("../users/user.mysql");
+const videoPinsDb = require("./video_pins.mysql");
+const marketDb = require("../marketplace/market.mysql");
 const { createReportAndCheckThreshold } = require("../../services/reportThreshold.service");
 
 function codeErr(code, message) {
@@ -60,8 +62,11 @@ async function createVideo(user, body) {
 
     const uploader = await userDb.getById(userId);
     if (!uploader) throw codeErr("UNAUTHORIZED", "User not found");
+    const kycVerified = !!(uploader.kyc_face_verified || (uploader.kyc_status === "verified" && (uploader.kyc_level || 0) >= 2));
+    if (!kycVerified) throw codeErr("FORBIDDEN", "Identity verification required. Complete verification in Profile before posting videos.");
+    if (!uploader.dob) throw codeErr("AGE_REQUIRED", "Date of birth required to post videos. Add it in Edit Profile.");
     const age = ageFromDob(uploader.dob);
-    if (age == null || age < 16) throw codeErr("AGE_REQUIRED", "You must be 16 or older to post videos");
+    if (age == null || age < 16) throw codeErr("AGE_REQUIRED", "You must be 16 or older to post videos.");
 
     const videoUrl = cleanStr(body.videoUrl, 800);
     const thumbnailUrl = cleanStr(body.thumbnailUrl, 800);
@@ -281,10 +286,64 @@ async function adminHide(videoId, note) {
     return doc.toObject();
 }
 
+async function pinListing(user, videoId, listingId) {
+    const userId = toId(user?.id ?? user?.userId);
+    if (!userId) throw codeErr("UNAUTHORIZED", "Auth required");
+    if (!mongoose.isValidObjectId(videoId)) throw codeErr("NOT_FOUND", "Video not found");
+
+    const video = await Video.findById(videoId).lean();
+    if (!video) throw codeErr("NOT_FOUND", "Video not found");
+    if (!isActiveStatus(video.status)) throw codeErr("FORBIDDEN", "Video not available");
+
+    const ownerId = String(video.uploaderId || video.createdBy || "");
+    if (ownerId !== userId) throw codeErr("FORBIDDEN", "Only the video owner can pin listings");
+
+    const listing = await marketDb.findById(listingId);
+    if (!listing) throw codeErr("NOT_FOUND", "Listing not found");
+    if (String(listing.seller_id) !== ownerId)
+        throw codeErr("FORBIDDEN", "Can only pin your own listings");
+
+    const listId = Number(listingId);
+    if (!Number.isInteger(listId) || listId <= 0)
+        throw codeErr("VALIDATION_ERROR", "Invalid listingId");
+
+    const { pool } = require("../../config/mysql");
+    const conn = await pool.getConnection();
+    try {
+        const maxOrder = await videoPinsDb.getMaxSortOrder(conn, videoId);
+        await videoPinsDb.insertPin(conn, {
+            video_id: videoId,
+            listing_id: listId,
+            user_id: userId,
+            sort_order: maxOrder + 1,
+        });
+    } finally {
+        conn.release();
+    }
+
+    return getPins(videoId);
+}
+
+async function getPins(videoId) {
+    if (!mongoose.isValidObjectId(videoId)) return { pins: [], items: [] };
+    const { pool } = require("../../config/mysql");
+    const rawPins = await videoPinsDb.getPinsByVideoId(pool, videoId);
+    const pins = rawPins.map((p) => ({ id: p.id, listing_id: p.listing_id, sort_order: p.sort_order, created_at: p.created_at }));
+    const items = [];
+    for (const p of rawPins) {
+        const item = await marketDb.findById(p.listing_id);
+        if (item && (item.status || "").toLowerCase() === "active")
+            items.push({ ...item, pin_id: p.id });
+    }
+    return { pins, items };
+}
+
 module.exports = {
     createVideo,
     listPublic,
     getPublicById,
+    pinListing,
+    getPins,
     likeVideo,
     unlikeVideo,
     listComments,

@@ -4,6 +4,7 @@
  */
 import client from "../api/client";
 
+/** Sort: newest | salary_high */
 export async function listJobs(params = {}) {
   const res = await client.get("/jobs", {
     params: {
@@ -12,6 +13,8 @@ export async function listJobs(params = {}) {
       category: params.category || undefined,
       location: params.location || undefined,
       status: params.status || undefined,
+      sort: params.sort || "newest",
+      includeCreatorPending: params.includeCreatorPending,
     },
   });
   const data = res?.data ?? res;
@@ -23,6 +26,7 @@ export async function listJobs(params = {}) {
   };
 }
 
+/** Sort: newest | salary_high. Jobs include status, risk_score, ai_scam_score when returned by backend. */
 export async function searchJobs(params = {}) {
   const res = await client.get("/jobs/search", {
     params: {
@@ -31,6 +35,8 @@ export async function searchJobs(params = {}) {
       location: params.location || undefined,
       page: params.page,
       limit: params.limit ?? 20,
+      sort: params.sort || "newest",
+      includeCreatorPending: params.includeCreatorPending,
     },
   });
   const data = res?.data ?? res;

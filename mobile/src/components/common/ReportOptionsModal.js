@@ -30,6 +30,7 @@ export default function ReportOptionsModal({
   targetUserId,
   contextSourceUrl = "",
   onBlocked,
+  onReportListingPress,
 }) {
   const colors = useThemeColors();
   const styles = createStyles(colors);
@@ -54,6 +55,11 @@ export default function ReportOptionsModal({
   };
 
   const handleReportListing = () => {
+    if (onReportListingPress) {
+      onClose();
+      onReportListingPress();
+      return;
+    }
     onClose();
     Alert.alert(
       "Report",

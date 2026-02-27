@@ -18,8 +18,13 @@ router.get("/gifts", (req, res) => {
 
 // Auth required
 router.post("/streams", auth, controller.create);
+router.post("/live/create", auth, controller.create);
 router.post("/streams/:id/token", auth, controller.token);
 router.post("/streams/:id/end", auth, controller.end);
+router.post("/live/:id/pin", auth, controller.pinListing);
+router.get("/live/:id/pins", controller.getPins);
+router.post("/streams/:id/pin", auth, controller.pinListing);
+router.get("/streams/:id/pins", controller.getPins);
 
 // Admin
 router.patch(

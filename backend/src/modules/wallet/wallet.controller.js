@@ -69,4 +69,36 @@ const adminDebit = async (req, res) => {
     }
 };
 
-module.exports = { me, myTransactions, adminCredit, adminDebit };
+const createRechargeIntent = async (req, res) => {
+    try {
+        const stripeService = require("../payments/stripe.service");
+        const userId = req.user?.id ?? req.user?.userId;
+        if (!userId) return res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Auth required" } });
+        const { packageId } = req.body || {};
+        const data = await stripeService.createRechargeIntent({ userId, packageId });
+        return res.status(201).json({ success: true, ...data });
+    } catch (e) {
+        return sendErr(res, e);
+    }
+};
+
+const support = async (req, res) => {
+    try {
+        const supporterId = req.user?.id ?? req.user?.userId;
+        if (!supporterId) return res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Auth required" } });
+        const { creatorId, amount, context, contextId } = req.body || {};
+        if (!creatorId) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "creatorId required" } });
+        const result = await service.supportCreator({
+            supporterId,
+            creatorId,
+            amount,
+            context: context || "VIDEO",
+            contextId,
+        });
+        return res.status(201).json({ success: true, ...result });
+    } catch (e) {
+        return sendErr(res, e);
+    }
+};
+
+module.exports = { me, myTransactions, adminCredit, adminDebit, createRechargeIntent, support };

@@ -14,6 +14,7 @@ import { useThemeColors } from "../../theme/useThemeColors";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useVideosStore } from "../../store/videos.store";
 import { useAuthStore } from "../../store/auth.store";
+import PinItemSheet from "../../components/PinItemSheet";
 
 export default function ReelsFeedScreen({ navigation }) {
   const { height: windowHeight, width: windowWidth } = useWindowDimensions();
@@ -23,6 +24,8 @@ export default function ReelsFeedScreen({ navigation }) {
   const itemHeight = windowHeight;
   const styles = useMemo(() => createStyles(colors, itemHeight), [colors, itemHeight]);
   const { videos, loading, loadMore, refresh, error, optimisticToggleLike } = useVideosStore();
+  const [pinSheetVisible, setPinSheetVisible] = useState(false);
+  const [selectedVideo, setSelectedVideo] = useState(null);
 
   useEffect(() => {
     refresh();
@@ -51,6 +54,16 @@ export default function ReelsFeedScreen({ navigation }) {
             <MaterialIcons name="chat-bubble-outline" size={32} color={colors.white} />
             <Text style={styles.countText}>{item.commentCount ?? 0}</Text>
           </View>
+          <TouchableOpacity
+            style={styles.iconStack}
+            onPress={() => {
+              setSelectedVideo(item);
+              setPinSheetVisible(true);
+            }}
+          >
+            <MaterialIcons name="storefront" size={28} color={colors.white} />
+            <Text style={styles.countText}>Shop</Text>
+          </TouchableOpacity>
           <TouchableOpacity
             style={styles.iconStack}
             onPress={() => navigation?.navigate?.("VideoDetail", { videoId: item._id })}
@@ -95,6 +108,16 @@ export default function ReelsFeedScreen({ navigation }) {
             )}
           </View>
         }
+      />
+      <PinItemSheet
+        visible={pinSheetVisible}
+        onClose={() => { setPinSheetVisible(false); setSelectedVideo(null); }}
+        videoId={selectedVideo?._id}
+        creatorId={selectedVideo?.uploaderId ?? selectedVideo?.createdBy}
+        onItemPress={(listItem) => {
+          const nav = navigation?.getParent?.()?.getParent?.() ?? navigation;
+          nav?.navigate?.("Main", { screen: "Marketplace", params: { screen: "MarketplaceDetail", params: { itemId: listItem.id } } });
+        }}
       />
       <View style={[styles.topBar, { top: insets.top + 8 }]}>
         <TouchableOpacity style={styles.topBarBtn} onPress={() => navigation?.goBack?.()}>

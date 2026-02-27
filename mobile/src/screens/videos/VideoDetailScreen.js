@@ -7,6 +7,7 @@ import { useAuthStore } from "../../store/auth.store";
 import * as videosApi from "../../api/videos.api";
 import * as activityApi from "../../services/activity.api";
 import ReportModal from "./ReportModal";
+import PinItemSheet from "../../components/PinItemSheet";
 
 export default function VideoDetailScreen({ route, navigation }) {
   const colors = useThemeColors();
@@ -18,6 +19,7 @@ export default function VideoDetailScreen({ route, navigation }) {
   const [commentText, setCommentText] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
+  const [pinSheetVisible, setPinSheetVisible] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -78,9 +80,17 @@ export default function VideoDetailScreen({ route, navigation }) {
           <MaterialIcons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.title} numberOfLines={1}>Video</Text>
-        <TouchableOpacity onPress={() => setReportOpen(true)} style={styles.iconBtn}>
-          <MaterialIcons name="flag" size={22} color={colors.text} />
-        </TouchableOpacity>
+        <View style={styles.headerRight}>
+          <TouchableOpacity
+            onPress={() => setPinSheetVisible(true)}
+            style={styles.iconBtn}
+          >
+            <MaterialIcons name="storefront" size={22} color={colors.text} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => setReportOpen(true)} style={styles.iconBtn}>
+            <MaterialIcons name="flag" size={22} color={colors.text} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={styles.body}>
@@ -114,6 +124,16 @@ export default function VideoDetailScreen({ route, navigation }) {
         ListEmptyComponent={<Text style={styles.empty}>No comments yet.</Text>}
       />
 
+      <PinItemSheet
+        visible={pinSheetVisible}
+        onClose={() => setPinSheetVisible(false)}
+        videoId={videoId}
+        creatorId={video?.uploaderId ?? video?.createdBy}
+        onItemPress={(item) => {
+          const nav = navigation.getParent?.()?.getParent?.() ?? navigation;
+          nav.navigate?.("Main", { screen: "Marketplace", params: { screen: "MarketplaceDetail", params: { itemId: item.id } } });
+        }}
+      />
       <ReportModal
         visible={reportOpen}
         onClose={() => setReportOpen(false)}
@@ -143,6 +163,7 @@ function createStyles(colors) {
       borderBottomWidth: 1,
       borderBottomColor: colors.border,
     },
+    headerRight: { flexDirection: "row" },
     iconBtn: { padding: spacing.sm },
     title: { color: colors.text, fontSize: 16, fontWeight: "800" },
     body: { padding: spacing.lg },

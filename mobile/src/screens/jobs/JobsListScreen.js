@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useMemo } from "react";
+import React, { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import {
   View,
   Text,
@@ -7,134 +7,243 @@ import {
   TouchableOpacity,
   TextInput,
   Image,
-  ActivityIndicator,
   RefreshControl,
   Platform,
   Modal,
   Pressable,
   ScrollView,
 } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
 import { useJobsStore, JOB_CATEGORIES } from "../../store/jobs.store";
 import { useAuthStore } from "../../store/auth.store";
-import * as jobsApi from "../../services/jobs.api";
+import StatusChip from "../../components/StatusChip";
+import RiskBadge from "../../components/RiskBadge";
+import SkeletonCard from "../../components/SkeletonCard";
+import EmptyState from "../../components/EmptyState";
+
+const SORT_OPTIONS = [
+  { value: "newest", label: "Newest" },
+  { value: "salary_high", label: "Salary: High to Low" },
+];
 
 export default function JobsListScreen() {
   const navigation = useNavigation();
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
-  const user = useAuthStore((s) => s.user);
-  const otpVerified = !!(user?.otp_verified ?? user?.otpVerified);
+  const userId = useAuthStore((s) => s.user?.id ?? s.user?.userId ?? "");
+  const otpVerified = !!(useAuthStore((s) => s.user?.otp_verified ?? s.user?.otpVerified));
   const isLoggedIn = !!useAuthStore((s) => s.token);
 
   const jobs = useJobsStore((s) => s.jobs);
   const total = useJobsStore((s) => s.total);
   const loading = useJobsStore((s) => s.loading);
   const error = useJobsStore((s) => s.error);
+  const refreshing = useJobsStore((s) => s.refreshing);
+  const hasMore = useJobsStore((s) => s.hasMore);
   const category = useJobsStore((s) => s.category);
   const keyword = useJobsStore((s) => s.keyword);
-  const setJobs = useJobsStore((s) => s.setJobs);
-  const setLoading = useJobsStore((s) => s.setLoading);
-  const setError = useJobsStore((s) => s.setError);
+  const sort = useJobsStore((s) => s.sort);
   const setFilters = useJobsStore((s) => s.setFilters);
-  const clear = useJobsStore((s) => s.clear);
-
-  const [searchInput, setSearchInput] = useState(keyword);
-  const [refreshing, setRefreshing] = useState(false);
-  const [categoryDropdownVisible, setCategoryDropdownVisible] = useState(false);
-
-  const loadJobs = useCallback(async (refresh = false) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const params = {
-        page: 1,
-        limit: 30,
-        category: category || undefined,
-        location: searchInput.trim() || undefined,
-        keyword: searchInput.trim() || undefined,
-      };
-      const result = searchInput.trim()
-        ? await jobsApi.searchJobs(params)
-        : await jobsApi.listJobs(params);
-      setJobs(result.jobs, result.total, result.page);
-    } catch (err) {
-      const msg = err?.response?.data?.error?.message || err?.message || "Failed to load jobs.";
-      setError(msg);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [category, searchInput, setJobs, setLoading, setError]);
+  const setViewerId = useJobsStore((s) => s.setViewerId);
+  const fetchJobs = useJobsStore((s) => s.fetchJobs);
+  const fetchMore = useJobsStore((s) => s.fetchMore);
+  const refresh = useJobsStore((s) => s.refresh);
 
   useEffect(() => {
-    loadJobs();
-  }, [category]);
+    setViewerId(userId);
+  }, [userId, setViewerId]);
 
-  const onRefresh = useCallback(() => {
-    setRefreshing(true);
-    loadJobs(true);
-  }, [loadJobs]);
-
-  const onSearch = useCallback(() => {
-    setFilters({ keyword: searchInput.trim() });
-    loadJobs(true);
-  }, [searchInput, setFilters, loadJobs]);
-
-  const onCategorySelect = useCallback((value) => {
-    setFilters({ category: value });
-    setCategoryDropdownVisible(false);
-  }, [setFilters]);
+  const [searchInput, setSearchInput] = useState(keyword || "");
+  const [categoryDropdownVisible, setCategoryDropdownVisible] = useState(false);
+  const [sortDropdownVisible, setSortDropdownVisible] = useState(false);
+  const isFirstFocus = useRef(true);
 
   const selectedCategoryLabel = useMemo(() => {
     const cat = JOB_CATEGORIES.find((c) => (c.value || "") === (category || ""));
     return cat?.label ?? "All categories";
   }, [category]);
 
+  const selectedSortLabel = useMemo(() => {
+    const opt = SORT_OPTIONS.find((o) => (o.value || "") === (sort || "newest"));
+    return opt?.label ?? "Newest";
+  }, [sort]);
+
+  const filteredJobs = useMemo(() => {
+    return jobs.filter((j) => {
+      const status = (j.status || "active").toLowerCase();
+      if (status === "pending_review") {
+        const creatorId = j.created_by ?? j.createdBy ?? "";
+        if (String(creatorId) !== String(userId)) return false;
+      }
+      return true;
+    });
+  }, [jobs, userId]);
+
+  const load = useCallback(() => {
+    setFilters({ keyword: searchInput.trim() });
+    fetchJobs(true);
+  }, [searchInput, setFilters, fetchJobs]);
+
+  useEffect(() => {
+    fetchJobs(true);
+  }, [category, sort]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (isFirstFocus.current) {
+        isFirstFocus.current = false;
+        return;
+      }
+      fetchJobs(true);
+    }, [fetchJobs])
+  );
+
+  const onRefresh = useCallback(() => refresh(), [refresh]);
+  const onSearch = useCallback(() => {
+    setFilters({ keyword: searchInput.trim() });
+    fetchJobs(true);
+  }, [searchInput, setFilters, fetchJobs]);
+
+  const onCategorySelect = useCallback(
+    (value) => {
+      setFilters({ category: value });
+      setCategoryDropdownVisible(false);
+    },
+    [setFilters]
+  );
+
+  const onSortSelect = useCallback(
+    (value) => {
+      setFilters({ sort: value });
+      setSortDropdownVisible(false);
+    },
+    [setFilters]
+  );
+
   const renderItem = useCallback(
-    ({ item }) => (
-      <TouchableOpacity
-        style={styles.card}
-        onPress={() => navigation.navigate("JobDetail", { jobId: item.id })}
-        activeOpacity={0.8}
-      >
-        {item.image_url ? (
-          <Image source={{ uri: item.image_url }} style={styles.cardImage} resizeMode="cover" />
-        ) : (
-          <View style={[styles.cardImage, styles.cardImagePlaceholder]}>
-            <MaterialIcons name="work" size={32} color={colors.textMuted} />
-          </View>
-        )}
-        <View style={styles.cardBody}>
-          <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
-          <View style={styles.cardMeta}>
-            <Text style={styles.cardCategory}>{item.category || "Job"}</Text>
-            {item.salary ? (
-              <Text style={styles.cardSalary} numberOfLines={1}>{item.salary}</Text>
-            ) : null}
-          </View>
-          {item.location ? (
-            <View style={styles.cardLocation}>
-              <MaterialIcons name="location-on" size={14} color={colors.textMuted} />
-              <Text style={styles.cardLocationText} numberOfLines={1}>{item.location}</Text>
+    ({ item }) => {
+      const creatorId = item.created_by ?? item.createdBy ?? "";
+      const isCreator = String(creatorId) === String(userId);
+      const status = (item.status || "active").toLowerCase();
+      const riskScore = item.risk_score ?? item.riskScore ?? 0;
+      const aiScamScore = item.ai_scam_score ?? item.aiScamScore ?? 0;
+      const showRiskBadge = isCreator && (riskScore >= 60 || aiScamScore >= 80);
+
+      return (
+        <TouchableOpacity
+          style={styles.card}
+          onPress={() => navigation.navigate("JobDetail", { jobId: item.id })}
+          activeOpacity={0.8}
+        >
+          {item.image_url || item.imageUrl ? (
+            <Image source={{ uri: item.image_url || item.imageUrl }} style={styles.cardImage} resizeMode="cover" />
+          ) : (
+            <View style={[styles.cardImage, styles.cardImagePlaceholder]}>
+              <MaterialIcons name="work" size={32} color={colors.textMuted} />
             </View>
-          ) : null}
-          <View style={styles.cardFooter}>
-            <Text style={styles.cardApply}>Apply</Text>
-            <MaterialIcons name="arrow-forward" size={16} color={colors.primary} />
+          )}
+          <View style={styles.cardBody}>
+            <View style={styles.cardTop}>
+              <Text style={styles.cardTitle} numberOfLines={1}>
+                {item.title}
+              </Text>
+              {isCreator && <StatusChip status={status} />}
+            </View>
+            <View style={styles.cardMeta}>
+              <Text style={styles.cardCategory}>{item.category || "Job"}</Text>
+              {item.salary ? (
+                <Text style={styles.cardSalary} numberOfLines={1}>
+                  {item.salary}
+                </Text>
+              ) : null}
+            </View>
+            {showRiskBadge && (
+              <View style={styles.riskWrap}>
+                <RiskBadge riskScore={riskScore} aiScamScore={aiScamScore} />
+              </View>
+            )}
+            {item.location ? (
+              <View style={styles.cardLocation}>
+                <MaterialIcons name="location-on" size={14} color={colors.textMuted} />
+                <Text style={styles.cardLocationText} numberOfLines={1}>
+                  {item.location}
+                </Text>
+              </View>
+            ) : null}
+            <View style={styles.cardFooter}>
+              <Text style={styles.cardApply}>Apply</Text>
+              <MaterialIcons name="arrow-forward" size={16} color={colors.primary} />
+            </View>
           </View>
-        </View>
-      </TouchableOpacity>
-    ),
-    [navigation, styles, colors]
+        </TouchableOpacity>
+      );
+    },
+    [navigation, styles, colors, userId]
   );
 
   const listHeader = (
+    <View style={styles.headerRow}>
+      <Text style={styles.headerTitle}>Jobs</Text>
+      {isLoggedIn && otpVerified && (
+        <TouchableOpacity
+          style={styles.addBtn}
+          onPress={() => navigation.navigate("CreateJob")}
+          activeOpacity={0.8}
+        >
+          <MaterialIcons name="add" size={24} color={colors.white} />
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+
+  const filterRow = (
+    <View style={styles.filterRow}>
+      <TouchableOpacity
+        style={styles.filterBtn}
+        onPress={() => setCategoryDropdownVisible(true)}
+        activeOpacity={0.8}
+      >
+        <Text style={styles.filterBtnText} numberOfLines={1}>
+          {selectedCategoryLabel}
+        </Text>
+        <MaterialIcons name="keyboard-arrow-down" size={20} color={colors.textSecondary} />
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={styles.filterBtn}
+        onPress={() => setSortDropdownVisible(true)}
+        activeOpacity={0.8}
+      >
+        <Text style={styles.filterBtnText} numberOfLines={1}>
+          {selectedSortLabel}
+        </Text>
+        <MaterialIcons name="keyboard-arrow-down" size={20} color={colors.textSecondary} />
+      </TouchableOpacity>
+    </View>
+  );
+
+  const listEmpty =
+    loading && jobs.length === 0 ? null : (
+      <EmptyState variant="jobs" onRetry={load} />
+    );
+
+  const listFooter = useCallback(() => {
+    if (loading && jobs.length > 0) {
+      return (
+        <View style={styles.footerLoader}>
+          <Text style={[styles.footerText, { color: colors.textMuted }]}>Loading more...</Text>
+        </View>
+      );
+    }
+    return null;
+  }, [loading, jobs.length, styles, colors]);
+
+  const ListHeaderComponent = (
     <>
+      {listHeader}
       <View style={styles.searchRow}>
         <View style={styles.searchWrap}>
           <MaterialIcons name="search" size={20} color={colors.textMuted} />
@@ -148,18 +257,59 @@ export default function JobsListScreen() {
             returnKeyType="search"
           />
         </View>
-        <TouchableOpacity style={styles.searchBtn} onPress={onSearch} activeOpacity={0.8}>
+        <TouchableOpacity style={styles.searchBtn} onPress={onSearch}>
           <Text style={styles.searchBtnText}>Search</Text>
         </TouchableOpacity>
       </View>
-      <TouchableOpacity
-        style={styles.categoryDropdown}
-        onPress={() => setCategoryDropdownVisible(true)}
-        activeOpacity={0.8}
-      >
-        <Text style={styles.categoryDropdownText}>{selectedCategoryLabel}</Text>
-        <MaterialIcons name="keyboard-arrow-down" size={24} color={colors.textSecondary} />
-      </TouchableOpacity>
+      {filterRow}
+      <Text style={styles.resultCount}>
+        {total} {total === 1 ? "opportunity" : "opportunities"} found
+      </Text>
+    </>
+  );
+
+  return (
+    <View style={styles.container}>
+      {error ? (
+        <View style={styles.errorWrap}>
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity onPress={load}>
+            <Text style={styles.retryText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+      {loading && jobs.length === 0 ? (
+        <View style={styles.skeletonWrap}>
+          {ListHeaderComponent}
+          <View style={styles.skeletonList}>
+            {[1, 2, 3].map((i) => (
+              <SkeletonCard key={i} variant="job" />
+            ))}
+          </View>
+        </View>
+      ) : (
+        <FlatList
+          data={filteredJobs}
+          keyExtractor={(item) => String(item.id)}
+          renderItem={renderItem}
+          ListHeaderComponent={ListHeaderComponent}
+          ListEmptyComponent={listEmpty}
+          ListFooterComponent={listFooter}
+          contentContainerStyle={filteredJobs.length === 0 ? styles.listEmpty : styles.listContent}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[colors.primary]}
+            />
+          }
+          onEndReached={() => {
+            if (hasMore && !loading) fetchMore();
+          }}
+          onEndReachedThreshold={0.3}
+          initialNumToRender={10}
+        />
+      )}
       <Modal visible={categoryDropdownVisible} transparent animationType="fade">
         <Pressable style={styles.modalOverlay} onPress={() => setCategoryDropdownVisible(false)}>
           <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
@@ -168,68 +318,62 @@ export default function JobsListScreen() {
               {JOB_CATEGORIES.map((cat) => (
                 <TouchableOpacity
                   key={cat.value || "all"}
-                  style={[styles.modalItem, (!category && !cat.value) || category === cat.value ? { backgroundColor: colors.primary + "20" } : null]}
+                  style={[
+                    styles.modalItem,
+                    ((!category && !cat.value) || category === cat.value) && {
+                      backgroundColor: colors.primary + "20",
+                    },
+                  ]}
                   onPress={() => onCategorySelect(cat.value)}
                   activeOpacity={0.8}
                 >
                   <Text style={[styles.modalItemText, { color: colors.text }]}>{cat.label}</Text>
-                  {((!category && !cat.value) || category === cat.value) && <MaterialIcons name="check" size={20} color={colors.primary} />}
+                  {((!category && !cat.value) || category === cat.value) && (
+                    <MaterialIcons name="check" size={20} color={colors.primary} />
+                  )}
                 </TouchableOpacity>
               ))}
             </ScrollView>
-            <TouchableOpacity style={[styles.modalCloseBtn, { borderTopColor: colors.border }]} onPress={() => setCategoryDropdownVisible(false)}>
+            <TouchableOpacity
+              style={[styles.modalCloseBtn, { borderTopColor: colors.border }]}
+              onPress={() => setCategoryDropdownVisible(false)}
+            >
               <Text style={[styles.modalCloseText, { color: colors.textSecondary }]}>Close</Text>
             </TouchableOpacity>
           </View>
         </Pressable>
       </Modal>
-      <Text style={styles.resultCount}>
-        {total} {total === 1 ? "opportunity" : "opportunities"} found
-      </Text>
-    </>
-  );
-
-  const listEmpty = loading ? null : (
-    <View style={styles.empty}>
-      <MaterialIcons name="work-off" size={48} color={colors.textMuted} />
-      <Text style={styles.emptyText}>No jobs match your search</Text>
-      <Text style={styles.emptySubtext}>Try different filters or search terms</Text>
-    </View>
-  );
-
-  const listError = error ? (
-    <View style={styles.errorWrap}>
-      <Text style={styles.errorText}>{error}</Text>
-      <TouchableOpacity style={styles.retryBtn} onPress={() => loadJobs(true)}>
-        <Text style={styles.retryText}>Retry</Text>
-      </TouchableOpacity>
-    </View>
-  ) : null;
-
-  return (
-    <View style={styles.container}>
-      {listHeader}
-      {listError}
-      {loading && jobs.length === 0 ? (
-        <View style={styles.loader}>
-          <ActivityIndicator size="large" color={colors.primary} />
-        </View>
-      ) : (
-        <FlatList
-          data={jobs}
-          keyExtractor={(item) => String(item.id)}
-          renderItem={renderItem}
-          ListEmptyComponent={listEmpty}
-          contentContainerStyle={jobs.length === 0 ? styles.listEmpty : styles.listContent}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />
-          }
-          initialNumToRender={10}
-          maxToRenderPerBatch={10}
-          windowSize={6}
-          removeClippedSubviews={Platform.OS !== "web"}
-        />
-      )}
+      <Modal visible={sortDropdownVisible} transparent animationType="fade">
+        <Pressable style={styles.modalOverlay} onPress={() => setSortDropdownVisible(false)}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Sort by</Text>
+            <ScrollView style={styles.modalList}>
+              {SORT_OPTIONS.map((o) => (
+                <TouchableOpacity
+                  key={o.value}
+                  style={[
+                    styles.modalItem,
+                    (sort || "newest") === o.value && { backgroundColor: colors.primary + "20" },
+                  ]}
+                  onPress={() => onSortSelect(o.value)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.modalItemText, { color: colors.text }]}>{o.label}</Text>
+                  {(sort || "newest") === o.value && (
+                    <MaterialIcons name="check" size={20} color={colors.primary} />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <TouchableOpacity
+              style={[styles.modalCloseBtn, { borderTopColor: colors.border }]}
+              onPress={() => setSortDropdownVisible(false)}
+            >
+              <Text style={[styles.modalCloseText, { color: colors.textSecondary }]}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Modal>
       {isLoggedIn && otpVerified && (
         <TouchableOpacity
           style={styles.fab}
@@ -247,9 +391,25 @@ export default function JobsListScreen() {
 function createStyles(colors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
-    searchRow: {
+    headerRow: {
       flexDirection: "row",
       alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: spacing.md,
+      paddingTop: spacing.md,
+      paddingBottom: spacing.sm,
+    },
+    headerTitle: { fontSize: 22, fontWeight: "800", color: colors.text },
+    addBtn: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: colors.primary,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    searchRow: {
+      flexDirection: "row",
       paddingHorizontal: spacing.md,
       paddingVertical: spacing.sm,
       gap: spacing.sm,
@@ -276,12 +436,17 @@ function createStyles(colors) {
       backgroundColor: colors.primary,
     },
     searchBtnText: { color: colors.white, fontWeight: "600", fontSize: 14 },
-    categoryDropdown: {
+    filterRow: {
+      flexDirection: "row",
+      paddingHorizontal: spacing.md,
+      marginBottom: spacing.sm,
+      gap: spacing.sm,
+    },
+    filterBtn: {
+      flex: 1,
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
-      marginHorizontal: spacing.md,
-      marginBottom: spacing.sm,
       paddingVertical: spacing.sm,
       paddingHorizontal: spacing.md,
       backgroundColor: colors.surfaceLight,
@@ -289,7 +454,13 @@ function createStyles(colors) {
       borderWidth: 1,
       borderColor: colors.border,
     },
-    categoryDropdownText: { fontSize: 15, color: colors.text, fontWeight: "500" },
+    filterBtnText: { fontSize: 14, color: colors.text, flex: 1 },
+    resultCount: {
+      fontSize: 13,
+      color: colors.textMuted,
+      paddingHorizontal: spacing.md,
+      paddingBottom: spacing.sm,
+    },
     modalOverlay: {
       flex: 1,
       backgroundColor: "rgba(0,0,0,0.4)",
@@ -325,13 +496,7 @@ function createStyles(colors) {
       marginTop: spacing.sm,
     },
     modalCloseText: { fontSize: 16, fontWeight: "600" },
-    resultCount: {
-      fontSize: 13,
-      color: colors.textMuted,
-      paddingHorizontal: spacing.md,
-      paddingBottom: spacing.sm,
-    },
-    listContent: { padding: spacing.md, paddingTop: 0, paddingBottom: 80 },
+    listContent: { padding: spacing.md, paddingTop: 0, paddingBottom: 100 },
     listEmpty: { flexGrow: 1 },
     card: {
       flexDirection: "row",
@@ -349,7 +514,8 @@ function createStyles(colors) {
       alignItems: "center",
     },
     cardBody: { flex: 1, padding: spacing.md, justifyContent: "space-between" },
-    cardTitle: { fontSize: 16, fontWeight: "700", color: colors.text, marginBottom: 4 },
+    cardTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.xs },
+    cardTitle: { fontSize: 16, fontWeight: "700", color: colors.text, flex: 1 },
     cardMeta: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: 4 },
     cardCategory: {
       fontSize: 12,
@@ -358,6 +524,7 @@ function createStyles(colors) {
       textTransform: "capitalize",
     },
     cardSalary: { fontSize: 12, color: colors.textSecondary },
+    riskWrap: { marginBottom: 4 },
     cardLocation: {
       flexDirection: "row",
       alignItems: "center",
@@ -372,22 +539,16 @@ function createStyles(colors) {
       gap: 4,
     },
     cardApply: { fontSize: 14, fontWeight: "600", color: colors.primary },
-    empty: {
-      flex: 1,
-      justifyContent: "center",
-      alignItems: "center",
-      padding: spacing.xl,
-    },
-    emptyText: { fontSize: 16, color: colors.text, fontWeight: "600", marginTop: spacing.md },
-    emptySubtext: { fontSize: 14, color: colors.textMuted, marginTop: spacing.xs },
+    skeletonWrap: { flex: 1 },
+    skeletonList: { paddingHorizontal: spacing.md },
     errorWrap: {
       padding: spacing.lg,
       alignItems: "center",
     },
     errorText: { fontSize: 14, color: colors.error, textAlign: "center", marginBottom: spacing.sm },
-    retryBtn: { paddingVertical: spacing.sm, paddingHorizontal: spacing.lg },
     retryText: { fontSize: 15, fontWeight: "600", color: colors.primary },
-    loader: { flex: 1, justifyContent: "center", alignItems: "center" },
+    footerLoader: { paddingVertical: spacing.md, alignItems: "center" },
+    footerText: { fontSize: 13 },
     fab: {
       position: "absolute",
       bottom: 24,

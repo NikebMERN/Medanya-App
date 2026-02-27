@@ -79,6 +79,38 @@ async function handleWebhook(rawBody, signatureHeader) {
         throw err("WEBHOOK_SIGNATURE_INVALID", e.message);
     }
 
+    if (event.type === "payment_intent.succeeded") {
+        const pi = event.data.object;
+        const meta = pi.metadata || {};
+        if (meta && meta.type === "recharge") {
+            const userId = meta.userId;
+            const coins = parseInt(meta.coins || "0", 10);
+            const idempotencyKey = `recharge_${pi.id}`;
+            if (!userId || !Number.isInteger(coins) || coins <= 0) {
+                return { received: true, ignored: true, reason: "missing_metadata" };
+            }
+            const { pool } = require("../../config/mysql");
+            const [existing] = await pool.query(
+                "SELECT 1 FROM stripe_recharge_events WHERE idempotency_key = ? LIMIT 1",
+                [idempotencyKey],
+            );
+            if (existing && existing.length > 0) {
+                return { received: true, credited: false, reason: "duplicate", userId, coins };
+            }
+            await pool.query(
+                "INSERT INTO stripe_recharge_events (idempotency_key, event_id, user_id, coins) VALUES (?, ?, ?, ?)",
+                [idempotencyKey, event.id, userId, coins],
+            );
+            await walletService.credit(String(userId), coins, {
+                type: "stripe_topup",
+                id: pi.id,
+                meta: { packageId: meta.packageId, paymentIntent: pi.id },
+            });
+            return { received: true, credited: true, userId, coins, paymentIntentId: pi.id };
+        }
+        return { received: true, ignored: true, type: event.type };
+    }
+
     if (event.type === "checkout.session.completed") {
         const session = event.data.object;
 
@@ -116,8 +148,57 @@ function listPackages() {
     return COIN_PACKAGES;
 }
 
+/**
+ * Create PaymentIntent for wallet recharge (PaymentSheet).
+ * Returns clientSecret + coins for mobile PaymentSheet.
+ */
+async function createRechargeIntent({ userId, packageId }) {
+    if (!process.env.STRIPE_SECRET_KEY) throw err("CONFIG_ERROR", "Missing STRIPE_SECRET_KEY");
+
+    const pack = getPackage(packageId);
+    if (!pack) throw err("VALIDATION_ERROR", "Invalid packageId");
+
+    const pi = await stripe.paymentIntents.create({
+        amount: pack.usdCents,
+        currency: "usd",
+        metadata: {
+            type: "recharge",
+            userId: String(userId),
+            packageId: pack.packageId,
+            coins: String(pack.coins),
+        },
+    });
+
+    return { clientSecret: pi.client_secret, coins: pack.coins, packageId: pack.packageId };
+}
+
+/**
+ * Create PaymentIntent for marketplace order (capture_method=manual).
+ * Used for order checkout with PaymentSheet.
+ */
+async function createPaymentIntentForOrder({ orderTotalCents, buyerId, orderIdPlaceholder, metadata = {} }) {
+    if (!process.env.STRIPE_SECRET_KEY) throw err("CONFIG_ERROR", "Missing STRIPE_SECRET_KEY");
+
+    const pi = await stripe.paymentIntents.create({
+        amount: orderTotalCents,
+        currency: "aed",
+        capture_method: "manual",
+        metadata: {
+            type: "order",
+            buyerId: String(buyerId),
+            orderId: String(orderIdPlaceholder || "pending"),
+            ...metadata,
+        },
+    });
+
+    return { id: pi.id, client_secret: pi.client_secret };
+}
+
 module.exports = {
     createCheckoutSession,
+    createRechargeIntent,
+    createPaymentIntentForOrder,
     handleWebhook,
     listPackages,
+    getPackage,
 };

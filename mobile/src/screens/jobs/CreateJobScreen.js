@@ -171,7 +171,7 @@ export default function CreateJobScreen() {
     try {
       const salaryVal = salary.trim();
       const salaryDisplay = salaryVal ? `${salaryVal} ${salaryCurrency}` : undefined;
-      await jobsApi.createJob({
+      const created = await jobsApi.createJob({
         title: t,
         description: description.trim() || undefined,
         category: c,
@@ -180,9 +180,31 @@ export default function CreateJobScreen() {
         contact_phone: phone,
         image_url: imageUrl,
       });
-      Alert.alert("Posted", "Your job has been listed.", [
-        { text: "OK", onPress: () => navigation.goBack() },
-      ]);
+      const jobId = created?.id ?? created?._id;
+      const status = String(created?.status ?? "active").toLowerCase();
+      const isPending = status === "pending_review";
+      if (isPending && jobId) {
+        Alert.alert(
+          "Posted",
+          "Posted. Pending safety review.",
+          [
+            { text: "OK", onPress: () => navigation.goBack() },
+            {
+              text: "View job",
+              onPress: () => navigation.replace("JobDetail", { jobId }),
+            },
+          ]
+        );
+      } else {
+        const buttons = [{ text: "OK", onPress: () => navigation.goBack() }];
+        if (jobId) {
+          buttons.push({
+            text: "View job",
+            onPress: () => navigation.replace("JobDetail", { jobId }),
+          });
+        }
+        Alert.alert("Posted", "Posted successfully.", buttons);
+      }
     } catch (err) {
       const code = err?.response?.data?.error?.code;
       const msg = err?.response?.data?.error?.message || err?.message || "Failed to post.";
@@ -246,11 +268,33 @@ export default function CreateJobScreen() {
     );
   }
 
+  if (!canPostJobs(getDobFromUser(user))) {
+    return (
+      <View style={styles.container}>
+        {subHeader}
+        <View style={styles.center}>
+          <MaterialIcons name="cake" size={48} color={colors.textMuted} style={{ marginBottom: spacing.md }} />
+          <Text style={styles.placeholderText}>You must be 18 or older to post jobs.</Text>
+          <Text style={[styles.placeholderText, { marginTop: 0, fontSize: 14 }]}>Add your date of birth in Edit Profile to verify your age.</Text>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtnText}>
+            <Text style={styles.linkText}>Go back</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       {subHeader}
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={80}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+          <View style={[styles.safetyHint, { backgroundColor: colors.primary + "15", borderColor: colors.primary + "40" }]}>
+            <MaterialIcons name="shield" size={20} color={colors.primary} />
+            <Text style={[styles.safetyHintText, { color: colors.text }]}>
+              Never request deposits or passports.
+            </Text>
+          </View>
           <Text style={styles.label}>Photo (optional)</Text>
           <TouchableOpacity style={styles.imageSlot} onPress={showPhotoOptions} disabled={uploading}>
             {imageUrl ? (
@@ -395,6 +439,16 @@ function createStyles(colors, paddingTop) {
     modalList: { maxHeight: 300 },
     modalItem: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border },
     modalItemText: { fontSize: 16 },
+    safetyHint: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.sm,
+      padding: spacing.md,
+      borderRadius: 12,
+      borderWidth: 1,
+      marginBottom: spacing.md,
+    },
+    safetyHintText: { flex: 1, fontSize: 14, fontWeight: "500" },
     submitBtn: { marginTop: spacing.xl, backgroundColor: colors.primary, borderRadius: 12, padding: spacing.md, alignItems: "center" },
     submitBtnDisabled: { opacity: 0.7 },
     submitBtnText: { fontSize: 16, fontWeight: "600", color: colors.white },

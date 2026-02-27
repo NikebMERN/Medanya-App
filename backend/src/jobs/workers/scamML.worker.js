@@ -32,7 +32,26 @@ async function processAutoLegitLabeling() {
     return { updated };
 }
 
-async function processWeeklyTraining() {
+async function processRequestRetrainApproval() {
+    const labeledCount = await scamTraining.getLabeledCount();
+    const scamML = require("../../services/scamML/scamML.service");
+    const minLabels = scamML.getMinLabelsForML ? scamML.getMinLabelsForML() : 200;
+    if (labeledCount < minLabels) return { skipped: true, labeledCount };
+    const [[existing]] = await pool.query("SELECT id FROM ml_retrain_approval WHERE status = 'PENDING' LIMIT 1");
+    if (existing) return { skipped: true, reason: "Pending approval exists" };
+    await pool.query(
+        "INSERT INTO ml_retrain_approval (status, labeled_count) VALUES ('PENDING', ?)",
+        [labeledCount]
+    );
+    logger.info(`scamML: retrain approval requested, ${labeledCount} labels`);
+    return { requested: true, labeledCount };
+}
+
+async function processWeeklyTraining(job) {
+    if (!job?.data?.approved) {
+        logger.info("scamML: training requires admin approval");
+        return { skipped: true, reason: "Requires admin approval" };
+    }
     const labeledCount = await scamTraining.getLabeledCount();
     const scamML = require("../../services/scamML/scamML.service");
     const minLabels = scamML.getMinLabelsForML ? scamML.getMinLabelsForML() : 200;
@@ -40,10 +59,18 @@ async function processWeeklyTraining() {
         logger.info(`scamML: training skipped, ${labeledCount} labels (need ${minLabels})`);
         return { skipped: true, labeledCount };
     }
+    const dataDir = require("path").join(process.cwd(), "ml", "data");
+    const combinedPath = require("path").join(dataDir, "combined_seed.jsonl");
+    const fs = require("fs");
+    const trainData = fs.existsSync(combinedPath) ? combinedPath : require("path").join(dataDir, "combined.json");
     const mlTrainScript = process.env.ML_TRAIN_SCRIPT || "python ml/train.py";
+    const parts = mlTrainScript.split(" ");
+    const cmd = parts[0];
+    const args = parts.slice(1);
+    if (fs.existsSync(trainData)) args.push("--data", trainData);
     const { spawn } = require("child_process");
     return new Promise((resolve) => {
-        const child = spawn(mlTrainScript.split(" ")[0], mlTrainScript.split(" ").slice(1), { cwd: process.cwd() });
+        const child = spawn(cmd, args, { cwd: process.cwd() });
         child.on("exit", (code) => {
             logger.info(`scamML: training finished with code ${code}`);
             resolve({ trained: code === 0 });
@@ -94,7 +121,8 @@ function startScamMLWorker() {
         "scamMLQueue",
         async (job) => {
             if (job.name === "autoLegitLabeling") return processAutoLegitLabeling();
-            if (job.name === "weeklyTraining") return processWeeklyTraining();
+            if (job.name === "requestRetrainApproval") return processRequestRetrainApproval();
+            if (job.name === "weeklyTraining") return processWeeklyTraining(job);
             if (job.name === "activeLearningPick") return processActiveLearningPick();
             throw new Error("Unknown job name");
         },

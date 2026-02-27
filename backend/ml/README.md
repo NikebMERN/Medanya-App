@@ -1,46 +1,50 @@
-# Scam ML Service
+# Scam ML Pipeline (Option B)
 
-Production-ready scam detection ML pipeline using weak supervision, active learning, and continuous retraining.
+Multilingual scam detection: external datasets + app feedback loop + admin-approved retraining.
 
-## Setup
+## 1. Dataset Bootstrap
+
+Uses your data in `backend/data/`:
+- `spam.csv` - SMS spam (v1=ham/spam, v2=message)
+- `Fake Postings.csv` - job postings (fraudulent=0/1)
 
 ```bash
 cd backend
-pip install -r ml/requirements.txt
+python ml/scripts/load_kaggle_csvs.py   # -> ml/data/kaggle_seed.jsonl
+python ml/scripts/load_hf_datasets.py   # optional HF (pip install datasets)
+python ml/scripts/merge_datasets.py     # -> ml/data/combined_seed.jsonl
 ```
 
-Copy `.env` values for MySQL (MYSQL_HOST, MYSQL_USER, MYSQL_PASSWORD, MYSQL_DB).
-
-## Run inference service
+## 2. Train
 
 ```bash
-uvicorn ml.app:app --host 0.0.0.0 --port 8000
+python ml/train.py --data ml/data/combined_seed.jsonl
 ```
 
-POST /predict expects `{"text": "title + description + location"}` and returns:
-```json
-{"scamProbability": 0.23, "confidence": 0.8, "labels": [], "modelVersion": "v200"}
-```
+Uses `paraphrase-multilingual-MiniLM-L12-v2`. Saves to `ml/artifacts/model.joblib` and `metadata.json`.
 
-## Train model
-
-Requires >= 200 labeled samples (final_label SCAM or LEGIT in scam_training_samples).
+## 3. Run Inference
 
 ```bash
-# Set MySQL env vars, then:
-python ml/train.py
+uvicorn ml.service:app --host 0.0.0.0 --port 8000
 ```
 
-Output: model.joblib, metadata.json
+POST /predict: `{ "text": "...", "targetType": "JOB|MARKET" }`
+Output: `{ scamProbability, confidence, modelVersion, labels }`
 
-## Evaluate
+## 4. Admin Retrain Flow
 
-```bash
-python ml/evaluate.py
-```
+1. Weekly cron adds `requestRetrainApproval` job
+2. If >= 200 labeled samples, creates PENDING row in `ml_retrain_approval`
+3. Admin: GET /admin/ml/retrain-status - see pending request
+4. Admin: POST /admin/ml/approve-retrain - approves and triggers training
+5. Admin: POST /admin/ml/reject-retrain - rejects
 
-## Node integration
+Training only runs after admin approval.
 
-- Node calls ML_INFERENCE_URL/predict with 300ms timeout
-- If ML service down or model not ready => rules-only fallback (no blocking)
-- Training runs only when >= ML_MIN_LABELS_FOR_TRAINING labels
+## 5. Continuous Learning
+
+- `scam_training_samples`: stores text + weakLabel (rules) + final_label (reports/admin/auto)
+- >= 3 reports confirmed -> SCAM
+- Active 7 days, 0 reports -> LEGIT (auto)
+- Weekly: request approval -> admin approves -> retrain

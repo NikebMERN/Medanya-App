@@ -79,4 +79,22 @@ const ban = async (req, res) => {
     }
 };
 
-module.exports = { create, token, list, detail, end, ban };
+const pinListing = async (req, res) => {
+    try {
+        const data = await service.pinListing(req.user, req.params.id, req.body?.listingId);
+        return res.status(201).json({ success: true, ...data });
+    } catch (e) {
+        return sendErr(res, e);
+    }
+};
+
+const getPins = async (req, res) => {
+    try {
+        const data = await service.getStreamPins(req.params.id);
+        return res.json({ success: true, ...data });
+    } catch (e) {
+        return sendErr(res, e);
+    }
+};
+
+module.exports = { create, token, list, detail, end, ban, pinListing, getPins };

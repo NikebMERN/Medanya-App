@@ -53,6 +53,8 @@ router.delete(
 );
 router.post("/videos/:id/report", auth, reportLimiter, controller.report);
 router.delete("/videos/:id", auth, controller.remove);
+router.post("/videos/:id/pin-listing", auth, controller.pinListing);
+router.get("/videos/:id/pins", controller.getPins);
 
 // Admin moderation
 router.get("/admin/videos", auth, requireRole("admin"), controller.adminList);

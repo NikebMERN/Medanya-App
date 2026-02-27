@@ -71,6 +71,17 @@ export async function deleteComment(videoId, commentId) {
   return data;
 }
 
+// Pins
+export async function getVideoPins(videoId) {
+  const { data } = await client.get(`/videos/${videoId}/pins`);
+  return { pins: data?.pins ?? [], items: data?.items ?? [] };
+}
+
+export async function pinListing(videoId, listingId) {
+  const { data } = await client.post(`/videos/${videoId}/pin-listing`, { listingId });
+  return data;
+}
+
 // Reporting (video endpoint)
 export async function reportVideo(videoId, reason) {
   const { data } = await client.post(`/videos/${videoId}/report`, { reason });

@@ -5,8 +5,16 @@ Run: python train.py
 Expects env: MYSQL_HOST, MYSQL_PORT, MYSQL_USER, MYSQL_PASSWORD, MYSQL_DB
 """
 import os
-import json
 from pathlib import Path
+
+# Load backend .env so HF_TOKEN etc. are available (Python doesn't auto-load Node's .env)
+try:
+    from dotenv import load_dotenv
+    load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+except ImportError:
+    pass
+
+import json
 
 from sentence_transformers import SentenceTransformer
 from sklearn.linear_model import LogisticRegression
@@ -16,9 +24,11 @@ import joblib
 import numpy as np
 
 MIN_SAMPLES = int(os.getenv("ML_MIN_LABELS_FOR_TRAINING", "200"))
-MODEL_PATH = Path(os.getenv("ML_MODEL_PATH", "model.joblib"))
-METADATA_PATH = Path(os.getenv("ML_METADATA_PATH", "metadata.json"))
-EMBEDDING_MODEL = os.getenv("ML_EMBEDDING_MODEL", "all-MiniLM-L6-v2")
+ARTIFACTS = Path(__file__).resolve().parent / "artifacts"
+ARTIFACTS.mkdir(parents=True, exist_ok=True)
+MODEL_PATH = Path(os.getenv("ML_MODEL_PATH", str(ARTIFACTS / "model.joblib")))
+METADATA_PATH = Path(os.getenv("ML_METADATA_PATH", str(ARTIFACTS / "metadata.json")))
+EMBEDDING_MODEL = os.getenv("ML_EMBEDDING_MODEL", "paraphrase-multilingual-MiniLM-L12-v2")
 
 
 def get_db():
@@ -57,8 +67,8 @@ def main():
 
     print("Loading embedding model...")
     encoder = SentenceTransformer(EMBEDDING_MODEL)
-    print("Encoding texts...")
-    X = encoder.encode(texts)
+    print(f"Encoding {len(texts)} texts...")
+    X = encoder.encode(texts, show_progress_bar=True)
     y = np.array(labels)
 
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
@@ -89,10 +99,16 @@ def main():
     return 0
 
 
-def load_dataset_json(path):
-    with open(path) as f:
-        data = json.load(f)
-    arr = data if isinstance(data, list) else data.get("samples", data.get("data", []))
+def load_dataset_file(path):
+    p = Path(path)
+    if not p.exists():
+        return []
+    data = p.read_text(encoding="utf-8", errors="replace")
+    if p.suffix == ".jsonl":
+        arr = [json.loads(line) for line in data.strip().split("\n") if line.strip()]
+    else:
+        obj = json.loads(data) if data.strip() else []
+        arr = obj if isinstance(obj, list) else obj.get("samples", obj.get("data", []))
     return [{"text": x.get("text", ""), "final_label": x.get("label", "")} for x in arr if x.get("text") and x.get("label") in ("SCAM", "LEGIT")]
 
 
@@ -102,17 +118,20 @@ if __name__ == "__main__":
     ap.add_argument("--data", help="JSON dataset path")
     args = ap.parse_args()
     if args.data:
-        samples = load_dataset_json(args.data)
+        samples = load_dataset_file(args.data)
         if len(samples) < 100:
             print("Need >= 100 samples")
             exit(1)
         texts = [r["text"] for r in samples]
         labels = [r["final_label"] for r in samples]
         enc = os.getenv("ML_EMBEDDING_MODEL", "paraphrase-multilingual-MiniLM-L12-v2")
+        print("Loading embedding model...")
         encoder = SentenceTransformer(enc)
-        X = encoder.encode(texts)
+        print(f"Encoding {len(texts)} texts...")
+        X = encoder.encode(texts, show_progress_bar=True)
         y = np.array(labels)
         Xtr, Xte, ytr, yte = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+        print("Training LogisticRegression...")
         clf = LogisticRegression(max_iter=500, random_state=42, class_weight="balanced")
         clf.fit(Xtr, ytr)
         acc = accuracy_score(yte, clf.predict(Xte))

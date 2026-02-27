@@ -174,7 +174,7 @@ export default function CreateItemScreen() {
     }
     setSubmitting(true);
     try {
-      await marketplaceApi.createItem({
+      const created = await marketplaceApi.createItem({
         title: t,
         description: d,
         category: c,
@@ -183,9 +183,31 @@ export default function CreateItemScreen() {
         currency: priceCurrency,
         image_urls: imageUrls.length > 0 ? imageUrls : [],
       });
-      Alert.alert("Posted", "Your item has been listed.", [
-        { text: "OK", onPress: () => navigation.goBack() },
-      ]);
+      const itemId = created?.id ?? created?._id;
+      const status = String(created?.status ?? "active").toLowerCase();
+      const isPending = status === "pending_review";
+      if (isPending && itemId) {
+        Alert.alert(
+          "Posted",
+          "Posted. Pending safety review.",
+          [
+            { text: "OK", onPress: () => navigation.goBack() },
+            {
+              text: "View listing",
+              onPress: () => navigation.replace("MarketplaceDetail", { itemId }),
+            },
+          ]
+        );
+      } else {
+        const buttons = [{ text: "OK", onPress: () => navigation.goBack() }];
+        if (itemId) {
+          buttons.push({
+            text: "View listing",
+            onPress: () => navigation.replace("MarketplaceDetail", { itemId }),
+          });
+        }
+        Alert.alert("Posted", "Posted successfully.", buttons);
+      }
     } catch (err) {
       const code = err?.response?.data?.error?.code;
       const msg = err?.response?.data?.error?.message || err?.message || "Failed to post.";
@@ -246,11 +268,33 @@ export default function CreateItemScreen() {
     );
   }
 
+  if (!canUseMarketplace(getDobFromUser(user))) {
+    return (
+      <SafeAreaView style={styles.wrapper} edges={["top"]}>
+        {subHeader}
+        <View style={[styles.container, styles.center]}>
+          <MaterialIcons name="cake" size={48} color={colors.textMuted} style={{ marginBottom: spacing.md }} />
+          <Text style={styles.placeholderText}>You must be 16 or older to list items.</Text>
+          <Text style={[styles.placeholderText, { marginTop: 0, fontSize: 14 }]}>Add your date of birth in Edit Profile.</Text>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+            <Text style={styles.backBtnText}>Go back</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.wrapper} edges={["top"]}>
       {subHeader}
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={80}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <View style={[styles.safetyHint, { backgroundColor: colors.primary + "15", borderColor: colors.primary + "40" }]}>
+          <MaterialIcons name="shield" size={20} color={colors.primary} />
+          <Text style={[styles.safetyHintText, { color: colors.text }]}>
+            Safety tips: Meet in public. Don't pay upfront. Use in-app chat.
+          </Text>
+        </View>
         <Text style={styles.label}>Photos (optional, max 8)</Text>
         <View style={styles.imageRow}>
           {imageUrls.map((uri, i) => (
@@ -401,6 +445,16 @@ function createStyles(colors) {
     chipActive: { backgroundColor: colors.primary },
     chipText: { fontSize: 13, color: colors.text },
     chipTextActive: { fontSize: 13, color: colors.white, fontWeight: "600" },
+    safetyHint: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.sm,
+      padding: spacing.md,
+      borderRadius: 12,
+      borderWidth: 1,
+      marginBottom: spacing.md,
+    },
+    safetyHintText: { flex: 1, fontSize: 14, fontWeight: "500" },
     submitBtn: { marginTop: spacing.lg, backgroundColor: colors.primary, borderRadius: 12, padding: spacing.md, alignItems: "center" },
     submitBtnDisabled: { opacity: 0.7 },
     submitBtnText: { fontSize: 16, fontWeight: "600", color: colors.white },

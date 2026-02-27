@@ -207,6 +207,20 @@ async function splitGift(
     }
 }
 
+async function supportCreator({ supporterId, creatorId, amount, context, contextId }) {
+    const amt = asIntAmount(amount);
+    const ctx = String(context || "").toUpperCase();
+    const ctxId = contextId ? String(contextId) : null;
+
+    if (!["VIDEO", "LIVE"].includes(ctx)) throw err("VALIDATION_ERROR", "context must be VIDEO or LIVE");
+
+    return splitGift(supporterId, creatorId, amt, {}, {
+        type: "support",
+        id: ctxId,
+        meta: { context: ctx, contextId: ctxId },
+    });
+}
+
 async function listMyTransactions(userId, { page, limit }) {
     const conn = await walletDb.pool.getConnection();
     try {
@@ -222,4 +236,5 @@ module.exports = {
     credit,
     debit,
     splitGift,
+    supportCreator,
 };

@@ -68,6 +68,10 @@ const listItems = async ({
     category,
     location,
     status,
+    sort = "newest",
+    includeCreatorPending,
+    userId,
+    sellerId,
 }) => {
     const p = Math.max(parseInt(page, 10) || 1, 1);
     const l = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 50);
@@ -76,6 +80,10 @@ const listItems = async ({
     const where = [];
     const params = [];
 
+    if (sellerId) {
+        where.push("seller_id = ?");
+        params.push(sellerId);
+    }
     if (category) {
         where.push("category = ?");
         params.push(category);
@@ -87,11 +95,18 @@ const listItems = async ({
     if (status) {
         where.push("status = ?");
         params.push(status);
+    } else if (includeCreatorPending && userId) {
+        where.push("(status = 'active' OR (status IN ('pending_review', 'hidden_pending_review') AND seller_id = ?))");
+        params.push(userId);
     } else {
         where.push("status = 'active'");
     }
 
     const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+
+    let orderBy = "ORDER BY created_at DESC";
+    if (sort === "price_low") orderBy = "ORDER BY price IS NULL, price ASC, created_at DESC";
+    else if (sort === "price_high") orderBy = "ORDER BY price IS NULL, price DESC, created_at DESC";
 
     const [[countRow]] = await pool.query(
         `SELECT COUNT(*) AS total FROM marketplace_items ${whereSql}`,
@@ -99,13 +114,7 @@ const listItems = async ({
     );
 
     const [rows] = await pool.query(
-        `
-    SELECT *
-    FROM marketplace_items
-    ${whereSql}
-    ORDER BY created_at DESC
-    LIMIT ? OFFSET ?
-    `,
+        `SELECT * FROM marketplace_items ${whereSql} ${orderBy} LIMIT ? OFFSET ?`,
         [...params, l, offset],
     );
 
@@ -117,14 +126,23 @@ const listItems = async ({
     };
 };
 
-const searchItems = async ({ q, category, location, page = 1, limit = 20 }) => {
+const searchItems = async ({ q, category, location, page = 1, limit = 20, sort = "newest", includeCreatorPending, userId, sellerId }) => {
     const p = Math.max(parseInt(page, 10) || 1, 1);
     const l = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 50);
     const offset = (p - 1) * l;
 
-    const where = ["status = 'active'"];
+    const where = [];
     const params = [];
-
+    if (includeCreatorPending && userId) {
+        where.push("(status = 'active' OR (status IN ('pending_review', 'hidden_pending_review') AND seller_id = ?))");
+        params.push(userId);
+    } else {
+        where.push("status = 'active'");
+    }
+    if (sellerId) {
+        where.push("seller_id = ?");
+        params.push(sellerId);
+    }
     if (category) {
         where.push("category = ?");
         params.push(category);
@@ -134,12 +152,15 @@ const searchItems = async ({ q, category, location, page = 1, limit = 20 }) => {
         params.push(`%${location}%`);
     }
     if (q) {
-        // LIKE fallback (works everywhere)
         where.push("(title LIKE ? OR description LIKE ?)");
         params.push(`%${q}%`, `%${q}%`);
     }
 
     const whereSql = `WHERE ${where.join(" AND ")}`;
+
+    let orderBy = "ORDER BY created_at DESC";
+    if (sort === "price_low") orderBy = "ORDER BY price IS NULL, price ASC, created_at DESC";
+    else if (sort === "price_high") orderBy = "ORDER BY price IS NULL, price DESC, created_at DESC";
 
     const [[countRow]] = await pool.query(
         `SELECT COUNT(*) AS total FROM marketplace_items ${whereSql}`,
@@ -147,13 +168,7 @@ const searchItems = async ({ q, category, location, page = 1, limit = 20 }) => {
     );
 
     const [rows] = await pool.query(
-        `
-    SELECT *
-    FROM marketplace_items
-    ${whereSql}
-    ORDER BY created_at DESC
-    LIMIT ? OFFSET ?
-    `,
+        `SELECT * FROM marketplace_items ${whereSql} ${orderBy} LIMIT ? OFFSET ?`,
         [...params, l, offset],
     );
 

@@ -70,6 +70,16 @@ export const UNIFIED_REPORT_REASONS = [
   "SCAM_FRAUD", "HARASSMENT", "HATE", "NUDITY_SEXUAL", "GORE_VIOLENCE", "CHILD_SAFETY", "SPAM", "OTHER",
 ];
 
+/** Content report reasons for JOB / MARKET_ITEM (Scam, Deposit request, Passport request, Harassment, Fake item, Other). */
+export const CONTENT_REPORT_REASONS = [
+  { value: "SCAM_FRAUD", label: "Scam" },
+  { value: "DEPOSIT_REQUEST", label: "Deposit request" },
+  { value: "PASSPORT_REQUEST", label: "Passport request" },
+  { value: "HARASSMENT", label: "Harassment" },
+  { value: "FAKE_ITEM", label: "Fake item" },
+  { value: "OTHER", label: "Other" },
+];
+
 /** Create a unified content report (POST /reports). */
 export async function createUnifiedReport(body) {
   const { data } = await client.post("/reports", {

@@ -7,8 +7,12 @@ const { buildAgoraRtcToken } = require("../../config/agora");
 const { computeSplit } = require("../../utils/revenue.util");
 const walletDb = require("../wallet/wallet.mysql");
 const txDb = require("../wallet/transaction.mysql");
+const streamPinsDb = require("./stream_pins.mysql");
+const marketDb = require("../marketplace/market.mysql");
 const { pool } = require("../../config/mysql");
 const userDb = require("../users/user.mysql");
+
+const STREAM_FIELDS = ["GENERAL", "MARKETING", "EDUCATION", "MUSIC", "JOBS", "SAFETY"];
 
 function codeErr(code, message) {
     const e = new Error(message || code);
@@ -52,11 +56,19 @@ async function createStream(user, body) {
 
     const title = cleanStr(body?.title, 120);
     const category = cleanStr(body?.category, 60);
+    const field = STREAM_FIELDS.includes(String(body?.field || "").toUpperCase())
+        ? String(body.field).toUpperCase()
+        : "GENERAL";
+    const tags = Array.isArray(body?.tags)
+        ? body.tags.map((t) => cleanStr(t, 50)).filter(Boolean).slice(0, 10)
+        : [];
 
     const doc = await Stream.create({
         hostId,
         title,
         category,
+        field,
+        tags,
         status: "live",
         provider: "agora",
         providerRoom: "temp",
@@ -279,6 +291,53 @@ function hashToInt(str) {
     return h;
 }
 
+async function pinListing(user, streamId, listingId) {
+    const hostId = toId(user);
+    if (!hostId) throw codeErr("UNAUTHORIZED", "Auth required");
+    if (!mongoose.isValidObjectId(streamId)) throw codeErr("NOT_FOUND", "Stream not found");
+
+    const stream = await Stream.findById(streamId).lean();
+    if (!stream) throw codeErr("NOT_FOUND", "Stream not found");
+    if (stream.hostId !== hostId) throw codeErr("FORBIDDEN", "Only the host can pin listings");
+    if (stream.status !== "live") throw codeErr("STREAM_NOT_LIVE", "Stream not live");
+
+    const listing = await marketDb.findById(listingId);
+    if (!listing) throw codeErr("NOT_FOUND", "Listing not found");
+    if (String(listing.seller_id) !== hostId)
+        throw codeErr("FORBIDDEN", "Can only pin your own listings");
+
+    const listId = Number(listingId);
+    if (!Number.isInteger(listId) || listId <= 0)
+        throw codeErr("VALIDATION_ERROR", "Invalid listingId");
+
+    const conn = await pool.getConnection();
+    try {
+        const maxOrder = await streamPinsDb.getMaxSortOrder(conn, streamId);
+        await streamPinsDb.insertPin(conn, {
+            stream_id: streamId,
+            listing_id: listId,
+            sort_order: maxOrder + 1,
+        });
+    } finally {
+        conn.release();
+    }
+
+    return getStreamPins(streamId);
+}
+
+async function getStreamPins(streamId) {
+    if (!mongoose.isValidObjectId(streamId)) return { pins: [], items: [] };
+    const rawPins = await streamPinsDb.getPinsByStreamId(pool, streamId);
+    const pins = rawPins.map((p) => ({ id: p.id, listing_id: p.listing_id, sort_order: p.sort_order, created_at: p.created_at }));
+    const items = [];
+    for (const p of rawPins) {
+        const item = await marketDb.findById(p.listing_id);
+        if (item && (item.status || "").toLowerCase() === "active")
+            items.push({ ...item, pin_id: p.id });
+    }
+    return { pins, items };
+}
+
 module.exports = {
     createStream,
     getToken,
@@ -288,4 +347,6 @@ module.exports = {
     banStream,
     persistChatMessage,
     sendGift,
+    pinListing,
+    getStreamPins,
 };

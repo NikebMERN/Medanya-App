@@ -7,7 +7,7 @@ const logger = require("../../utils/logger.util");
 const { get: redisGet, set: redisSet } = require("../../config/redis");
 
 const ML_INFERENCE_URL = process.env.ML_INFERENCE_URL || "http://127.0.0.1:8000";
-const ML_TIMEOUT_MS = parseInt(process.env.ML_INFERENCE_TIMEOUT_MS, 10) || 300;
+const ML_TIMEOUT_MS = parseInt(process.env.ML_INFERENCE_TIMEOUT_MS, 10) || 500;
 const ML_CACHE_TTL = 24 * 60 * 60; // 24h
 const MIN_LABELS_FOR_ML = parseInt(process.env.ML_MIN_LABELS_FOR_TRAINING, 10) || 200;
 
@@ -37,7 +37,7 @@ async function setCached(textHash, result) {
  * @param {string} text - normalized title + description + location
  * @returns {Promise<{scamProbability: number, confidence: number, labels: string[], modelVersion: string} | null>}
  */
-async function predict(text) {
+async function predict(text, targetType) {
     if (!text || typeof text !== "string") return null;
 
     const textHash = hashText(text);
@@ -51,7 +51,7 @@ async function predict(text) {
         const res = await fetch(`${ML_INFERENCE_URL}/predict`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ text: String(text).slice(0, 5000) }),
+            body: JSON.stringify({ text: String(text).slice(0, 5000), targetType: targetType || "JOB" }),
             signal: controller.signal,
         });
         clearTimeout(id);
@@ -81,4 +81,8 @@ function getMinLabelsForML() {
     return MIN_LABELS_FOR_ML;
 }
 
-module.exports = { predict, hashText, getCached, setCached, getMinLabelsForML };
+async function classify(text) {
+    return predict(text);
+}
+
+module.exports = { predict, classify, hashText, getCached, setCached, getMinLabelsForML };

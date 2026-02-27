@@ -28,7 +28,7 @@ function applyMLPolicy(ruleScore, mlProbability, mlConfidence, hasML) {
         return { combinedScore: Math.min(100, combined), status: "BLOCKED", decision: "BLOCK" };
     }
 
-    if (combined >= 85) {
+    if (combined >= 60) {
         status = "PENDING_REVIEW";
         decision = "PENDING_REVIEW";
     }
@@ -44,7 +44,7 @@ async function computeRiskScoreWithML(userId, content, targetType) {
     let mlResult = null;
     const labeledCount = await scamTraining.getLabeledCount();
     if (labeledCount >= ML_READY_MIN_LABELS) {
-        mlResult = await scamMLService.predict(text);
+        mlResult = await scamMLService.predict(text, targetType);
     }
 
     const mlProbability = mlResult?.scamProbability ?? 0;

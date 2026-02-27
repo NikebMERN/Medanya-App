@@ -4,6 +4,7 @@
  */
 import client from "../api/client";
 
+/** Sort: newest | price_low | price_high */
 export async function listItems(params = {}) {
   const res = await client.get("/marketplace/items", {
     params: {
@@ -11,7 +12,10 @@ export async function listItems(params = {}) {
       limit: params.limit,
       category: params.category,
       location: params.location,
+      sellerId: params.sellerId,
       status: params.status || "active",
+      sort: params.sort || "newest",
+      includeCreatorPending: params.includeCreatorPending,
     },
   });
   const d = res?.data ?? res;
@@ -23,14 +27,18 @@ export async function listItems(params = {}) {
   };
 }
 
+/** Sort: newest | price_low | price_high. Items include status, risk_score, ai_scam_score when returned by backend. */
 export async function searchItems(params = {}) {
   const res = await client.get("/marketplace/search", {
     params: {
       q: params.q,
       category: params.category,
       location: params.location,
+      sellerId: params.sellerId,
       page: params.page,
       limit: params.limit,
+      sort: params.sort || "newest",
+      includeCreatorPending: params.includeCreatorPending,
     },
   });
   const d = res?.data ?? res;

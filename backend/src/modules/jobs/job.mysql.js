@@ -65,6 +65,9 @@ const listJobs = async ({
     category,
     location,
     status,
+    sort = "newest",
+    includeCreatorPending,
+    userId,
 }) => {
     const p = Math.max(parseInt(page, 10) || 1, 1);
     const l = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 50);
@@ -84,11 +87,17 @@ const listJobs = async ({
     if (status) {
         where.push("status = ?");
         params.push(status);
+    } else if (includeCreatorPending && userId) {
+        where.push("(status = 'active' OR (status IN ('pending_review', 'hidden_pending_review') AND created_by = ?))");
+        params.push(userId);
     } else {
         where.push("status = 'active'");
     }
 
     const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+
+    let orderBy = "ORDER BY created_at DESC";
+    if (sort === "salary_high") orderBy = "ORDER BY salary IS NULL, salary DESC, created_at DESC";
 
     const [[countRow]] = await pool.query(
         `SELECT COUNT(*) AS total FROM jobs ${whereSql}`,
@@ -96,27 +105,26 @@ const listJobs = async ({
     );
 
     const [rows] = await pool.query(
-        `
-    SELECT *
-    FROM jobs
-    ${whereSql}
-    ORDER BY created_at DESC
-    LIMIT ? OFFSET ?
-    `,
+        `SELECT * FROM jobs ${whereSql} ${orderBy} LIMIT ? OFFSET ?`,
         [...params, l, offset],
     );
 
     return { page: p, limit: l, total: countRow.total, jobs: rows };
 };
 
-const searchJobs = async ({ q, category, location, page = 1, limit = 20 }) => {
+const searchJobs = async ({ q, category, location, page = 1, limit = 20, sort = "newest", includeCreatorPending, userId }) => {
     const p = Math.max(parseInt(page, 10) || 1, 1);
     const l = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 50);
     const offset = (p - 1) * l;
 
-    const where = ["status = 'active'"];
+    const where = [];
     const params = [];
-
+    if (includeCreatorPending && userId) {
+        where.push("(status = 'active' OR (status IN ('pending_review', 'hidden_pending_review') AND created_by = ?))");
+        params.push(userId);
+    } else {
+        where.push("status = 'active'");
+    }
     if (category) {
         where.push("category = ?");
         params.push(category);
@@ -125,14 +133,15 @@ const searchJobs = async ({ q, category, location, page = 1, limit = 20 }) => {
         where.push("location LIKE ?");
         params.push(`%${location}%`);
     }
-
     if (q) {
-        // Prefer FULLTEXT if available; fallback to LIKE
         where.push("(title LIKE ? OR location LIKE ?)");
         params.push(`%${q}%`, `%${q}%`);
     }
 
     const whereSql = `WHERE ${where.join(" AND ")}`;
+
+    let orderBy = "ORDER BY created_at DESC";
+    if (sort === "salary_high") orderBy = "ORDER BY salary IS NULL, salary DESC, created_at DESC";
 
     const [[countRow]] = await pool.query(
         `SELECT COUNT(*) AS total FROM jobs ${whereSql}`,
@@ -140,13 +149,7 @@ const searchJobs = async ({ q, category, location, page = 1, limit = 20 }) => {
     );
 
     const [rows] = await pool.query(
-        `
-    SELECT *
-    FROM jobs
-    ${whereSql}
-    ORDER BY created_at DESC
-    LIMIT ? OFFSET ?
-    `,
+        `SELECT * FROM jobs ${whereSql} ${orderBy} LIMIT ? OFFSET ?`,
         [...params, l, offset],
     );
 

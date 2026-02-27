@@ -11,39 +11,45 @@ import {
   Dimensions,
   Modal,
   Pressable,
+  FlatList,
+  Linking,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRoute, useNavigation } from "@react-navigation/native";
 import { MaterialIcons } from "@expo/vector-icons";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
 import { useAuthStore } from "../../store/auth.store";
 import * as marketplaceApi from "../../services/marketplace.api";
 import * as chatApi from "../../services/chat.api";
 import * as activityApi from "../../services/activity.api";
-import SafetyModal from "../../components/common/SafetyModal";
+import * as userApi from "../../api/user.api";
+import SafetyWarningModal from "../../components/SafetyWarningModal";
 import ReportOptionsModal from "../../components/common/ReportOptionsModal";
+import ContentReportModal from "../../components/ContentReportModal";
+import RiskBadge from "../../components/RiskBadge";
+import TrustBadge from "../../components/TrustBadge";
 import { useFavoritesStore } from "../../store/favorites.store";
 import SubScreenHeader from "../../components/SubScreenHeader";
 
 export default function MarketplaceDetailScreen() {
   const route = useRoute();
   const navigation = useNavigation();
-  const insets = useSafeAreaInsets();
   const colors = useThemeColors();
-  const styles = useMemo(() => createStyles(colors, insets.top), [colors, insets.top]);
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const user = useAuthStore((s) => s.user);
   const userId = user?.id ?? user?.userId ?? "";
-  const safetyAcknowledged = user?.safety_acknowledged_at ?? user?.safetyAcknowledgedAt;
 
   const itemId = route.params?.itemId;
   const [item, setItem] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [chatting, setChatting] = useState(false);
-  const [safetyModal, setSafetyModal] = useState({ visible: false, action: "chat" });
+  const [calling, setCalling] = useState(false);
+  const [safetyModal, setSafetyModal] = useState({ visible: false, action: null });
   const [reportModalVisible, setReportModalVisible] = useState(false);
+  const [contentReportVisible, setContentReportVisible] = useState(false);
+  const [blocking, setBlocking] = useState(false);
   const [imageViewerVisible, setImageViewerVisible] = useState(false);
   const [imageViewerIndex, setImageViewerIndex] = useState(0);
   const imageViewerScrollRef = useRef(null);
@@ -127,19 +133,65 @@ export default function MarketplaceDetailScreen() {
       Alert.alert("Notice", "This is your own listing.");
       return;
     }
-    if (!safetyAcknowledged) {
-      setSafetyModal({ visible: true, action: "chat" });
+    setSafetyModal({ visible: true, action: "chat" });
+  }, [item, userId]);
+
+  const doCallSeller = useCallback(() => {
+    setCalling(true);
+    const phone = item?.seller_phone ?? item?.sellerPhone ?? item?.contact_phone ?? item?.contactPhone ?? "";
+    if (!phone) {
+      Alert.alert("Notice", "No contact number available.");
       return;
     }
-    doChatWithSeller();
-  }, [item, userId, safetyAcknowledged, doChatWithSeller]);
+    const tel = phone.trim().startsWith("+") ? phone.trim() : `+${phone.trim()}`;
+    Linking.openURL(`tel:${tel}`).catch(() => Alert.alert("Error", "Could not open dialer."));
+    setCalling(false);
+  }, [item]);
+
+  const handleCallSeller = useCallback(() => {
+    const phone = item?.seller_phone ?? item?.sellerPhone ?? item?.contact_phone ?? item?.contactPhone ?? "";
+    if (!phone) {
+      Alert.alert("Notice", "No contact number available.");
+      return;
+    }
+    setSafetyModal({ visible: true, action: "call" });
+  }, [item]);
 
   const onSafetyAcknowledge = useCallback(() => {
     setSafetyModal((prev) => {
       if (prev.action === "chat") doChatWithSeller();
+      else if (prev.action === "call") doCallSeller();
       return { visible: false, action: null };
     });
-  }, [doChatWithSeller]);
+  }, [doChatWithSeller, doCallSeller]);
+
+  const handleBlockSeller = useCallback(() => {
+    const sid = item?.seller_id ?? item?.sellerId;
+    if (!sid) return;
+    Alert.alert(
+      "Block user",
+      "Block this user? You won't see their listings or messages.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Block",
+          style: "destructive",
+          onPress: async () => {
+            setBlocking(true);
+            try {
+              await userApi.blockUser(sid);
+              Alert.alert("Blocked", "User has been blocked.");
+              navigation.goBack();
+            } catch (e) {
+              Alert.alert("Error", e?.response?.data?.error?.message || e?.message || "Failed");
+            } finally {
+              setBlocking(false);
+            }
+          },
+        },
+      ]
+    );
+  }, [item, navigation]);
 
   if (loading && !item) {
     return (
@@ -159,10 +211,16 @@ export default function MarketplaceDetailScreen() {
   }
 
   const images = Array.isArray(item.image_urls) && item.image_urls.length > 0 ? item.image_urls : item.image_url ? [item.image_url] : [];
-  const isSold = item.status === "sold";
+  const isSold = (item.status || "").toLowerCase() === "sold";
   const sellerId = item.seller_id ?? item.sellerId;
   const isOwn = String(sellerId) === String(userId);
   const priceCurrency = item.currency || "AED";
+  const status = (item.status || "active").toLowerCase();
+  const isPendingReview = status === "pending_review" && isOwn;
+  const riskScore = item.risk_score ?? item.riskScore ?? 0;
+  const showRiskWarning = riskScore >= 60;
+  const sellerTrustScore = item.seller_trust_score ?? item.sellerTrustScore;
+  const hasPhone = !!(item?.seller_phone ?? item?.sellerPhone ?? item?.contact_phone ?? item?.contactPhone);
 
   const tabNav = navigation.getParent?.() ?? navigation;
   const rightEl = (
@@ -197,11 +255,24 @@ export default function MarketplaceDetailScreen() {
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
         {images.length > 0 ? (
           <TouchableOpacity activeOpacity={1} onPress={() => { setImageViewerIndex(0); setImageViewerVisible(true); }}>
-            <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} style={styles.heroScroll}>
-              {images.map((uri, i) => (
-                <Image key={i} source={{ uri }} style={styles.hero} resizeMode="cover" />
-              ))}
-            </ScrollView>
+            <FlatList
+              data={images}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              keyExtractor={(_, i) => String(i)}
+              renderItem={({ item: uri }) => (
+                <Image source={{ uri }} style={styles.hero} resizeMode="cover" />
+              )}
+              style={styles.heroScroll}
+            />
+            {images.length > 1 && (
+              <View style={styles.carouselDots}>
+                {images.map((_, i) => (
+                  <View key={i} style={[styles.dot, styles.dotInactive]} />
+                ))}
+              </View>
+            )}
           </TouchableOpacity>
         ) : (
           <View style={[styles.hero, styles.heroPlaceholder]}>
@@ -230,6 +301,18 @@ export default function MarketplaceDetailScreen() {
         {isSold ? (
           <View style={styles.soldBanner}>
             <Text style={styles.soldBannerText}>SOLD</Text>
+          </View>
+        ) : null}
+        {isPendingReview ? (
+          <View style={[styles.pendingBanner, { backgroundColor: colors.warning + "25", borderColor: colors.warning + "60" }]}>
+            <MaterialIcons name="schedule" size={20} color={colors.warning} />
+            <Text style={[styles.pendingBannerText, { color: colors.text }]}>Pending safety review</Text>
+          </View>
+        ) : null}
+        {showRiskWarning && !isOwn ? (
+          <View style={[styles.riskBanner, { backgroundColor: colors.error + "20", borderColor: colors.error + "50" }]}>
+            <RiskBadge riskScore={riskScore} aiScamScore={item.ai_scam_score ?? item.aiScamScore} />
+            <Text style={[styles.riskBannerText, { color: colors.text }]}>This listing has been flagged. Proceed with caution.</Text>
           </View>
         ) : null}
         <View style={styles.body}>
@@ -263,17 +346,66 @@ export default function MarketplaceDetailScreen() {
           {item.description ? <Text style={styles.description}>{item.description}</Text> : null}
 
           {!isSold && !isOwn && sellerId ? (
-            <TouchableOpacity
-              style={[styles.chatBtn, chatting && styles.chatBtnDisabled]}
-              onPress={handleChatWithSeller}
-              disabled={chatting}
-            >
-              {chatting ? <ActivityIndicator size="small" color={colors.white} /> : <><MaterialIcons name="chat" size={22} color={colors.white} /><Text style={styles.chatBtnText}>Chat with seller</Text></>}
-            </TouchableOpacity>
+            <>
+              <TouchableOpacity
+                style={[styles.buyBtn, { backgroundColor: colors.primary }]}
+                onPress={() => navigation.navigate("Checkout", { itemId, item })}
+              >
+                <MaterialIcons name="shopping-cart" size={22} color={colors.white} />
+                <Text style={styles.buyBtnText}>Buy</Text>
+              </TouchableOpacity>
+              <View style={styles.sellerSection}>
+                <Text style={styles.sellerLabel}>Seller</Text>
+                <View style={styles.sellerRow}>
+                  {sellerTrustScore != null && (
+                    <TrustBadge trustScore={sellerTrustScore} />
+                  )}
+                  {(item.seller_otp_verified || item.seller_kyc_verified) && (
+                    <View style={styles.sellerVerified}>
+                      {item.seller_otp_verified && (
+                        <View style={styles.badge}><MaterialIcons name="verified-user" size={14} color={colors.primary} /><Text style={styles.badgeText}>Verified Phone</Text></View>
+                      )}
+                      {item.seller_kyc_verified && (
+                        <View style={styles.badge}><MaterialIcons name="badge" size={14} color={colors.success} /><Text style={styles.badgeText}>Verified Identity</Text></View>
+                      )}
+                    </View>
+                  )}
+                </View>
+              </View>
+              <View style={styles.actionRow}>
+                <TouchableOpacity
+                  style={[styles.chatBtn, chatting && styles.chatBtnDisabled]}
+                  onPress={handleChatWithSeller}
+                  disabled={chatting}
+                >
+                  {chatting ? <ActivityIndicator size="small" color={colors.white} /> : <><MaterialIcons name="chat" size={22} color={colors.white} /><Text style={styles.chatBtnText}>Chat</Text></>}
+                </TouchableOpacity>
+                {hasPhone && (
+                  <TouchableOpacity
+                    style={[styles.callBtn, { borderColor: colors.primary }]}
+                    onPress={handleCallSeller}
+                    disabled={calling}
+                  >
+                    <MaterialIcons name="call" size={22} color={colors.primary} />
+                    <Text style={[styles.callBtnText, { color: colors.primary }]}>Call</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+              <View style={styles.reportRow}>
+                <TouchableOpacity style={styles.reportBtn} onPress={() => setContentReportVisible(true)}>
+                  <MaterialIcons name="flag" size={18} color={colors.textMuted} />
+                  <Text style={[styles.reportBtnText, { color: colors.textMuted }]}>Report</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.reportBtn} onPress={handleBlockSeller} disabled={blocking}>
+                  <MaterialIcons name="block" size={18} color={colors.textMuted} />
+                  <Text style={[styles.reportBtnText, { color: colors.textMuted }]}>Block</Text>
+                </TouchableOpacity>
+              </View>
+            </>
           ) : null}
         </View>
       </ScrollView>
-      <SafetyModal
+      <SafetyWarningModal
         visible={safetyModal.visible}
         onAcknowledge={onSafetyAcknowledge}
         onClose={() => setSafetyModal({ visible: false, action: null })}
@@ -285,6 +417,17 @@ export default function MarketplaceDetailScreen() {
         targetId={itemId}
         targetUserId={sellerId}
         onBlocked={() => navigation.goBack()}
+        onReportListingPress={() => {
+          setReportModalVisible(false);
+          setContentReportVisible(true);
+        }}
+      />
+      <ContentReportModal
+        visible={contentReportVisible}
+        onClose={() => setContentReportVisible(false)}
+        targetType="marketplace"
+        targetId={itemId}
+        onReported={() => setContentReportVisible(false)}
       />
     </SafeAreaView>
   );
@@ -294,6 +437,28 @@ function createStyles(colors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
     moreBtn: { padding: spacing.sm },
+    carouselDots: { flexDirection: "row", justifyContent: "center", gap: 6, position: "absolute", bottom: 12, left: 0, right: 0 },
+    dot: { width: 6, height: 6, borderRadius: 3 },
+    dotInactive: { backgroundColor: "rgba(255,255,255,0.5)" },
+    pendingBanner: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.sm,
+      marginHorizontal: spacing.md,
+      marginTop: spacing.sm,
+      padding: spacing.md,
+      borderRadius: 12,
+      borderWidth: 1,
+    },
+    pendingBannerText: { fontSize: 14, fontWeight: "600" },
+    riskBanner: {
+      marginHorizontal: spacing.md,
+      marginTop: spacing.sm,
+      padding: spacing.md,
+      borderRadius: 12,
+      borderWidth: 1,
+    },
+    riskBannerText: { fontSize: 13, marginTop: spacing.xs },
     badges: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs, marginBottom: spacing.sm },
     badge: { flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 4, paddingHorizontal: spacing.sm, borderRadius: 8, backgroundColor: colors.surfaceLight },
     badgeReported: { backgroundColor: "rgba(234,179,8,0.2)" },
@@ -314,9 +479,29 @@ function createStyles(colors) {
     row: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.sm },
     rowText: { fontSize: 15, color: colors.text },
     description: { fontSize: 15, color: colors.text, lineHeight: 22, marginBottom: spacing.lg },
-    chatBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, backgroundColor: colors.primary, paddingVertical: spacing.md, borderRadius: 12 },
+    sellerSection: { marginBottom: spacing.md },
+    sellerLabel: { fontSize: 12, fontWeight: "600", color: colors.textMuted, marginBottom: spacing.xs },
+    sellerRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, alignItems: "center" },
+    sellerVerified: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
+    buyBtn: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: spacing.sm,
+      paddingVertical: spacing.md,
+      borderRadius: 12,
+      marginBottom: spacing.md,
+    },
+    buyBtnText: { fontSize: 16, fontWeight: "700", color: colors.white },
+    actionRow: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.sm },
+    chatBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, backgroundColor: colors.primary, paddingVertical: spacing.md, borderRadius: 12 },
     chatBtnDisabled: { opacity: 0.7 },
     chatBtnText: { fontSize: 16, fontWeight: "600", color: colors.white },
+    callBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, paddingVertical: spacing.md, paddingHorizontal: spacing.lg, borderRadius: 12, borderWidth: 1 },
+    callBtnText: { fontSize: 16, fontWeight: "600" },
+    reportRow: { flexDirection: "row", gap: spacing.lg },
+    reportBtn: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
+    reportBtnText: { fontSize: 14 },
     errorText: { fontSize: 15, color: colors.error, textAlign: "center", marginBottom: spacing.sm },
     retryText: { fontSize: 15, fontWeight: "600", color: colors.primary },
     imageViewerOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.95)", justifyContent: "center" },

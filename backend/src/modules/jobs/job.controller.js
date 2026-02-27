@@ -56,7 +56,8 @@ const createJob = async (req, res) => {
 
 const listJobs = async (req, res) => {
     try {
-        const data = await jobService.list(req.query);
+        const userId = req.user?.id ?? req.user?.userId;
+        const data = await jobService.list({ ...req.query, userId });
         return res.json({ success: true, ...data });
     } catch (err) {
         return sendErr(res, err);
@@ -92,7 +93,8 @@ const deleteJob = async (req, res) => {
 
 const searchJobs = async (req, res) => {
     try {
-        const data = await jobService.search(req.query);
+        const userId = req.user?.id ?? req.user?.userId;
+        const data = await jobService.search({ ...req.query, userId });
         return res.json({ success: true, ...data });
     } catch (err) {
         return sendErr(res, err);

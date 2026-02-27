@@ -3,6 +3,7 @@ const express = require("express");
 const router = express.Router();
 
 const authMiddleware = require("../../middlewares/auth.middleware");
+const optionalAuth = require("../../middlewares/auth.middleware").optional;
 const jobController = require("./job.controller");
 
 // Basic in-memory rate limit for POST /jobs (per IP)
@@ -29,9 +30,9 @@ function createRateLimiter({ windowMs = 60_000, max = 10 }) {
 
 const postLimiter = createRateLimiter({ windowMs: 60_000, max: 5 });
 
-// Public list/search
-router.get("/", jobController.listJobs);
-router.get("/search", jobController.searchJobs);
+// Public list/search (optionalAuth for includeCreatorPending)
+router.get("/", optionalAuth, jobController.listJobs);
+router.get("/search", optionalAuth, jobController.searchJobs);
 router.get("/my-applications", authMiddleware, jobController.listMyApplications);
 router.get("/:id", jobController.getJob);
 

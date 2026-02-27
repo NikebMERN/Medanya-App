@@ -10,7 +10,7 @@ import {
   Alert,
   Linking,
 } from "react-native";
-import { useSafeAreaInsets, SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useThemeColors } from "../../theme/useThemeColors";
@@ -19,21 +19,23 @@ import { useAuthStore } from "../../store/auth.store";
 import * as jobsApi from "../../services/jobs.api";
 import * as chatApi from "../../services/chat.api";
 import * as activityApi from "../../services/activity.api";
-import SafetyModal from "../../components/common/SafetyModal";
+import * as userApi from "../../api/user.api";
+import SafetyWarningModal from "../../components/SafetyWarningModal";
 import ReportOptionsModal from "../../components/common/ReportOptionsModal";
+import ContentReportModal from "../../components/ContentReportModal";
+import RiskBadge from "../../components/RiskBadge";
+import TrustBadge from "../../components/TrustBadge";
 import SubScreenHeader from "../../components/SubScreenHeader";
 
 export default function JobDetailScreen() {
   const navigation = useNavigation();
   const route = useRoute();
-  const insets = useSafeAreaInsets();
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   const jobId = route.params?.jobId;
   const user = useAuthStore((s) => s.user);
   const userId = user?.id ?? user?.userId ?? "";
-  const safetyAcknowledged = user?.safety_acknowledged_at ?? user?.safetyAcknowledgedAt;
 
   const [job, setJob] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -42,6 +44,8 @@ export default function JobDetailScreen() {
   const [chatting, setChatting] = useState(false);
   const [safetyModal, setSafetyModal] = useState({ visible: false, action: null });
   const [reportModalVisible, setReportModalVisible] = useState(false);
+  const [contentReportVisible, setContentReportVisible] = useState(false);
+  const [blocking, setBlocking] = useState(false);
 
   const loadJob = useCallback(async () => {
     if (!jobId) return;
@@ -119,12 +123,8 @@ export default function JobDetailScreen() {
       Alert.alert("Notice", "This is your own job posting.");
       return;
     }
-    if (!safetyAcknowledged) {
-      setSafetyModal({ visible: true, action: "chat" });
-      return;
-    }
-    doChatWithEmployer();
-  }, [job, userId, safetyAcknowledged, doChatWithEmployer]);
+    setSafetyModal({ visible: true, action: "chat" });
+  }, [job, userId]);
 
   const doCall = useCallback(() => {
     const phone = job?.contact_phone ?? job?.contactPhone ?? "";
@@ -142,12 +142,8 @@ export default function JobDetailScreen() {
       Alert.alert("Notice", "No contact number available.");
       return;
     }
-    if (!safetyAcknowledged) {
-      setSafetyModal({ visible: true, action: "call" });
-      return;
-    }
-    doCall();
-  }, [job, safetyAcknowledged, doCall]);
+    setSafetyModal({ visible: true, action: "call" });
+  }, [job]);
 
   const onSafetyAcknowledge = useCallback(() => {
     setSafetyModal((prev) => {
@@ -156,6 +152,34 @@ export default function JobDetailScreen() {
       return { visible: false, action: null };
     });
   }, [doChatWithEmployer, doCall]);
+
+  const handleBlockEmployer = useCallback(() => {
+    const createdBy = job?.created_by ?? job?.createdBy;
+    if (!createdBy) return;
+    Alert.alert(
+      "Block user",
+      "Block this user? You won't see their listings or messages.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Block",
+          style: "destructive",
+          onPress: async () => {
+            setBlocking(true);
+            try {
+              await userApi.blockUser(createdBy);
+              Alert.alert("Blocked", "User has been blocked.");
+              navigation.goBack();
+            } catch (e) {
+              Alert.alert("Error", e?.response?.data?.error?.message || e?.message || "Failed");
+            } finally {
+              setBlocking(false);
+            }
+          },
+        },
+      ]
+    );
+  }, [job, navigation]);
 
   const tabNav = navigation.getParent?.() ?? navigation;
   const subHeader = (
@@ -210,6 +234,11 @@ export default function JobDetailScreen() {
   const isOwnJob = String(createdBy) === String(userId);
   const avgRating = job.avgRating ?? job.avg_rating;
   const ratingCount = job.ratingCount ?? job.rating_count ?? 0;
+  const status = (job.status || "active").toLowerCase();
+  const isPendingReview = status === "pending_review" && isOwnJob;
+  const riskScore = job.risk_score ?? job.riskScore ?? 0;
+  const showRiskWarning = riskScore >= 60;
+  const employerTrustScore = job.creator_trust_score ?? job.creatorTrustScore;
 
   return (
     <SafeAreaView style={styles.wrapper} edges={["top"]}>
@@ -218,11 +247,13 @@ export default function JobDetailScreen() {
         onBack={() => navigation.goBack()}
         showProfileDropdown
         navigation={tabNav}
-        rightElement={!isOwnJob ? (
-          <TouchableOpacity style={styles.moreBtn} onPress={() => setReportModalVisible(true)}>
-            <MaterialIcons name="more-vert" size={24} color={colors.text} />
-          </TouchableOpacity>
-        ) : null}
+        rightElement={
+          !isOwnJob ? (
+            <TouchableOpacity style={styles.moreBtn} onPress={() => setReportModalVisible(true)}>
+              <MaterialIcons name="more-vert" size={24} color={colors.text} />
+            </TouchableOpacity>
+          ) : null
+        }
       />
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       {job.image_url || job.imageUrl ? (
@@ -232,6 +263,18 @@ export default function JobDetailScreen() {
           <MaterialIcons name="work" size={56} color={colors.textMuted} />
         </View>
       )}
+      {isPendingReview ? (
+        <View style={[styles.pendingBanner, { backgroundColor: colors.warning + "25", borderColor: colors.warning + "60" }]}>
+          <MaterialIcons name="schedule" size={20} color={colors.warning} />
+          <Text style={[styles.pendingBannerText, { color: colors.text }]}>Pending safety review</Text>
+        </View>
+      ) : null}
+      {showRiskWarning && !isOwnJob ? (
+        <View style={[styles.riskBanner, { backgroundColor: colors.error + "20", borderColor: colors.error + "50" }]}>
+          <RiskBadge riskScore={riskScore} aiScamScore={job.ai_scam_score ?? job.aiScamScore} />
+          <Text style={[styles.riskBannerText, { color: colors.text }]}>This job has been flagged. Proceed with caution.</Text>
+        </View>
+      ) : null}
       <View style={styles.body}>
         <View style={styles.badges}>
           {(job.creator_otp_verified || job.creator_kyc_verified) && (
@@ -247,8 +290,8 @@ export default function JobDetailScreen() {
           {(job.reports_count || 0) >= 1 && (
             <View style={[styles.badge, styles.badgeReported]}><MaterialIcons name="warning" size={14} color={colors.warning} /><Text style={styles.badgeText}>Reported</Text></View>
           )}
-          {job.status === "PENDING_REVIEW" && (
-            <View style={[styles.badge, styles.badgePending]}><Text style={styles.badgeText}>Pending Review</Text></View>
+          {employerTrustScore != null && (
+            <TrustBadge trustScore={employerTrustScore} />
           )}
         </View>
         <Text style={styles.title}>{job.title}</Text>
@@ -329,7 +372,7 @@ export default function JobDetailScreen() {
         </View>
       </View>
     </ScrollView>
-      <SafetyModal
+      <SafetyWarningModal
         visible={safetyModal.visible}
         onAcknowledge={onSafetyAcknowledge}
         onClose={() => setSafetyModal({ visible: false, action: null })}
@@ -341,6 +384,17 @@ export default function JobDetailScreen() {
         targetId={jobId}
         targetUserId={createdBy}
         onBlocked={() => navigation.goBack()}
+        onReportListingPress={() => {
+          setReportModalVisible(false);
+          setContentReportVisible(true);
+        }}
+      />
+      <ContentReportModal
+        visible={contentReportVisible}
+        onClose={() => setContentReportVisible(false)}
+        targetType="job"
+        targetId={jobId}
+        onReported={() => setContentReportVisible(false)}
       />
     </SafeAreaView>
   );
@@ -349,7 +403,27 @@ export default function JobDetailScreen() {
 function createStyles(colors) {
   return StyleSheet.create({
     wrapper: { flex: 1, backgroundColor: colors.background },
+    headerActions: { flexDirection: "row", alignItems: "center" },
     moreBtn: { padding: spacing.sm },
+    pendingBanner: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.sm,
+      marginHorizontal: spacing.md,
+      marginTop: spacing.sm,
+      padding: spacing.md,
+      borderRadius: 12,
+      borderWidth: 1,
+    },
+    pendingBannerText: { fontSize: 14, fontWeight: "600" },
+    riskBanner: {
+      marginHorizontal: spacing.md,
+      marginTop: spacing.sm,
+      padding: spacing.md,
+      borderRadius: 12,
+      borderWidth: 1,
+    },
+    riskBannerText: { fontSize: 13, marginTop: spacing.xs },
     badges: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs, marginBottom: spacing.sm },
     badge: { flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 4, paddingHorizontal: spacing.sm, borderRadius: 8, backgroundColor: colors.surfaceLight },
     badgeReported: { backgroundColor: "rgba(234,179,8,0.2)" },

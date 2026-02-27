@@ -3,6 +3,7 @@ const express = require("express");
 const router = express.Router();
 
 const auth = require("../../middlewares/auth.middleware");
+const optionalAuth = require("../../middlewares/auth.middleware").optional;
 const controller = require("./market.controller");
 
 // Basic in-memory rate limit for posting
@@ -27,9 +28,9 @@ function createRateLimiter({ windowMs = 60_000, max = 5 }) {
 }
 const postLimiter = createRateLimiter({ windowMs: 60_000, max: 3 });
 
-// Public list/search/detail
-router.get("/marketplace/items", controller.listItems);
-router.get("/marketplace/search", controller.search);
+// Public list/search/detail (optionalAuth for includeCreatorPending)
+router.get("/marketplace/items", optionalAuth, controller.listItems);
+router.get("/marketplace/search", optionalAuth, controller.search);
 router.get("/marketplace/items/:id", controller.getItem);
 
 // Protected create/update/sold/remove

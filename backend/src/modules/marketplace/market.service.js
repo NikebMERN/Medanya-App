@@ -106,7 +106,8 @@ async function create(user, body) {
     if (seller.account_private) throw codeErr("FORBIDDEN", "Your account must be public to sell items. Change it in Profile → Edit Profile.");
     const kycVerified = !!(seller.kyc_face_verified || (seller.kyc_status === "verified" && (seller.kyc_level || 0) >= 2));
     if (!kycVerified) throw codeErr("FORBIDDEN", "Identity verification required. Complete verification in Profile before listing items.");
-    if (seller.dob) {
+    if (!seller.dob) throw codeErr("AGE_REQUIRED", "Date of birth required to list items. Add it in Edit Profile.");
+    {
         const today = new Date();
         const dob = new Date(seller.dob);
         let age = today.getFullYear() - dob.getFullYear();
@@ -171,7 +172,7 @@ async function create(user, body) {
 }
 
 async function list(query) {
-    return db.listItems(query);
+    return db.listItems({ ...query });
 }
 
 async function detail(id) {
@@ -235,7 +236,7 @@ async function remove(user, id) {
 }
 
 async function search(query) {
-    return db.searchItems(query);
+    return db.searchItems({ ...query });
 }
 
 async function addFavorite(user, itemId) {

@@ -16,6 +16,8 @@ const KycSelfieScreen = React.lazy(() => import("../screens/profile/KycSelfieScr
 const KycMismatchScreen = React.lazy(() => import("../screens/profile/KycMismatchScreen"));
 const VerifyIdentityScreen = React.lazy(() => import("../screens/profile/VerifyIdentityScreen"));
 const FavoriteItemsScreen = React.lazy(() => import("../screens/marketplace/FavoriteItemsScreen"));
+const WalletScreen = React.lazy(() => import("../screens/wallet/WalletScreen"));
+const RechargeScreen = React.lazy(() => import("../screens/wallet/RechargeScreen"));
 
 const Stack = createNativeStackNavigator();
 
@@ -51,6 +53,8 @@ export default function ProfileStack() {
         <Stack.Screen name="KycMismatch" component={KycMismatchScreen} />
         <Stack.Screen name="VerifyIdentity" component={VerifyIdentityScreen} />
         <Stack.Screen name="FavoriteItems" component={FavoriteItemsScreen} />
+        <Stack.Screen name="Wallet" component={WalletScreen} />
+        <Stack.Screen name="Recharge" component={RechargeScreen} />
       </Stack.Navigator>
     </Suspense>
   );

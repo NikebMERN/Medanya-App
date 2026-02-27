@@ -465,6 +465,16 @@ export default function ProfileScreen() {
         </TouchableOpacity>
       )}
 
+      {/* Wallet */}
+      <TouchableOpacity
+        style={[styles.actionCard, styles.actionCardKyc]}
+        onPress={() => navigation.navigate("Wallet")}
+        activeOpacity={0.8}
+      >
+        <MaterialIcons name="account-balance-wallet" size={28} color={colors.primary} style={styles.actionIcon} />
+        <Text style={styles.actionLabel}>WALLET</Text>
+      </TouchableOpacity>
+
       {/* Light mode + Logout */}
       <View style={styles.actionRow}>
         <TouchableOpacity style={styles.actionCard} onPress={toggleTheme} activeOpacity={0.8}>

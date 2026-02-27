@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, Alert, Image } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, Alert, Image, SafeAreaView } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
@@ -8,7 +8,7 @@ import * as ImagePicker from "expo-image-picker";
 import { uploadToCloudinary } from "../../utils/env";
 import * as videosApi from "../../api/videos.api";
 import { useAuthStore } from "../../store/auth.store";
-import { canPostVideo, canPostJobs, getDobFromUser } from "../../utils/age";
+import { canPostVideo, getDobFromUser } from "../../utils/age";
 import GuestGate from "../../components/GuestGate";
 import SubScreenHeader from "../../components/SubScreenHeader";
 
@@ -23,6 +23,8 @@ export default function VideoUploadScreen({ navigation }) {
   if (isGuest) {
     return <GuestGate message="Sign in to upload videos" />;
   }
+  const kycVerified = user?.kyc_face_verified ?? user?.kycFaceVerified ?? false;
+  const canPost = canPostVideo(getDobFromUser(user));
   const [thumbUri, setThumbUri] = useState(null);
   const [caption, setCaption] = useState("");
   const [uploading, setUploading] = useState(false);
@@ -61,9 +63,8 @@ export default function VideoUploadScreen({ navigation }) {
   }, []);
 
   const submit = useCallback(async () => {
-    const kycVerified = user?.kyc_face_verified ?? user?.kycFaceVerified ?? false;
-    const dob = getDobFromUser(user);
-    if (!canPostVideo(dob) && !canPostJobs(dob) && !kycVerified) return Alert.alert("Age requirement", "You must be 16+ (or 18+ with verified identity) to post videos. Add your date of birth in Edit Profile or complete Identity Verification.");
+    if (!kycVerified) return Alert.alert("Identity verification required", "Complete identity verification in Profile before posting videos. Go to Profile → Identity Verification.", [{ text: "OK" }, { text: "Go to verification", onPress: () => navigation.navigate("Profile", { screen: "Kyc" }) }]);
+    if (!canPost) return Alert.alert("Age requirement", "You must be 16 or older to post videos. Add your date of birth in Edit Profile.");
     if (!videoUri) return Alert.alert("Required", "Select a video.");
     if (!thumbUri) return Alert.alert("Required", "Select a thumbnail image.");
     setUploading(true);
@@ -79,9 +80,37 @@ export default function VideoUploadScreen({ navigation }) {
     } finally {
       setUploading(false);
     }
-  }, [videoUri, thumbUri, caption, navigation, user]);
+  }, [videoUri, thumbUri, caption, navigation, kycVerified, canPost]);
 
   const tabNav = navigation.getParent?.() ?? navigation;
+
+  if (!kycVerified || !canPost) {
+    return (
+      <View style={styles.container}>
+        <SubScreenHeader title="Create Video" onBack={() => navigation.goBack()} showProfileDropdown navigation={tabNav} />
+        <View style={[styles.content, { justifyContent: "center", alignItems: "center", padding: 24 }]}>
+          <MaterialIcons name={!kycVerified ? "verified-user" : "cake"} size={48} color={colors.textMuted} style={{ marginBottom: 12 }} />
+          <Text style={[styles.label, { textAlign: "center", marginBottom: 8 }]}>
+            {!kycVerified ? "Identity verification required" : "Age requirement"}
+          </Text>
+          <Text style={{ color: colors.textMuted, textAlign: "center", marginBottom: 16, fontSize: 14 }}>
+            {!kycVerified
+              ? "Complete Identity Verification in Profile and have your face matched to your document before posting videos."
+              : "You must be 16 or older to post videos. Add your date of birth in Edit Profile."}
+          </Text>
+          {!kycVerified && (
+            <TouchableOpacity onPress={() => navigation.navigate("Profile", { screen: "Kyc" })} style={[styles.submitBtn, { marginBottom: 8 }]}>
+              <Text style={{ color: colors.white, fontWeight: "600" }}>Go to Identity Verification</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity onPress={() => navigation.goBack()} style={{ padding: 12 }}>
+            <Text style={{ color: colors.textMuted }}>Go back</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <SubScreenHeader

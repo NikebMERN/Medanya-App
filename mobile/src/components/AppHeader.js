@@ -13,6 +13,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useThemeColors } from "../theme/useThemeColors";
 import { typography } from "../theme/typography";
 import { useAuthStore } from "../store/auth.store";
+import { canUseMarketplace, canPostJobs, getDobFromUser } from "../utils/age";
 import { useThemeStore } from "../store/theme.store";
 import { spacing } from "../theme/spacing";
 
@@ -164,20 +165,20 @@ function AppHeaderComponent({ navigation, route, focusedRouteName }) {
               <Text style={styles.menuItemText}>Favorite items</Text>
               <MaterialIcons name="chevron-right" size={20} color={colors.textSecondary} />
             </TouchableOpacity>
-            {!!kycFaceVerified ? (
-              <>
-                <TouchableOpacity style={styles.menuItem} onPress={handlePostJob} activeOpacity={0.7}>
-                  <MaterialIcons name="work" size={22} color={colors.text} />
-                  <Text style={styles.menuItemText}>Create job</Text>
-                  <MaterialIcons name="chevron-right" size={20} color={colors.textSecondary} />
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.menuItem} onPress={handleSellItem} activeOpacity={0.7}>
-                  <MaterialIcons name="storefront" size={22} color={colors.text} />
-                  <Text style={styles.menuItemText}>Trade</Text>
-                  <MaterialIcons name="chevron-right" size={20} color={colors.textSecondary} />
-                </TouchableOpacity>
-              </>
-            ) : null}
+            {!!(kycFaceVerified && canUseMarketplace(getDobFromUser(user))) && (
+              <TouchableOpacity style={styles.menuItem} onPress={handleSellItem} activeOpacity={0.7}>
+                <MaterialIcons name="storefront" size={22} color={colors.text} />
+                <Text style={styles.menuItemText}>Trade</Text>
+                <MaterialIcons name="chevron-right" size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+            )}
+            {!!(kycFaceVerified && canPostJobs(getDobFromUser(user))) && (
+              <TouchableOpacity style={styles.menuItem} onPress={handlePostJob} activeOpacity={0.7}>
+                <MaterialIcons name="work" size={22} color={colors.text} />
+                <Text style={styles.menuItemText}>Create job</Text>
+                <MaterialIcons name="chevron-right" size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+            )}
             {!!accountPrivate ? (
               <TouchableOpacity style={styles.menuItem} onPress={handleFollowRequests} activeOpacity={0.7}>
                 <MaterialIcons name="people-outline" size={22} color={colors.text} />

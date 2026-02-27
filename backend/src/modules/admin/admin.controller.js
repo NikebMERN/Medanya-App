@@ -244,6 +244,64 @@ const listLabelSamples = async (req, res, next) => {
     }
 };
 
+const requestRetrain = async (req, res, next) => {
+    try {
+        const scamTraining = require("../../services/scamML/scamTraining.mysql");
+        const scamML = require("../../services/scamML/scamML.service");
+        const { pool } = require("../../config/mysql");
+        const labeledCount = await scamTraining.getLabeledCount();
+        const minLabels = scamML.getMinLabelsForML ? scamML.getMinLabelsForML() : 200;
+        if (labeledCount < minLabels) {
+            return res.status(400).json({ success: false, error: `Need at least ${minLabels} labeled samples (have ${labeledCount})` });
+        }
+        const [[existing]] = await pool.query("SELECT id FROM ml_retrain_approval WHERE status = 'PENDING' LIMIT 1");
+        if (existing) {
+            return res.status(400).json({ success: false, error: "Pending retrain already exists" });
+        }
+        await pool.query("INSERT INTO ml_retrain_approval (status, labeled_count) VALUES ('PENDING', ?)", [labeledCount]);
+        return res.json({ success: true, pending: true, labeledCount });
+    } catch (err) {
+        return next(err);
+    }
+};
+
+const getRetrainStatus = async (req, res, next) => {
+    try {
+        const { pool } = require("../../config/mysql");
+        const [[row]] = await pool.query("SELECT * FROM ml_retrain_approval WHERE status = 'PENDING' ORDER BY requested_at DESC LIMIT 1");
+        const scamTraining = require("../../services/scamML/scamTraining.mysql");
+        const labeledCount = await scamTraining.getLabeledCount();
+        return res.json({ success: true, pending: row || null, labeledCount });
+    } catch (err) {
+        return next(err);
+    }
+};
+
+const approveRetrain = async (req, res, next) => {
+    try {
+        const adminId = req.user?.id ?? req.user?.userId;
+        const { pool } = require("../../config/mysql");
+        const [rows] = await pool.query("SELECT id FROM ml_retrain_approval WHERE status = 'PENDING' LIMIT 1");
+        if (!rows.length) return res.status(400).json({ success: false, error: "No pending retrain" });
+        await pool.query("UPDATE ml_retrain_approval SET status = 'APPROVED', approved_by = ?, approved_at = NOW() WHERE id = ?", [adminId, rows[0].id]);
+        const { scamMLQueue } = require("../../jobs/queues/notification.queue");
+        await scamMLQueue.add("weeklyTraining", { approved: true });
+        return res.json({ success: true });
+    } catch (err) {
+        return next(err);
+    }
+};
+
+const rejectRetrain = async (req, res, next) => {
+    try {
+        const { pool } = require("../../config/mysql");
+        await pool.query("UPDATE ml_retrain_approval SET status = 'REJECTED' WHERE status = 'PENDING'");
+        return res.json({ success: true });
+    } catch (err) {
+        return next(err);
+    }
+};
+
 const labelSample = async (req, res, next) => {
     try {
         const sampleId = parseInt(req.params.id, 10);
@@ -283,4 +341,8 @@ module.exports = {
     listKycSessions,
     listLabelSamples,
     labelSample,
+    getRetrainStatus,
+    requestRetrain,
+    approveRetrain,
+    rejectRetrain,
 };

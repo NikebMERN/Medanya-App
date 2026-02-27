@@ -26,6 +26,8 @@ export async function createStream(body) {
   const payload = {
     title: body?.title ?? "",
     category: body?.category ?? "",
+    field: body?.field ?? "GENERAL",
+    tags: Array.isArray(body?.tags) ? body.tags : [],
   };
   if (body?.coverImageUrl) payload.coverImageUrl = body.coverImageUrl;
   const { data } = await client.post("/streams", payload);
@@ -51,4 +53,14 @@ export async function endStream(streamId) {
 export async function getGiftCatalog() {
   const { data } = await client.get("/gifts");
   return data?.gifts ?? [];
+}
+
+export async function getStreamPins(streamId) {
+  const { data } = await client.get(`/live/${streamId}/pins`);
+  return { pins: data?.pins ?? [], items: data?.items ?? [] };
+}
+
+export async function pinListing(streamId, listingId) {
+  const { data } = await client.post(`/live/${streamId}/pin`, { listingId });
+  return data;
 }

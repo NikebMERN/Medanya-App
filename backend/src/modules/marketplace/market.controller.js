@@ -26,7 +26,8 @@ const createItem = async (req, res) => {
 
 const listItems = async (req, res) => {
     try {
-        const data = await service.list(req.query);
+        const userId = req.user?.id ?? req.user?.userId;
+        const data = await service.list({ ...req.query, userId });
         return res.json({ success: true, ...data });
     } catch (err) {
         return sendErr(res, err);
@@ -100,7 +101,8 @@ const deleteItem = async (req, res) => {
 
 const search = async (req, res) => {
     try {
-        const data = await service.search(req.query);
+        const userId = req.user?.id ?? req.user?.userId;
+        const data = await service.search({ ...req.query, userId });
         return res.json({ success: true, ...data });
     } catch (err) {
         return sendErr(res, err);

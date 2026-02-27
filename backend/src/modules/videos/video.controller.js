@@ -254,6 +254,24 @@ const hide = async (req, res) => {
     }
 };
 
+const pinListing = async (req, res) => {
+    try {
+        const data = await service.pinListing(req.user, req.params.id, req.body?.listingId);
+        return res.status(201).json({ success: true, ...data });
+    } catch (err) {
+        return sendErr(res, err);
+    }
+};
+
+const getPins = async (req, res) => {
+    try {
+        const data = await service.getPins(req.params.id);
+        return res.json({ success: true, ...data });
+    } catch (err) {
+        return sendErr(res, err);
+    }
+};
+
 module.exports = {
     create,
     list,
@@ -265,6 +283,8 @@ module.exports = {
     deleteComment,
     report,
     remove,
+    pinListing,
+    getPins,
     adminList,
     approve,
     reject,

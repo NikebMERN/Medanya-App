@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useThemeColors } from "../../theme/useThemeColors";
@@ -6,9 +6,12 @@ import { spacing } from "../../theme/spacing";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useAuthStore } from "../../store/auth.store";
 import * as activityApi from "../../services/activity.api";
+import PinItemSheet from "../../components/PinItemSheet";
 
 export default function LivePlayerScreen({ route, navigation }) {
   const { streamId, stream: routeStream, isHost } = route?.params ?? {};
+  const [stream, setStream] = useState(routeStream);
+  const [pinSheetVisible, setPinSheetVisible] = useState(false);
   const insets = useSafeAreaInsets();
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors, insets), [colors, insets]);
@@ -20,6 +23,19 @@ export default function LivePlayerScreen({ route, navigation }) {
       activityApi.logActivity({ action: "enter_livestream", targetType: "livestream", targetId: String(streamId) });
     }
   }, [streamId, userId]);
+
+  const loadStream = useCallback(async () => {
+    if (!streamId) return;
+    try {
+      const api = await import("../../api/livestream.api");
+      const s = await api.getStream(streamId);
+      if (s) setStream(s);
+    } catch (_) {}
+  }, [streamId]);
+
+  useEffect(() => {
+    if (streamId && !stream?.field) loadStream();
+  }, [streamId, stream?.field, loadStream]);
 
   useEffect(() => {
     // Socket join stream room and listen for viewer_count_update / stream:viewerCount
@@ -40,6 +56,14 @@ export default function LivePlayerScreen({ route, navigation }) {
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
           <MaterialIcons name="arrow-back" size={24} color={colors.white} />
         </TouchableOpacity>
+        {(stream?.field === "MARKETING" || routeStream?.field === "MARKETING") && !isHost && (
+          <TouchableOpacity
+            style={styles.shopBtn}
+            onPress={() => setPinSheetVisible(true)}
+          >
+            <MaterialIcons name="storefront" size={24} color={colors.white} />
+          </TouchableOpacity>
+        )}
         {isHost && (
           <TouchableOpacity
             style={styles.endBtn}
@@ -52,6 +76,16 @@ export default function LivePlayerScreen({ route, navigation }) {
           </TouchableOpacity>
         )}
       </View>
+      <PinItemSheet
+        visible={pinSheetVisible}
+        onClose={() => setPinSheetVisible(false)}
+        streamId={streamId}
+        creatorId={stream?.hostId ?? routeStream?.hostId}
+        onItemPress={(listItem) => {
+          const nav = navigation?.getParent?.()?.getParent?.() ?? navigation;
+          nav?.navigate?.("Main", { screen: "Marketplace", params: { screen: "MarketplaceDetail", params: { itemId: listItem.id } } });
+        }}
+      />
     </View>
   );
 }
@@ -75,6 +109,7 @@ function createStyles(colors, insets) {
       paddingHorizontal: spacing.md,
     },
     backBtn: { width: 44, height: 44, justifyContent: "center", alignItems: "center" },
+    shopBtn: { position: "absolute", right: 60, top: 8, width: 44, height: 44, justifyContent: "center", alignItems: "center" },
     endBtn: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 8, backgroundColor: (colors.error || "#e53935") + "cc" },
     endBtnText: { color: colors.white, fontWeight: "700" },
   });

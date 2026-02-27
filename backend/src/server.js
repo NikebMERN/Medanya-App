@@ -11,6 +11,7 @@ const { Server } = require("socket.io");
 const registerSockets = require("./sockets"); // src/sockets/index.js
 const logger = require("./utils/logger.util");
 const { startNotificationWorker } = require("./jobs/workers/notification.worker");
+const { startMLInference, stopMLInference } = require("./services/ml/startMLInference");
 
 const startServer = async () => {
     try {
@@ -43,8 +44,10 @@ const startServer = async () => {
 
         const { scamMLQueue } = require("./jobs/queues/notification.queue");
         await scamMLQueue.add("autoLegitLabeling", {}, { repeat: { pattern: "0 2 * * *" } }).catch(() => {}); // daily 2am
-        await scamMLQueue.add("weeklyTraining", {}, { repeat: { pattern: "0 3 * * 0" } }).catch(() => {}); // weekly Sun 3am
         await scamMLQueue.add("activeLearningPick", {}, { repeat: { pattern: "0 4 * * *" } }).catch(() => {}); // daily 4am
+        // Retrain: only when admin approves from panel (POST /admin/ml/approve-retrain). No automatic weekly request.
+
+        startMLInference(); // ML inference runs with npm start
 
         const PORT = Number(env.PORT || 4001);
         server.listen(PORT, () => {
@@ -57,4 +60,7 @@ const startServer = async () => {
 };
 
 startServer();
+
+process.on("SIGTERM", () => stopMLInference());
+process.on("SIGINT", () => stopMLInference());
 

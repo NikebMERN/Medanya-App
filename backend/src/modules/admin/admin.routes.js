@@ -66,5 +66,9 @@ router.get("/audit", adminController.listAuditLog);
 
 router.get("/ml/samples", adminController.listLabelSamples);
 router.patch("/ml/samples/:id/label", adminController.labelSample);
+router.get("/ml/retrain-status", adminController.getRetrainStatus);
+router.post("/ml/request-retrain", adminController.requestRetrain);
+router.post("/ml/approve-retrain", adminController.approveRetrain);
+router.post("/ml/reject-retrain", adminController.rejectRetrain);
 
 module.exports = router;

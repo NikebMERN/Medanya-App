@@ -3,6 +3,7 @@
  * Isolated store for jobs feature.
  */
 import { create } from "zustand";
+import * as jobsApi from "../services/jobs.api";
 
 export const JOB_CATEGORIES = [
   { value: "", label: "All" },
@@ -46,16 +47,25 @@ export const CURRENCY_OPTIONS = [
   { value: "EGP", label: "EGP (Pound)" },
 ];
 
+const LIMIT = 20;
+
 export const useJobsStore = create((set, get) => ({
   jobs: [],
   total: 0,
   page: 1,
-  limit: 20,
+  limit: LIMIT,
   loading: false,
   error: null,
+  refreshing: false,
+  hasMore: true,
+  sort: "newest",
   category: "",
   location: "",
   keyword: "",
+  viewerId: null,
+  currentJob: null,
+
+  setViewerId: (id) => set({ viewerId: id ?? null }),
 
   setJobs: (jobs, total, page) =>
     set({
@@ -64,18 +74,99 @@ export const useJobsStore = create((set, get) => ({
       page: page ?? 1,
       loading: false,
       error: null,
+      hasMore: ((jobs ?? []).length < (get().limit || LIMIT)) ? false : true,
     }),
 
   setLoading: (loading) => set({ loading: loading ?? false }),
-
   setError: (error) => set({ error: error ?? null, loading: false }),
-
+  setRefreshing: (refreshing) => set({ refreshing: refreshing ?? false }),
   setFilters: (filters) =>
     set({
       category: filters?.category ?? get().category,
       location: filters?.location ?? get().location,
       keyword: filters?.keyword ?? get().keyword,
+      sort: filters?.sort ?? get().sort,
     }),
+
+  fetchJobs: async (reset = false, opts = {}) => {
+    const { category, location, keyword, sort, page, limit, viewerId } = get();
+    const userId = opts.userId ?? viewerId;
+    const nextPage = reset ? 1 : page;
+    set({ loading: true, error: null, ...(reset && { jobs: [], page: 1 }) });
+    try {
+      const params = {
+        page: nextPage,
+        limit,
+        category: category || undefined,
+        location: location || undefined,
+        keyword: keyword || undefined,
+        q: keyword || undefined,
+        sort: sort || "newest",
+        includeCreatorPending: !!userId ? "1" : undefined,
+      };
+      const result = keyword
+        ? await jobsApi.searchJobs(params)
+        : await jobsApi.listJobs(params);
+      const jobs = result.jobs ?? [];
+      const total = result.total ?? 0;
+      const newPage = result.page ?? nextPage;
+      if (reset) {
+        set({ jobs, total, page: newPage, hasMore: jobs.length >= limit });
+      } else {
+        const prev = get().jobs;
+        const merged = newPage === 1 ? jobs : [...prev, ...jobs];
+        set({
+          jobs: merged,
+          total,
+          page: newPage,
+          hasMore: jobs.length >= limit,
+        });
+      }
+    } catch (err) {
+      set({
+        error: err?.response?.data?.error?.message || err?.message || "Failed to load jobs.",
+      });
+    } finally {
+      set({ loading: false, refreshing: false });
+    }
+  },
+
+  fetchMore: async () => {
+    const { loading, hasMore, jobs, total, limit } = get();
+    if (loading || !hasMore || jobs.length >= total) return;
+    set({ page: get().page + 1 });
+    await get().fetchJobs(false);
+  },
+
+  refresh: async () => {
+    set({ refreshing: true, page: 1 });
+    await get().fetchJobs(true);
+  },
+
+  fetchJobById: async (id) => {
+    if (!id) return null;
+    try {
+      const job = await jobsApi.getJob(id);
+      set({ currentJob: job ?? null });
+      return job;
+    } catch (_) {
+      set({ currentJob: null });
+      return null;
+    }
+  },
+
+  createJob: async (payload) => {
+    set({ error: null });
+    try {
+      const job = await jobsApi.createJob(payload);
+      return job;
+    } catch (err) {
+      set({
+        error: err?.response?.data?.error?.message || err?.message || "Failed to create job.",
+      });
+      throw err;
+    }
+  },
 
   clear: () =>
     set({
@@ -84,5 +175,9 @@ export const useJobsStore = create((set, get) => ({
       page: 1,
       loading: false,
       error: null,
+      refreshing: false,
+      hasMore: true,
+      currentJob: null,
+      viewerId: null,
     }),
 }));

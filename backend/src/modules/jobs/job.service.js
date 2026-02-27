@@ -92,7 +92,8 @@ async function createJob(reqUser, body) {
     if (!user) throw codeErr("UNAUTHORIZED", "User not found");
     const kycVerified = !!(user.kyc_face_verified || (user.kyc_status === "verified" && (user.kyc_level || 0) >= 2));
     if (!kycVerified) throw codeErr("FORBIDDEN", "Identity verification required. Complete verification in Profile before posting jobs.");
-    if (user.dob) {
+    if (!user.dob) throw codeErr("AGE_REQUIRED", "Date of birth required to post jobs. Add it in Edit Profile.");
+    {
         const today = new Date();
         const dob = new Date(user.dob);
         let age = today.getFullYear() - dob.getFullYear();

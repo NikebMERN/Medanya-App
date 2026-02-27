@@ -8,6 +8,7 @@ const jobRoutes = require("./modules/jobs/job.routes");
 const reportRoutes = require("./modules/reports/report.routes");
 const missingRoutes = require("./modules/missingPersons/missing.routes");
 const marketRoutes = require("./modules/marketplace/market.routes");
+const ordersRoutes = require("./modules/orders/orders.routes");
 const feedRoutes = require("./modules/feed/feed.routes");
 const videoRoutes = require("./modules/videos/video.routes");
 const healthRoutes = require("./modules/health/health.routes");
@@ -52,6 +53,9 @@ router.use("/", missingRoutes);
 
 // ✅ MARKETPLACE
 router.use("/", marketRoutes);
+
+// ✅ ORDERS
+router.use("/", ordersRoutes);
 
 // ✅ FEED
 router.use("/", feedRoutes);
