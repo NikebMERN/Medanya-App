@@ -5,7 +5,7 @@ async function getById(userId, options = {}) {
     const { forSelf = false } = options;
     const [rows] = await pool.query(
         `SELECT id, phone_number, email, display_name, full_name, dob, avatar_url, neighborhood, last_lat, last_lng, bio, preferred_theme, role, is_verified,
-            otp_verified, kyc_status, kyc_level, kyc_face_verified, safety_acknowledged_at,
+            otp_verified, kyc_status, kyc_level, kyc_provider, kyc_verified_at, kyc_last_reason, kyc_face_verified, safety_acknowledged_at,
             privacy_hide_phone, account_private, hide_personal_data, notification_enabled, is_banned, banned_reason, is_active,
             created_at, updated_at
      FROM users WHERE id = ? LIMIT 1`,

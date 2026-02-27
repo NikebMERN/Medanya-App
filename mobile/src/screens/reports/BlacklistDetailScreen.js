@@ -8,14 +8,17 @@ import {
   TouchableOpacity,
 } from "react-native";
 import { useRoute, useNavigation } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
 import { getBlacklistSummary } from "../../services/reports.api";
+import SubScreenHeader from "../../components/SubScreenHeader";
 
 export default function BlacklistDetailScreen() {
   const route = useRoute();
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -100,15 +103,15 @@ export default function BlacklistDetailScreen() {
 
   const riskColor = displaySummary.riskLevel === "dangerous" ? colors.error : colors.warning;
 
+  const tabNav = navigation.getParent?.() ?? navigation;
   return (
     <View style={styles.wrapper}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <MaterialIcons name="arrow-back" size={24} color={colors.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Blacklist Detail</Text>
-        <View style={styles.headerRight} />
-      </View>
+      <SubScreenHeader
+        title="Blacklist Detail"
+        onBack={() => navigation.goBack()}
+        showProfileDropdown
+        navigation={tabNav}
+      />
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={[styles.riskBanner, { backgroundColor: riskColor + "20" }]}>
         <Text style={[styles.riskLabel, { color: riskColor }]}>
@@ -153,10 +156,6 @@ export default function BlacklistDetailScreen() {
 function createStyles(colors) {
   return StyleSheet.create({
     wrapper: { flex: 1 },
-    header: { flexDirection: "row", alignItems: "center", paddingVertical: spacing.sm, paddingHorizontal: spacing.sm, backgroundColor: colors.background, borderBottomWidth: 1, borderBottomColor: colors.border },
-    backBtn: { padding: spacing.sm },
-    headerTitle: { flex: 1, fontSize: 18, fontWeight: "700", color: colors.text, textAlign: "center" },
-    headerRight: { width: 40 },
     container: { flex: 1, backgroundColor: colors.background },
     content: { padding: spacing.md, paddingBottom: spacing.xl },
     center: { flex: 1, justifyContent: "center", alignItems: "center", padding: spacing.lg },

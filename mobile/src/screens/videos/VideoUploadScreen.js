@@ -10,6 +10,7 @@ import * as videosApi from "../../api/videos.api";
 import { useAuthStore } from "../../store/auth.store";
 import { canPostVideo, canPostJobs, getDobFromUser } from "../../utils/age";
 import GuestGate from "../../components/GuestGate";
+import SubScreenHeader from "../../components/SubScreenHeader";
 
 export default function VideoUploadScreen({ navigation }) {
   const insets = useSafeAreaInsets();
@@ -80,15 +81,15 @@ export default function VideoUploadScreen({ navigation }) {
     }
   }, [videoUri, thumbUri, caption, navigation, user]);
 
+  const tabNav = navigation.getParent?.() ?? navigation;
   return (
     <View style={styles.container}>
-      <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.iconBtn}>
-          <MaterialIcons name="arrow-back" size={24} color={colors.text} />
-        </TouchableOpacity>
-        <Text style={styles.title}>Create Video</Text>
-        <View style={styles.iconBtn} />
-      </View>
+      <SubScreenHeader
+        title="Create Video"
+        onBack={() => navigation.goBack()}
+        showProfileDropdown
+        navigation={tabNav}
+      />
 
       <View style={styles.content}>
         <TouchableOpacity style={styles.pickBtn} onPress={recordVideo}>
@@ -127,9 +128,6 @@ export default function VideoUploadScreen({ navigation }) {
 function createStyles(colors, paddingTop = 0) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
-    header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: spacing.md, paddingHorizontal: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border },
-    iconBtn: { padding: spacing.sm, width: 44 },
-    title: { color: colors.text, fontSize: 16, fontWeight: "800" },
     content: { padding: spacing.lg, gap: spacing.md },
     pickBtn: { flexDirection: "row", alignItems: "center", gap: 10, padding: spacing.md, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
     pickText: { color: colors.text, fontWeight: "700" },

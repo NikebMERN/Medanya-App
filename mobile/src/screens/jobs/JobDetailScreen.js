@@ -21,13 +21,14 @@ import * as chatApi from "../../services/chat.api";
 import * as activityApi from "../../services/activity.api";
 import SafetyModal from "../../components/common/SafetyModal";
 import ReportOptionsModal from "../../components/common/ReportOptionsModal";
+import SubScreenHeader from "../../components/SubScreenHeader";
 
 export default function JobDetailScreen() {
   const navigation = useNavigation();
   const route = useRoute();
   const insets = useSafeAreaInsets();
   const colors = useThemeColors();
-  const styles = useMemo(() => createStyles(colors, insets.top), [colors, insets.top]);
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const jobId = route.params?.jobId;
   const user = useAuthStore((s) => s.user);
@@ -156,16 +157,20 @@ export default function JobDetailScreen() {
     });
   }, [doChatWithEmployer, doCall]);
 
+  const tabNav = navigation.getParent?.() ?? navigation;
+  const subHeader = (
+    <SubScreenHeader
+      title="Job Details"
+      onBack={() => navigation.goBack()}
+      showProfileDropdown
+      navigation={tabNav}
+    />
+  );
+
   if (loading && !job) {
     return (
       <View style={styles.wrapper}>
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.8}>
-            <MaterialIcons name="arrow-back" size={24} color={colors.text} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Job Details</Text>
-          <View style={styles.headerRight} />
-        </View>
+        {subHeader}
         <View style={styles.center}>
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
@@ -176,13 +181,7 @@ export default function JobDetailScreen() {
   if (error && !job) {
     return (
       <View style={styles.wrapper}>
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.8}>
-            <MaterialIcons name="arrow-back" size={24} color={colors.text} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Job Details</Text>
-          <View style={styles.headerRight} />
-        </View>
+        {subHeader}
         <View style={styles.center}>
           <Text style={styles.errorText}>{error}</Text>
           <TouchableOpacity style={styles.retryBtn} onPress={loadJob}>
@@ -196,13 +195,7 @@ export default function JobDetailScreen() {
   if (!job) {
     return (
       <View style={styles.wrapper}>
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.8}>
-            <MaterialIcons name="arrow-back" size={24} color={colors.text} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Job Details</Text>
-          <View style={styles.headerRight} />
-        </View>
+        {subHeader}
         <View style={styles.center}>
           <Text style={styles.errorText}>Job not found</Text>
           <TouchableOpacity onPress={() => navigation.goBack()}>
@@ -220,19 +213,17 @@ export default function JobDetailScreen() {
 
   return (
     <SafeAreaView style={styles.wrapper} edges={["top"]}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.8}>
-          <MaterialIcons name="arrow-back" size={24} color={colors.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1}>Job Details</Text>
-        <View style={styles.headerRight}>
-          {!isOwnJob && (
-            <TouchableOpacity style={styles.moreBtn} onPress={() => setReportModalVisible(true)}>
-              <MaterialIcons name="more-vert" size={24} color={colors.text} />
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
+      <SubScreenHeader
+        title="Job Details"
+        onBack={() => navigation.goBack()}
+        showProfileDropdown
+        navigation={tabNav}
+        rightElement={!isOwnJob ? (
+          <TouchableOpacity style={styles.moreBtn} onPress={() => setReportModalVisible(true)}>
+            <MaterialIcons name="more-vert" size={24} color={colors.text} />
+          </TouchableOpacity>
+        ) : null}
+      />
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       {job.image_url || job.imageUrl ? (
         <Image source={{ uri: job.image_url || job.imageUrl }} style={styles.hero} resizeMode="cover" />
@@ -355,23 +346,9 @@ export default function JobDetailScreen() {
   );
 }
 
-function createStyles(colors, paddingTop = 0) {
+function createStyles(colors) {
   return StyleSheet.create({
     wrapper: { flex: 1, backgroundColor: colors.background },
-    header: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      paddingHorizontal: spacing.sm,
-      paddingTop: paddingTop + spacing.sm,
-      paddingBottom: spacing.md,
-      backgroundColor: colors.background,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.border,
-    },
-    backBtn: { padding: spacing.sm },
-    headerTitle: { flex: 1, fontSize: 18, fontWeight: "700", color: colors.text, textAlign: "center" },
-    headerRight: { width: 40 },
     moreBtn: { padding: spacing.sm },
     badges: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs, marginBottom: spacing.sm },
     badge: { flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 4, paddingHorizontal: spacing.sm, borderRadius: 8, backgroundColor: colors.surfaceLight },

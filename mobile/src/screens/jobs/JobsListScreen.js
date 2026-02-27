@@ -10,6 +10,9 @@ import {
   ActivityIndicator,
   RefreshControl,
   Platform,
+  Modal,
+  Pressable,
+  ScrollView,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { MaterialIcons } from "@expo/vector-icons";
@@ -42,6 +45,7 @@ export default function JobsListScreen() {
 
   const [searchInput, setSearchInput] = useState(keyword);
   const [refreshing, setRefreshing] = useState(false);
+  const [categoryDropdownVisible, setCategoryDropdownVisible] = useState(false);
 
   const loadJobs = useCallback(async (refresh = false) => {
     setLoading(true);
@@ -81,9 +85,15 @@ export default function JobsListScreen() {
     loadJobs(true);
   }, [searchInput, setFilters, loadJobs]);
 
-  const onCategoryPress = useCallback((value) => {
+  const onCategorySelect = useCallback((value) => {
     setFilters({ category: value });
+    setCategoryDropdownVisible(false);
   }, [setFilters]);
+
+  const selectedCategoryLabel = useMemo(() => {
+    const cat = JOB_CATEGORIES.find((c) => (c.value || "") === (category || ""));
+    return cat?.label ?? "All categories";
+  }, [category]);
 
   const renderItem = useCallback(
     ({ item }) => (
@@ -142,20 +152,37 @@ export default function JobsListScreen() {
           <Text style={styles.searchBtnText}>Search</Text>
         </TouchableOpacity>
       </View>
-      <View style={styles.filterRow}>
-        {JOB_CATEGORIES.map((cat) => (
-          <TouchableOpacity
-            key={cat.value || "all"}
-            style={[styles.filterChip, (!category && !cat.value) || category === cat.value ? styles.filterChipActive : null]}
-            onPress={() => onCategoryPress(cat.value)}
-            activeOpacity={0.8}
-          >
-            <Text style={[styles.filterChipText, (!category && !cat.value) || category === cat.value ? styles.filterChipTextActive : null]}>
-              {cat.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+      <TouchableOpacity
+        style={styles.categoryDropdown}
+        onPress={() => setCategoryDropdownVisible(true)}
+        activeOpacity={0.8}
+      >
+        <Text style={styles.categoryDropdownText}>{selectedCategoryLabel}</Text>
+        <MaterialIcons name="keyboard-arrow-down" size={24} color={colors.textSecondary} />
+      </TouchableOpacity>
+      <Modal visible={categoryDropdownVisible} transparent animationType="fade">
+        <Pressable style={styles.modalOverlay} onPress={() => setCategoryDropdownVisible(false)}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Category</Text>
+            <ScrollView style={styles.modalList} nestedScrollEnabled>
+              {JOB_CATEGORIES.map((cat) => (
+                <TouchableOpacity
+                  key={cat.value || "all"}
+                  style={[styles.modalItem, (!category && !cat.value) || category === cat.value ? { backgroundColor: colors.primary + "20" } : null]}
+                  onPress={() => onCategorySelect(cat.value)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.modalItemText, { color: colors.text }]}>{cat.label}</Text>
+                  {((!category && !cat.value) || category === cat.value) && <MaterialIcons name="check" size={20} color={colors.primary} />}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <TouchableOpacity style={[styles.modalCloseBtn, { borderTopColor: colors.border }]} onPress={() => setCategoryDropdownVisible(false)}>
+              <Text style={[styles.modalCloseText, { color: colors.textSecondary }]}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Modal>
       <Text style={styles.resultCount}>
         {total} {total === 1 ? "opportunity" : "opportunities"} found
       </Text>
@@ -249,22 +276,55 @@ function createStyles(colors) {
       backgroundColor: colors.primary,
     },
     searchBtnText: { color: colors.white, fontWeight: "600", fontSize: 14 },
-    filterRow: {
+    categoryDropdown: {
       flexDirection: "row",
-      flexWrap: "wrap",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginHorizontal: spacing.md,
+      marginBottom: spacing.sm,
+      paddingVertical: spacing.sm,
       paddingHorizontal: spacing.md,
-      paddingBottom: spacing.sm,
-      gap: spacing.xs,
-    },
-    filterChip: {
-      paddingVertical: 6,
-      paddingHorizontal: spacing.md,
-      borderRadius: 20,
       backgroundColor: colors.surfaceLight,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
     },
-    filterChipActive: { backgroundColor: colors.primary },
-    filterChipText: { fontSize: 13, color: colors.text },
-    filterChipTextActive: { fontSize: 13, color: colors.white, fontWeight: "600" },
+    categoryDropdownText: { fontSize: 15, color: colors.text, fontWeight: "500" },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.4)",
+      justifyContent: "flex-end",
+    },
+    modalContent: {
+      borderTopLeftRadius: 16,
+      borderTopRightRadius: 16,
+      paddingBottom: 34,
+      maxHeight: "60%",
+    },
+    modalTitle: {
+      fontSize: 18,
+      fontWeight: "700",
+      paddingHorizontal: spacing.lg,
+      paddingTop: spacing.lg,
+      paddingBottom: spacing.sm,
+    },
+    modalList: { maxHeight: 280 },
+    modalItem: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.lg,
+    },
+    modalItemText: { fontSize: 16 },
+    modalCloseBtn: {
+      paddingVertical: spacing.md,
+      alignItems: "center",
+      borderTopWidth: 1,
+      marginHorizontal: spacing.lg,
+      marginTop: spacing.sm,
+    },
+    modalCloseText: { fontSize: 16, fontWeight: "600" },
     resultCount: {
       fontSize: 13,
       color: colors.textMuted,

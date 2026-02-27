@@ -6,6 +6,7 @@ const {
     sendOtp,
     verifyOtp,
 } = require("./auth.service");
+const { captureDevice } = require("../../middlewares/deviceCapture.middleware");
 
 const verifyOtpAndLogin = async (req, res, next) => {
     try {
@@ -21,6 +22,7 @@ const verifyOtpAndLogin = async (req, res, next) => {
             return res.status(403).json({ message: "User banned" });
         }
 
+        captureDevice(user.id, req).catch(() => {});
         const token = issueJWT(user);
 
         const dobVal = user.dob;
@@ -81,6 +83,7 @@ const verifyOtpAndLoginServer = async (req, res, next) => {
             return res.status(403).json({ success: false, message: "User banned" });
         }
 
+        captureDevice(user.id, req).catch(() => {});
         const token = issueJWT(user);
         const dobVal = user.dob;
         const dobStr = dobVal instanceof Date ? dobVal.toISOString().slice(0, 10) : (dobVal ? String(dobVal) : null);
@@ -127,6 +130,7 @@ const guestLogin = async (req, res, next) => {
         if (user.is_banned) {
             return res.status(403).json({ success: false, message: "Guest access is disabled" });
         }
+        captureDevice(user.id, req).catch(() => {});
         const token = issueJWT(user);
         res.json({
             success: true,

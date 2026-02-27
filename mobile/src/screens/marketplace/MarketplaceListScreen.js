@@ -10,22 +10,17 @@ import {
   ActivityIndicator,
   RefreshControl,
   Platform,
+  Modal,
+  Pressable,
+  ScrollView,
 } from "react-native";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
-import { useMarketplaceStore } from "../../store/marketplace.store";
+import { useMarketplaceStore, MARKETPLACE_CATEGORIES } from "../../store/marketplace.store";
 import { useAuthStore } from "../../store/auth.store";
 import * as marketplaceApi from "../../services/marketplace.api";
-
-const CATEGORIES = [
-  { value: "", label: "All" },
-  { value: "electronics", label: "Electronics" },
-  { value: "furniture", label: "Furniture" },
-  { value: "clothing", label: "Clothing" },
-  { value: "other", label: "Other" },
-];
 
 export default function MarketplaceListScreen() {
   const navigation = useNavigation();
@@ -49,7 +44,13 @@ export default function MarketplaceListScreen() {
 
   const [searchInput, setSearchInput] = useState(keyword);
   const [refreshing, setRefreshing] = useState(false);
+  const [categoryDropdownVisible, setCategoryDropdownVisible] = useState(false);
   const isFirstFocus = useRef(true);
+
+  const selectedCategoryLabel = useMemo(() => {
+    const cat = MARKETPLACE_CATEGORIES.find((c) => (c.value || "") === (category || ""));
+    return cat?.label ?? "All categories";
+  }, [category]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -91,6 +92,11 @@ export default function MarketplaceListScreen() {
     setFilters({ keyword: searchInput.trim() });
     load();
   }, [searchInput, setFilters, load]);
+
+  const onCategorySelect = useCallback((value) => {
+    setFilters({ category: value });
+    setCategoryDropdownVisible(false);
+  }, [setFilters]);
 
   const renderItem = useCallback(
     ({ item }) => {
@@ -152,17 +158,37 @@ export default function MarketplaceListScreen() {
           <Text style={styles.searchBtnText}>Search</Text>
         </TouchableOpacity>
       </View>
-      <View style={styles.filterRow}>
-        {CATEGORIES.map((c) => (
-          <TouchableOpacity
-            key={c.value || "all"}
-            style={[styles.chip, (!category && !c.value) || category === c.value ? styles.chipActive : null]}
-            onPress={() => setFilters({ category: c.value })}
-          >
-            <Text style={[styles.chipText, (!category && !c.value) || category === c.value ? styles.chipTextActive : null]}>{c.label}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+      <TouchableOpacity
+        style={styles.categoryDropdown}
+        onPress={() => setCategoryDropdownVisible(true)}
+        activeOpacity={0.8}
+      >
+        <Text style={styles.categoryDropdownText}>{selectedCategoryLabel}</Text>
+        <MaterialIcons name="keyboard-arrow-down" size={24} color={colors.textSecondary} />
+      </TouchableOpacity>
+      <Modal visible={categoryDropdownVisible} transparent animationType="fade">
+        <Pressable style={styles.modalOverlay} onPress={() => setCategoryDropdownVisible(false)}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Category</Text>
+            <ScrollView style={styles.modalList} nestedScrollEnabled>
+              {MARKETPLACE_CATEGORIES.map((c) => (
+                <TouchableOpacity
+                  key={c.value || "all"}
+                  style={[styles.modalItem, (!category && !c.value) || category === c.value ? { backgroundColor: colors.primary + "20" } : null]}
+                  onPress={() => onCategorySelect(c.value)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.modalItemText, { color: colors.text }]}>{c.label}</Text>
+                  {((!category && !c.value) || category === c.value) && <MaterialIcons name="check" size={20} color={colors.primary} />}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <TouchableOpacity style={[styles.modalCloseBtn, { borderTopColor: colors.border }]} onPress={() => setCategoryDropdownVisible(false)}>
+              <Text style={[styles.modalCloseText, { color: colors.textSecondary }]}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Modal>
       <Text style={styles.count}>{total} item{total !== 1 ? "s" : ""}</Text>
       {error ? (
         <View style={styles.errorWrap}>
@@ -207,11 +233,28 @@ function createStyles(colors) {
     searchInput: { flex: 1, paddingVertical: spacing.sm, fontSize: 15, color: colors.text },
     searchBtn: { justifyContent: "center", paddingVertical: spacing.sm, paddingHorizontal: spacing.md, borderRadius: 12, backgroundColor: colors.primary },
     searchBtnText: { color: colors.white, fontWeight: "600", fontSize: 14 },
-    filterRow: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: spacing.md, gap: spacing.xs },
-    chip: { paddingVertical: 6, paddingHorizontal: spacing.md, borderRadius: 20, backgroundColor: colors.surfaceLight },
-    chipActive: { backgroundColor: colors.primary },
-    chipText: { fontSize: 13, color: colors.text },
-    chipTextActive: { fontSize: 13, color: colors.white, fontWeight: "600" },
+    categoryDropdown: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginHorizontal: spacing.md,
+      marginBottom: spacing.sm,
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.md,
+      backgroundColor: colors.surfaceLight,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    categoryDropdownText: { fontSize: 15, color: colors.text, fontWeight: "500" },
+    modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" },
+    modalContent: { borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingBottom: 34, maxHeight: "60%" },
+    modalTitle: { fontSize: 18, fontWeight: "700", paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.sm },
+    modalList: { maxHeight: 280 },
+    modalItem: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: spacing.md, paddingHorizontal: spacing.lg },
+    modalItemText: { fontSize: 16 },
+    modalCloseBtn: { paddingVertical: spacing.md, alignItems: "center", borderTopWidth: 1, marginHorizontal: spacing.lg, marginTop: spacing.sm },
+    modalCloseText: { fontSize: 16, fontWeight: "600" },
     count: { fontSize: 13, color: colors.textMuted, paddingHorizontal: spacing.md, marginBottom: spacing.sm },
     row: { gap: spacing.sm, marginBottom: spacing.sm, paddingHorizontal: spacing.md },
     card: { flex: 1, maxWidth: "48%", backgroundColor: colors.surface, borderRadius: 12, overflow: "hidden", borderWidth: 1, borderColor: colors.border },

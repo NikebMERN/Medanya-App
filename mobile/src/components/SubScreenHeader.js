@@ -17,13 +17,14 @@ import { spacing } from "../theme/spacing";
 import { typography } from "../theme/typography";
 
 /**
- * Header for sub-screens: back arrow + title (no "Back" text), optional profile pic + dropdown on the right.
+ * Header for sub-screens: back arrow + title (no "Back" text), optional rightElement, profile pic + dropdown on the right.
  */
 export default function SubScreenHeader({
   title,
   onBack,
   showProfileDropdown = true,
   navigation,
+  rightElement,
 }) {
   const insets = useSafeAreaInsets();
   const colors = useThemeColors();
@@ -36,6 +37,7 @@ export default function SubScreenHeader({
   const avatarUrl = user?.avatar_url ?? user?.avatarUrl;
   const displayName = user?.display_name ?? user?.displayName ?? "";
   const accountPrivate = user?.account_private ?? user?.accountPrivate;
+  const kycFaceVerified = user?.kyc_face_verified ?? user?.kycFaceVerified ?? false;
 
   const closeMenu = () => setMenuVisible(false);
 
@@ -54,21 +56,26 @@ export default function SubScreenHeader({
           {title}
         </Text>
         {showProfileDropdown ? (
-          <TouchableOpacity
-            style={styles.avatarBtn}
-            onPress={() => setMenuVisible(true)}
-            activeOpacity={0.8}
-          >
-            {avatarUrl ? (
-              <Image source={{ uri: avatarUrl }} style={styles.avatar} />
-            ) : (
-              <View style={styles.avatarPlaceholder}>
-                <Text style={styles.avatarLetter}>
-                  {(displayName || "U").charAt(0).toUpperCase()}
-                </Text>
-              </View>
-            )}
-          </TouchableOpacity>
+          <>
+            {rightElement ? <View style={styles.rightElementWrap}>{rightElement}</View> : null}
+            <TouchableOpacity
+              style={styles.avatarBtn}
+              onPress={() => setMenuVisible(true)}
+              activeOpacity={0.8}
+            >
+              {avatarUrl ? (
+                <Image source={{ uri: avatarUrl }} style={styles.avatar} />
+              ) : (
+                <View style={styles.avatarPlaceholder}>
+                  <Text style={styles.avatarLetter}>
+                    {(displayName || "U").charAt(0).toUpperCase()}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          </>
+        ) : rightElement ? (
+          <View style={styles.rightElementWrap}>{rightElement}</View>
         ) : (
           <View style={styles.placeholder} />
         )}
@@ -88,13 +95,32 @@ export default function SubScreenHeader({
               <Text style={styles.menuItemText}>Edit profile</Text>
               <MaterialIcons name="chevron-right" size={20} color={colors.textSecondary} />
             </TouchableOpacity>
-            {accountPrivate && (
+            <TouchableOpacity style={styles.menuItem} onPress={() => nav("Profile", "FavoriteItems")} activeOpacity={0.7}>
+              <MaterialIcons name="favorite" size={22} color={colors.text} />
+              <Text style={styles.menuItemText}>Favorite items</Text>
+              <MaterialIcons name="chevron-right" size={20} color={colors.textSecondary} />
+            </TouchableOpacity>
+            {!!kycFaceVerified ? (
+              <>
+                <TouchableOpacity style={styles.menuItem} onPress={() => nav("Jobs", "CreateJob")} activeOpacity={0.7}>
+                  <MaterialIcons name="work" size={22} color={colors.text} />
+                  <Text style={styles.menuItemText}>Create job</Text>
+                  <MaterialIcons name="chevron-right" size={20} color={colors.textSecondary} />
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.menuItem} onPress={() => nav("Marketplace", "CreateItem")} activeOpacity={0.7}>
+                  <MaterialIcons name="storefront" size={22} color={colors.text} />
+                  <Text style={styles.menuItemText}>Trade</Text>
+                  <MaterialIcons name="chevron-right" size={20} color={colors.textSecondary} />
+                </TouchableOpacity>
+              </>
+            ) : null}
+            {!!accountPrivate ? (
               <TouchableOpacity style={styles.menuItem} onPress={() => nav("Profile", "FollowRequests")} activeOpacity={0.7}>
                 <MaterialIcons name="people-outline" size={22} color={colors.text} />
                 <Text style={styles.menuItemText}>Follow requests</Text>
                 <MaterialIcons name="chevron-right" size={20} color={colors.textSecondary} />
               </TouchableOpacity>
-            )}
+            ) : null}
             <TouchableOpacity style={styles.menuItem} onPress={() => nav("Chat", "CreateGroup")} activeOpacity={0.7}>
               <MaterialIcons name="group-add" size={22} color={colors.text} />
               <Text style={styles.menuItemText}>Create a group chat</Text>
@@ -186,6 +212,7 @@ function createStyles(colors, paddingTop) {
       fontStyle: typography.fontStyle,
     },
     placeholder: { width: 40, height: 40 },
+    rightElementWrap: { flexDirection: "row", alignItems: "center", marginRight: spacing.xs },
     menuOverlay: {
       flex: 1,
       backgroundColor: "rgba(0,0,0,0.5)",

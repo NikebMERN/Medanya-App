@@ -24,6 +24,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
 import SubScreenHeader from "../../components/SubScreenHeader";
+import ReportOptionsModal from "../../components/common/ReportOptionsModal";
 import { useAuthStore } from "../../store/auth.store";
 import * as userApi from "../../api/user.api";
 import * as chatApi from "../../services/chat.api";
@@ -46,6 +47,8 @@ export default function UserProfileScreen() {
   const userId = useAuthStore((s) => s.user?.id ?? s.user?.userId) ?? "";
   const targetUserId = route.params?.userId ?? route.params?.id;
   const [user, setUser] = useState(null);
+  const [reportModalVisible, setReportModalVisible] = useState(false);
+  const isOwnProfile = !targetUserId || String(targetUserId) === String(userId);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
@@ -381,6 +384,16 @@ export default function UserProfileScreen() {
                 </>
               )}
             </TouchableOpacity>
+            {!isOwnProfile && (
+              <TouchableOpacity
+                style={styles.reportBtn}
+                onPress={() => setReportModalVisible(true)}
+                activeOpacity={0.8}
+              >
+                <MaterialIcons name="flag" size={16} color={colors.white} />
+                <Text style={styles.reportBtnText}>Report</Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity
               style={styles.blockBtn}
               onPress={handleBlock}
@@ -513,6 +526,17 @@ export default function UserProfileScreen() {
       </Pressable>
     </Modal>
 
+    <ReportOptionsModal
+      visible={reportModalVisible}
+      onClose={() => setReportModalVisible(false)}
+      targetType="user"
+      targetId={targetUserId}
+      targetUserId={targetUserId}
+      onBlocked={() => {
+        setReportModalVisible(false);
+        loadProfile(true);
+      }}
+    />
     <Modal visible={shareProfileVisible} transparent animationType="slide" onRequestClose={() => !shareProfileSending && setShareProfileVisible(false)}>
       <Pressable style={styles.shareProfileOverlay} onPress={() => !shareProfileSending && setShareProfileVisible(false)}>
         <Pressable style={[styles.shareProfileSheet, { backgroundColor: colors.surface, paddingBottom: insets.bottom + spacing.md }]} onPress={(e) => e.stopPropagation()}>
@@ -629,6 +653,16 @@ function createStyles(colors) {
     },
     followingBtn: { backgroundColor: colors.textMuted, opacity: 0.9 },
     followBtnText: { fontSize: 14, fontWeight: "700", color: colors.white },
+    reportBtn: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.md,
+      borderRadius: 12,
+      backgroundColor: colors.warning || "#f59e0b",
+    },
+    reportBtnText: { fontSize: 14, fontWeight: "700", color: colors.white },
     blockBtn: {
       flexDirection: "row",
       alignItems: "center",

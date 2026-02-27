@@ -12,12 +12,15 @@ import {
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { MaterialIcons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
 import * as missingApi from "../../services/missing.api";
+import SubScreenHeader from "../../components/SubScreenHeader";
 
 export default function MissingListScreen() {
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -101,15 +104,15 @@ export default function MissingListScreen() {
     </View>
   );
 
+  const tabNav = navigation.getParent?.() ?? navigation;
   return (
     <View style={styles.wrapper}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <MaterialIcons name="arrow-back" size={24} color={colors.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Missing Alerts</Text>
-        <View style={styles.headerRight} />
-      </View>
+      <SubScreenHeader
+        title="Missing Alerts"
+        onBack={() => navigation.goBack()}
+        showProfileDropdown
+        navigation={tabNav}
+      />
     <View style={styles.container}>
       <View style={styles.searchRow}>
         <View style={styles.searchWrap}>
@@ -150,10 +153,6 @@ export default function MissingListScreen() {
 function createStyles(colors) {
   return StyleSheet.create({
     wrapper: { flex: 1 },
-    header: { flexDirection: "row", alignItems: "center", paddingVertical: spacing.sm, paddingHorizontal: spacing.sm, backgroundColor: colors.background, borderBottomWidth: 1, borderBottomColor: colors.border },
-    backBtn: { padding: spacing.sm },
-    headerTitle: { flex: 1, fontSize: 18, fontWeight: "700", color: colors.text, textAlign: "center" },
-    headerRight: { width: 40 },
     container: { flex: 1, backgroundColor: colors.background },
     searchRow: { padding: spacing.md },
     searchWrap: {

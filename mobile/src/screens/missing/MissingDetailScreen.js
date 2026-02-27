@@ -20,13 +20,14 @@ import { spacing } from "../../theme/spacing";
 import { useAuthStore } from "../../store/auth.store";
 import * as missingApi from "../../services/missing.api";
 import VoiceMessagePlayer from "../../components/VoiceMessagePlayer";
+import SubScreenHeader from "../../components/SubScreenHeader";
 
 export default function MissingDetailScreen() {
   const route = useRoute();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const colors = useThemeColors();
-  const styles = useMemo(() => createStyles(colors, insets.top), [colors, insets.top]);
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const userId = useAuthStore((s) => s.user?.id ?? s.user?.userId) ?? "";
 
   const id = route.params?.id;
@@ -124,17 +125,15 @@ export default function MissingDetailScreen() {
     );
   }
 
+  const tabNav = navigation.getParent?.() ?? navigation;
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <MaterialIcons name="arrow-back" size={24} color={colors.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1}>
-          Missing Person
-        </Text>
-        <View style={styles.headerRight} />
-      </View>
+      <SubScreenHeader
+        title="Missing Person"
+        onBack={() => navigation.goBack()}
+        showProfileDropdown
+        navigation={tabNav}
+      />
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
         {alert.photoUrl ? (
           <Image source={{ uri: alert.photoUrl }} style={styles.hero} resizeMode="cover" />
@@ -212,22 +211,9 @@ export default function MissingDetailScreen() {
   );
 }
 
-function createStyles(colors, paddingTop = 0) {
+function createStyles(colors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
-    header: {
-      flexDirection: "row",
-      alignItems: "center",
-      paddingTop: paddingTop + spacing.sm,
-      paddingBottom: spacing.md,
-      paddingHorizontal: spacing.sm,
-      backgroundColor: colors.background,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.border,
-    },
-    backBtn: { padding: spacing.sm },
-    headerTitle: { flex: 1, fontSize: 18, fontWeight: "700", color: colors.text, textAlign: "center" },
-    headerRight: { width: 40 },
     center: { flex: 1, justifyContent: "center", alignItems: "center", padding: spacing.lg },
     scroll: { flex: 1 },
     content: { paddingBottom: spacing.xl },

@@ -111,15 +111,27 @@ async function executeModerationAction(adminId, { actionType, targetType, target
         else if (targetType === "LIVESTREAM") await Stream.updateOne({ _id: toObjectId(tid) }, { $set: { status: "stopped_pending_review" } });
         else if (targetType === "MISSING_PERSON") await MissingPerson.updateOne({ _id: toObjectId(tid) }, { $set: { status: "pending_review" } });
     } else if (actionType === "restore") {
-        if (targetType === "JOB") await pool.query(`UPDATE jobs SET status = 'active' WHERE id = ?`, [tid]);
-        else if (targetType === "MARKET_ITEM") await pool.query(`UPDATE marketplace_items SET status = 'active' WHERE id = ?`, [tid]);
-        else if (targetType === "VIDEO") await Video.updateOne({ _id: toObjectId(tid) }, { $set: { status: "ACTIVE" } });
+        if (targetType === "JOB") {
+            await pool.query(`UPDATE jobs SET status = 'active' WHERE id = ?`, [tid]);
+            const scamTraining = require("../../services/scamML/scamTraining.mysql");
+            await scamTraining.updateFinalLabel("JOB", tid, "LEGIT", "ADMIN").catch(() => {});
+        } else if (targetType === "MARKET_ITEM") {
+            await pool.query(`UPDATE marketplace_items SET status = 'active' WHERE id = ?`, [tid]);
+            const scamTraining = require("../../services/scamML/scamTraining.mysql");
+            await scamTraining.updateFinalLabel("MARKET", tid, "LEGIT", "ADMIN").catch(() => {});
+        } else if (targetType === "VIDEO") await Video.updateOne({ _id: toObjectId(tid) }, { $set: { status: "ACTIVE" } });
         else if (targetType === "LIVESTREAM") await Stream.updateOne({ _id: toObjectId(tid) }, { $set: { status: "ended" } });
         else if (targetType === "MISSING_PERSON") await MissingPerson.updateOne({ _id: toObjectId(tid) }, { $set: { status: "active" } });
     } else if (actionType === "delete") {
-        if (targetType === "JOB") await pool.query(`UPDATE jobs SET status = 'closed' WHERE id = ?`, [tid]);
-        else if (targetType === "MARKET_ITEM") await pool.query(`UPDATE marketplace_items SET status = 'removed' WHERE id = ?`, [tid]);
-        else if (targetType === "VIDEO") await Video.updateOne({ _id: toObjectId(tid) }, { $set: { status: "DELETED" } });
+        if (targetType === "JOB") {
+            await pool.query(`UPDATE jobs SET status = 'closed' WHERE id = ?`, [tid]);
+            const scamTraining = require("../../services/scamML/scamTraining.mysql");
+            await scamTraining.updateFinalLabel("JOB", tid, "SCAM", "ADMIN").catch(() => {});
+        } else if (targetType === "MARKET_ITEM") {
+            await pool.query(`UPDATE marketplace_items SET status = 'removed' WHERE id = ?`, [tid]);
+            const scamTraining = require("../../services/scamML/scamTraining.mysql");
+            await scamTraining.updateFinalLabel("MARKET", tid, "SCAM", "ADMIN").catch(() => {});
+        } else if (targetType === "VIDEO") await Video.updateOne({ _id: toObjectId(tid) }, { $set: { status: "DELETED" } });
         else if (targetType === "LIVESTREAM") await Stream.updateOne({ _id: toObjectId(tid) }, { $set: { status: "ended" } });
     } else if (actionType === "ban_user") {
         const level = banLevel === "hard" ? 1 : 0;

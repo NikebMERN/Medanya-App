@@ -145,6 +145,53 @@ function hashDocNumber(docNumber, salt) {
     return crypto.createHmac("sha256", salt).update(String(docNumber)).digest("hex");
 }
 
+/** Compute risk score with AI (sync lightweight). Returns { rule, ai, final }. Throws on BLOCK. */
+async function computeRiskScoreWithAI(userId, content, targetType) {
+    const scamAI = require("./scamAI/scamAI.ensemble");
+    const risk = await scamAI.computeRiskScoreWithAI(userId, content, targetType);
+
+    if (risk.final.decision === "BLOCK") {
+        throw codeErr(
+            "FORBIDDEN",
+            "Your post was flagged by our safety system. Please remove any requests for upfront payment, wire transfer, or personal documents.",
+            403
+        );
+    }
+
+    return risk;
+}
+
+/** Compute risk score with ML (rules + ML inference). Returns { rule, ml, final }. Throws on BLOCK. Uses rules-only when ML not ready. */
+async function computeRiskScoreWithML(userId, content, targetType) {
+    const scamML = require("./scamML/scamML.ensemble");
+    const risk = await scamML.computeRiskScoreWithML(userId, content, targetType);
+
+    if (risk.final.decision === "BLOCK") {
+        throw codeErr(
+            "FORBIDDEN",
+            "Your post was flagged by our safety system. Please remove any requests for upfront payment, wire transfer, or personal documents.",
+            403
+        );
+    }
+
+    return risk;
+}
+
+/** Enqueue async deep scan (BullMQ). Fire-and-forget; never blocks. */
+async function enqueueDeepScan({ targetType, targetId, userId, content }) {
+    try {
+        const { scamAIQueue } = require("../jobs/queues/notification.queue");
+        await scamAIQueue.add(
+            "deepScan",
+            { targetType, targetId, userId, content: content || {} },
+            { attempts: 2, backoff: { type: "exponential", delay: 2000 } }
+        );
+    } catch (e) {
+        const logger = require("../utils/logger.util");
+        logger.warn("fraudPrevention: enqueueDeepScan failed", e?.message);
+    }
+}
+
 module.exports = {
     requireOtpVerified,
     checkJobRateLimit,
@@ -153,4 +200,7 @@ module.exports = {
     computeRiskScore,
     scanScamKeywords,
     hashDocNumber,
+    computeRiskScoreWithAI,
+    computeRiskScoreWithML,
+    enqueueDeepScan,
 };

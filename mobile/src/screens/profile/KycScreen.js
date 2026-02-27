@@ -3,6 +3,7 @@
  * Shows status; navigates to Doc Upload (step 1) then Selfie (step 2).
  */
 import React, { useState, useCallback, useEffect, useMemo } from "react";
+import { Alert } from "react-native";
 import {
   View,
   Text,
@@ -17,6 +18,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
 import * as kycApi from "../../api/kyc.api";
+import SubScreenHeader from "../../components/SubScreenHeader";
 
 export default function KycScreen() {
   const navigation = useNavigation();
@@ -38,6 +40,45 @@ export default function KycScreen() {
     }
   }, []);
 
+  const handleStartVerification = useCallback(async () => {
+    try {
+      let data;
+      try {
+        data = await kycApi.startVeriffKyc();
+        if (data?.sessionUrl && data?.sessionId) {
+          data = { provider: "VERIFF", sessionUrl: data.sessionUrl, sessionId: data.sessionId };
+        }
+      } catch (veriffErr) {
+        if (veriffErr?.response?.data?.error?.code === "CONFIG_ERROR") {
+          data = await kycApi.startProviderKyc();
+        } else {
+          throw veriffErr;
+        }
+      }
+      if (data?.provider === "VERIFF" && data?.sessionUrl) {
+        navigation.navigate("VerifyIdentity", { provider: "VERIFF", sessionUrl: data.sessionUrl, sessionId: data.sessionId });
+      } else if (data?.provider === "SUMSUB" && data?.accessToken) {
+        navigation.navigate("VerifyIdentity", {
+          provider: "SUMSUB",
+          accessToken: data.accessToken,
+          applicantId: data.applicantId,
+        });
+      } else {
+        navigation.navigate("KycDocUpload");
+      }
+    } catch (e) {
+      const code = e?.response?.data?.error?.code;
+      const msg = e?.response?.data?.error?.message || e?.message || "Failed to start verification.";
+      if (code === "CONFIG_ERROR") {
+        navigation.navigate("KycDocUpload");
+      } else if (code === "VALIDATION_ERROR") {
+        Alert.alert("Required", msg);
+      } else {
+        Alert.alert("Error", msg);
+      }
+    }
+  }, [navigation]);
+
   useEffect(() => {
     loadStatus();
   }, [loadStatus]);
@@ -52,18 +93,18 @@ export default function KycScreen() {
 
   const kycStatus = status?.kycStatus || "none";
   const latest = status?.latestSubmission;
-  const isVerified = kycStatus === "verified_auto" || kycStatus === "verified_manual";
-  const isRejected = latest?.status === "rejected";
+  const isVerified = kycStatus === "verified" || kycStatus === "verified_auto" || kycStatus === "verified_manual";
+  const isRejected = kycStatus === "rejected" || latest?.status === "rejected";
 
+  const tabNav = navigation.getParent?.() ?? navigation;
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <MaterialIcons name="arrow-back" size={24} color={colors.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Identity Verification</Text>
-        <View style={styles.headerRight} />
-      </View>
+      <SubScreenHeader
+        title="Identity Verification"
+        onBack={() => navigation.goBack()}
+        showProfileDropdown
+        navigation={tabNav}
+      />
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
         {isVerified && (
           <View style={styles.statusCard}>
@@ -73,7 +114,7 @@ export default function KycScreen() {
           </View>
         )}
 
-        {isRejected && (
+        {isRejected && !status?.provider && (
           <View style={[styles.statusCard, styles.statusRejected]}>
             <MaterialIcons name="cancel" size={48} color={colors.error} />
             <Text style={styles.statusTitle}>Rejected</Text>
@@ -85,7 +126,23 @@ export default function KycScreen() {
               style={styles.startBtn}
               onPress={() => navigation.navigate("KycDocUpload")}
             >
-              <Text style={styles.startBtnText}>Start verification</Text>
+              <Text style={styles.startBtnText}>Retry verification</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {isRejected && status?.provider && (
+          <View style={[styles.statusCard, styles.statusRejected]}>
+            <MaterialIcons name="cancel" size={48} color={colors.error} />
+            <Text style={styles.statusTitle}>Rejected</Text>
+            {(status?.lastReason || latest?.reject_reason) && (
+              <Text style={styles.statusText}>Reason: {status.lastReason || latest.reject_reason}</Text>
+            )}
+            <TouchableOpacity
+              style={styles.startBtn}
+              onPress={handleStartVerification}
+            >
+              <Text style={styles.startBtnText}>Retry verification</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -111,14 +168,11 @@ export default function KycScreen() {
             <MaterialIcons name="badge" size={56} color={colors.primary} style={styles.startIcon} />
             <Text style={styles.startTitle}>Verify your identity</Text>
             <Text style={styles.startDesc}>
-              Upload a document and take a live selfie. Required to post jobs or list items.
-            </Text>
-            <Text style={styles.startSteps}>
-              Step 1: Upload document • Step 2: Live selfie
+              Complete identity verification to post jobs or list items. Your verified document will provide your legal name and date of birth.
             </Text>
             <TouchableOpacity
               style={styles.startBtn}
-              onPress={() => navigation.navigate("KycDocUpload")}
+              onPress={handleStartVerification}
             >
               <Text style={styles.startBtnText}>Start verification</Text>
             </TouchableOpacity>
@@ -132,18 +186,6 @@ export default function KycScreen() {
 function createStyles(colors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
-    header: {
-      flexDirection: "row",
-      alignItems: "center",
-      paddingVertical: spacing.md,
-      paddingHorizontal: spacing.sm,
-      backgroundColor: colors.background,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.border,
-    },
-    backBtn: { padding: spacing.sm },
-    headerTitle: { flex: 1, fontSize: 18, fontWeight: "700", color: colors.text, textAlign: "center" },
-    headerRight: { width: 40 },
     center: { flex: 1, justifyContent: "center", alignItems: "center" },
     scroll: { flex: 1 },
     content: { padding: spacing.lg, paddingBottom: spacing.xl * 3 },

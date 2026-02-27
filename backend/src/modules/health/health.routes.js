@@ -14,6 +14,21 @@ router.get("/config", (req, res) => {
     });
 });
 
+router.get("/health/env", (req, res) => {
+    const env = process.env.NODE_ENV || "development";
+    const dbHost = process.env.MYSQL_HOST || "";
+    const dbName = process.env.MYSQL_DB || "";
+    const maskedHost = dbHost ? `${dbHost.slice(0, 3)}***` : "***";
+    const maskedDb = dbName ? `${dbName.slice(0, 2)}***` : "***";
+    const pkg = require("../../package.json");
+    return res.json({
+        ok: true,
+        environment: env,
+        buildVersion: pkg.version || "1.0.0",
+        database: { host: maskedHost, name: maskedDb },
+    });
+});
+
 router.get("/health", async (req, res) => {
     const out = {
         ok: true,

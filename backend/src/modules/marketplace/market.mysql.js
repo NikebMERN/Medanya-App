@@ -12,16 +12,22 @@ const insertItem = async ({
     image_urls,
     risk_score,
     matched_keywords,
+    ai_scam_score,
+    ai_scam_labels,
+    ai_confidence,
+    ai_provider,
+    ai_explanation,
+    ml_score,
+    ml_model_version,
+    ml_confidence,
     status: statusVal,
 }) => {
     const status = statusVal || "active";
     const cur = currency || "AED";
     const [result] = await pool.query(
-        `
-    INSERT INTO marketplace_items
-    (seller_id, title, description, price, currency, category, location, image_urls, risk_score, matched_keywords, status)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `,
+        `INSERT INTO marketplace_items
+        (seller_id, title, description, price, currency, category, location, image_urls, risk_score, matched_keywords, ai_scam_score, ai_scam_labels, ai_confidence, ai_provider, ai_explanation, ml_score, ml_model_version, ml_confidence, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
             seller_id,
             title,
@@ -33,6 +39,14 @@ const insertItem = async ({
             image_urls ? JSON.stringify(image_urls) : null,
             risk_score ?? null,
             matched_keywords ?? null,
+            ai_scam_score ?? null,
+            ai_scam_labels ? JSON.stringify(ai_scam_labels) : null,
+            ai_confidence ?? null,
+            ai_provider ?? null,
+            ai_explanation ?? null,
+            ml_score ?? null,
+            ml_model_version ?? null,
+            ml_confidence ?? null,
             status,
         ],
     );

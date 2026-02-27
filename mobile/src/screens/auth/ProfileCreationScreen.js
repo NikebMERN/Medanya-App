@@ -129,6 +129,25 @@ export default function ProfileCreationScreen() {
     return () => { cancelled = true; };
   }, []);
 
+  const applyAvatarFromUri = async (uri) => {
+    setLocalAvatarUri(uri);
+    setAvatarUri(uri);
+    setUploadingAvatar(true);
+    setError("");
+    try {
+      const res = await uploadAvatarAndSave(uri);
+      const serverUrl = (res?.user?.avatar_url || res?.user?.avatarUrl || res?.avatarUrl || "").trim();
+      if (serverUrl) {
+        setAvatarUri(serverUrl);
+        if (res.user) setAuth(token, { ...user, ...res.user, avatar_url: serverUrl, avatarUrl: serverUrl });
+      }
+    } catch (uploadErr) {
+      setError(uploadErr.response?.data?.error?.message || uploadErr.message || "Upload failed. You can skip and add later.");
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
   const pickImage = async () => {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -142,30 +161,42 @@ export default function ProfileCreationScreen() {
         aspect: [1, 1],
         quality: 0.8,
       });
-      if (!result.canceled && result.assets?.[0]?.uri) {
-        const uri = result.assets[0].uri;
-        setLocalAvatarUri(uri);
-        setAvatarUri(uri);
-        setUploadingAvatar(true);
-        setError("");
-        try {
-          const res = await uploadAvatarAndSave(uri);
-          const serverUrl = (res?.user?.avatar_url || res?.user?.avatarUrl || res?.avatarUrl || "").trim();
-          if (serverUrl) {
-            setAvatarUri(serverUrl);
-            if (res.user) setAuth(token, { ...user, ...res.user, avatar_url: serverUrl, avatarUrl: serverUrl });
-          }
-        } catch (uploadErr) {
-          setError(uploadErr.response?.data?.error?.message || uploadErr.message || "Upload failed. You can skip and add later.");
-        } finally {
-          setUploadingAvatar(false);
-        }
-      }
+      if (!result.canceled && result.assets?.[0]?.uri) await applyAvatarFromUri(result.assets[0].uri);
     } catch (err) {
       console.error("ImagePicker Error:", err);
       setError("Could not open gallery. Please try again.");
       setUploadingAvatar(false);
     }
+  };
+
+  const takePhoto = async () => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission needed", "Allow camera access to take a profile photo.");
+        return;
+      }
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ["images"],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+      if (!result.canceled && result.assets?.[0]?.uri) await applyAvatarFromUri(result.assets[0].uri);
+    } catch (err) {
+      console.error("ImagePicker Error:", err);
+      setError("Could not open camera. Please try again.");
+      setUploadingAvatar(false);
+    }
+  };
+
+  const showPhotoOptions = () => {
+    if (uploadingAvatar) return;
+    Alert.alert("Profile photo", "", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Take Photo", onPress: takePhoto },
+      { text: "Choose from Library", onPress: pickImage },
+    ]);
   };
 
   const handleJoinCommunity = async () => {
@@ -242,7 +273,7 @@ export default function ProfileCreationScreen() {
 
         <TouchableOpacity
           style={styles.avatarWrap}
-          onPress={pickImage}
+          onPress={showPhotoOptions}
           disabled={uploadingAvatar}
           activeOpacity={0.8}
         >

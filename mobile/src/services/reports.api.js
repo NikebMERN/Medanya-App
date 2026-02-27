@@ -94,7 +94,38 @@ export const USER_REPORT_REASONS = [
   { value: "other", label: "Other" },
 ];
 
-/** Report a job, marketplace listing, or user. */
+/** Map user-facing reason to unified report reason (POST /reports). */
+function userReasonToUnified(reason, customReason) {
+  const r = (reason || "other").toLowerCase();
+  const map = {
+    fraud_scam: "SCAM_FRAUD",
+    physical_abuse: "HARASSMENT",
+    sexual_harassment: "HARASSMENT",
+    video_content: "OTHER",
+    livestream_content: "OTHER",
+    unpaid_salary: "SCAM_FRAUD",
+    passport_confiscation: "OTHER",
+    other: "OTHER",
+  };
+  return map[r] || "OTHER";
+}
+
+/** Report a user via unified API (shows in admin moderation queue). */
+export async function reportUser(body) {
+  const { targetUserId, reason, customReason, description, contextSourceUrl } = body;
+  const unifiedReason = userReasonToUnified(reason, customReason);
+  const desc = [customReason, description].filter(Boolean).join(" ").trim().slice(0, 1000) || "";
+  const { data } = await client.post("/reports", {
+    targetType: "USER",
+    targetId: String(targetUserId),
+    reason: unifiedReason,
+    description: desc,
+    mediaUrls: [],
+  });
+  return data;
+}
+
+/** Report a job, marketplace listing, or user (legacy listings API). */
 export async function createListingReport(body) {
   const { data } = await client.post("/reports/listings", {
     targetType: body.targetType,

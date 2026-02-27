@@ -2,6 +2,7 @@
 const adminService = require("./admin.service");
 const moderationService = require("./moderation.service");
 const adminBansAudit = require("./adminBansAudit");
+const kycSessionsDb = require("../kyc/kycSessions.mysql");
 
 const health = async (req, res) => {
     return res.json({ ok: true, serverTime: new Date().toISOString() });
@@ -218,6 +219,46 @@ const listAuditLog = async (req, res, next) => {
     }
 };
 
+const listKycSessions = async (req, res, next) => {
+    try {
+        const data = await kycSessionsDb.listSessions({
+            status: req.query.status,
+            provider: req.query.provider,
+            page: req.query.page,
+            limit: req.query.limit,
+        });
+        return res.json({ success: true, ...data });
+    } catch (err) {
+        return next(err);
+    }
+};
+
+const listLabelSamples = async (req, res, next) => {
+    try {
+        const limit = Math.min(parseInt(req.query.limit, 10) || 50, 100);
+        const scamTraining = require("../../services/scamML/scamTraining.mysql");
+        const samples = await scamTraining.listSamplesNeedingLabel(limit);
+        return res.json({ success: true, samples });
+    } catch (err) {
+        return next(err);
+    }
+};
+
+const labelSample = async (req, res, next) => {
+    try {
+        const sampleId = parseInt(req.params.id, 10);
+        const { label } = req.body || {};
+        if (!["SCAM", "LEGIT"].includes(String(label || "").toUpperCase())) {
+            return res.status(400).json({ success: false, error: "label must be SCAM or LEGIT" });
+        }
+        const scamTraining = require("../../services/scamML/scamTraining.mysql");
+        const n = await scamTraining.updateLabelById(sampleId, String(label).toUpperCase(), "ADMIN");
+        return res.json({ success: true, updated: n });
+    } catch (err) {
+        return next(err);
+    }
+};
+
 module.exports = {
     health,
     listUsers,
@@ -239,4 +280,7 @@ module.exports = {
     createBan,
     deleteBan,
     listAuditLog,
+    listKycSessions,
+    listLabelSamples,
+    labelSample,
 };

@@ -129,6 +129,11 @@ export default function EditProfileScreen() {
   const { updateLocation, locationLoading, locationError } =
     useLocationPermission();
 
+  // Legal data (full name, DOB) is locked once user has provided a full legal name
+  const isLegalLocked = !!String(
+    initialUser?.full_name ?? initialUser?.fullName ?? ""
+  ).trim();
+
   useEffect(() => {
     const isPrivate = Boolean(
       user?.account_private ??
@@ -170,15 +175,27 @@ export default function EditProfileScreen() {
     };
   }, []);
 
+  const applyAvatarFromUri = async (uri) => {
+    setLocalAvatarUri(uri);
+    setAvatarUri(uri);
+    setUploadingAvatar(true);
+    setError("");
+    try {
+      const res = await uploadAvatarAndSave(uri);
+      const serverUrl = (res?.user?.avatar_url || res?.user?.avatarUrl || res?.avatarUrl || "").trim();
+      if (serverUrl) setAvatarUri(serverUrl);
+    } catch (uploadErr) {
+      setError(uploadErr.response?.data?.error?.message || uploadErr.message || "Upload failed. Preview kept.");
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
   const pickImage = async () => {
     try {
-      const { status } =
-        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== "granted") {
-        Alert.alert(
-          "Permission needed",
-          "Allow access to photos to change your profile picture."
-        );
+        Alert.alert("Permission needed", "Allow access to photos to change your profile picture.");
         return;
       }
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -187,39 +204,42 @@ export default function EditProfileScreen() {
         aspect: [1, 1],
         quality: 0.8,
       });
-      if (!result.canceled && result.assets?.[0]?.uri) {
-        const uri = result.assets[0].uri;
-        setLocalAvatarUri(uri);
-        setAvatarUri(uri);
-        setUploadingAvatar(true);
-        setError("");
-        try {
-          const res = await uploadAvatarAndSave(uri);
-          const serverUrl = (
-            res?.user?.avatar_url ||
-            res?.user?.avatarUrl ||
-            res?.avatarUrl ||
-            ""
-          ).trim();
-          if (serverUrl) {
-            setAvatarUri(serverUrl);
-            // Do NOT update auth store here — header stays old until user taps Save
-          }
-        } catch (uploadErr) {
-          setError(
-            uploadErr.response?.data?.error?.message ||
-            uploadErr.message ||
-            "Upload failed. Preview kept."
-          );
-        } finally {
-          setUploadingAvatar(false);
-        }
-      }
+      if (!result.canceled && result.assets?.[0]?.uri) await applyAvatarFromUri(result.assets[0].uri);
     } catch (err) {
       console.error("ImagePicker Error:", err);
       setError("Could not open gallery. Please try again.");
       setUploadingAvatar(false);
     }
+  };
+
+  const takePhoto = async () => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission needed", "Allow camera access to take a profile photo.");
+        return;
+      }
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ["images"],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+      if (!result.canceled && result.assets?.[0]?.uri) await applyAvatarFromUri(result.assets[0].uri);
+    } catch (err) {
+      console.error("ImagePicker Error:", err);
+      setError("Could not open camera. Please try again.");
+      setUploadingAvatar(false);
+    }
+  };
+
+  const showPhotoOptions = () => {
+    if (uploadingAvatar) return;
+    Alert.alert("Profile photo", "", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Take Photo", onPress: takePhoto },
+      { text: "Choose from Library", onPress: pickImage },
+    ]);
   };
 
   const handleUpdateLocation = () => {
@@ -285,8 +305,10 @@ export default function EditProfileScreen() {
       }
       const payload = {
         displayName: name,
-        fullName: fullName.trim() || undefined,
-        dob: dob.trim() || undefined,
+        ...(!isLegalLocked && {
+          fullName: fullName.trim() || undefined,
+          dob: dob.trim() || undefined,
+        }),
         email: email.trim(),
         neighborhood: neighborhood.trim() || undefined,
         bio: bioTrimmed || undefined,
@@ -340,7 +362,7 @@ export default function EditProfileScreen() {
       >
         <TouchableOpacity
           style={styles.avatarWrap}
-          onPress={pickImage}
+          onPress={showPhotoOptions}
           disabled={uploadingAvatar}
         >
           {(avatarUri || localAvatarUri) ? (
@@ -380,13 +402,14 @@ export default function EditProfileScreen() {
           placeholder="Your name"
         />
         <Input
-          label="Full legal name (for identity verification)"
+          label={`Full legal name (for identity verification)${isLegalLocked ? " — locked" : ""}`}
           value={fullName}
           onChangeText={(t) => {
             setFullName(t);
             setError("");
           }}
           placeholder="As on ID document"
+          editable={!isLegalLocked}
         />
         <DateOfBirthPicker
           label="Date of birth"
@@ -396,6 +419,7 @@ export default function EditProfileScreen() {
             setError("");
           }}
           placeholder="Select your date of birth"
+          editable={!isLegalLocked}
         />
         <Input
           label="Email"

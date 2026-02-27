@@ -13,6 +13,7 @@ import {
   Image,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { useThemeColors } from "../../theme/useThemeColors";
@@ -20,9 +21,11 @@ import { spacing } from "../../theme/spacing";
 import { useAuthStore } from "../../store/auth.store";
 import { uploadToCloudinary } from "../../utils/env";
 import { REPORT_REASONS, createReport } from "../../services/reports.api";
+import SubScreenHeader from "../../components/SubScreenHeader";
 
 export default function ReportFormScreen() {
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const isLoggedIn = !!useAuthStore((s) => s.token);
@@ -37,6 +40,38 @@ export default function ReportFormScreen() {
   const [uploadingMedia, setUploadingMedia] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
+  const addImageFromUri = useCallback(async (uri) => {
+    if (evidencePhotos.length >= 6) {
+      Alert.alert("Limit", "Maximum 6 images.");
+      return;
+    }
+    setUploadingMedia(true);
+    try {
+      const url = await uploadToCloudinary(uri, "image");
+      if (url) setEvidencePhotos((p) => [...p, url].slice(0, 6));
+    } catch (e) {
+      Alert.alert("Upload failed", e?.message ?? "Could not upload image.");
+    } finally {
+      setUploadingMedia(false);
+    }
+  }, [evidencePhotos.length]);
+
+  const addVideoFromUri = useCallback(async (uri) => {
+    if (evidenceVideos.length >= 6) {
+      Alert.alert("Limit", "Maximum 6 videos.");
+      return;
+    }
+    setUploadingMedia(true);
+    try {
+      const url = await uploadToCloudinary(uri, "video");
+      if (url) setEvidenceVideos((v) => [...v, url].slice(0, 6));
+    } catch (e) {
+      Alert.alert("Upload failed", e?.message ?? "Could not upload video.");
+    } finally {
+      setUploadingMedia(false);
+    }
+  }, [evidenceVideos.length]);
+
   const pickImage = useCallback(async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
@@ -49,20 +84,23 @@ export default function ReportFormScreen() {
       quality: 0.8,
     });
     if (result.canceled || !result.assets?.[0]?.uri) return;
-    if (evidencePhotos.length >= 6) {
-      Alert.alert("Limit", "Maximum 6 images.");
+    await addImageFromUri(result.assets[0].uri);
+  }, [addImageFromUri]);
+
+  const takePhoto = useCallback(async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission", "Allow camera access to take photos.");
       return;
     }
-    setUploadingMedia(true);
-    try {
-      const url = await uploadToCloudinary(result.assets[0].uri, "image");
-      if (url) setEvidencePhotos((p) => [...p, url].slice(0, 6));
-    } catch (e) {
-      Alert.alert("Upload failed", e?.message ?? "Could not upload image.");
-    } finally {
-      setUploadingMedia(false);
-    }
-  }, [evidencePhotos.length]);
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ["images"],
+      allowsEditing: false,
+      quality: 0.8,
+    });
+    if (result.canceled || !result.assets?.[0]?.uri) return;
+    await addImageFromUri(result.assets[0].uri);
+  }, [addImageFromUri]);
 
   const pickVideo = useCallback(async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -76,20 +114,42 @@ export default function ReportFormScreen() {
       quality: 0.8,
     });
     if (result.canceled || !result.assets?.[0]?.uri) return;
-    if (evidenceVideos.length >= 6) {
-      Alert.alert("Limit", "Maximum 6 videos.");
+    await addVideoFromUri(result.assets[0].uri);
+  }, [addVideoFromUri]);
+
+  const takeVideo = useCallback(async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission", "Allow camera access to record video.");
       return;
     }
-    setUploadingMedia(true);
-    try {
-      const url = await uploadToCloudinary(result.assets[0].uri, "video");
-      if (url) setEvidenceVideos((v) => [...v, url].slice(0, 6));
-    } catch (e) {
-      Alert.alert("Upload failed", e?.message ?? "Could not upload video.");
-    } finally {
-      setUploadingMedia(false);
-    }
-  }, [evidenceVideos.length]);
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ["videos"],
+      allowsEditing: false,
+      quality: 0.8,
+      videoMaxDuration: 60,
+    });
+    if (result.canceled || !result.assets?.[0]?.uri) return;
+    await addVideoFromUri(result.assets[0].uri);
+  }, [addVideoFromUri]);
+
+  const showImageOptions = useCallback(() => {
+    if (uploadingMedia || evidencePhotos.length >= 6) return;
+    Alert.alert("Add image", "", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Take Photo", onPress: takePhoto },
+      { text: "Choose from Library", onPress: pickImage },
+    ]);
+  }, [uploadingMedia, evidencePhotos.length, takePhoto, pickImage]);
+
+  const showVideoOptions = useCallback(() => {
+    if (uploadingMedia || evidenceVideos.length >= 6) return;
+    Alert.alert("Add video", "", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Record Video", onPress: takeVideo },
+      { text: "Choose from Library", onPress: pickVideo },
+    ]);
+  }, [uploadingMedia, evidenceVideos.length, takeVideo, pickVideo]);
 
   const removePhoto = useCallback((i) => setEvidencePhotos((p) => p.filter((_, idx) => idx !== i)), []);
   const removeVideo = useCallback((i) => setEvidenceVideos((v) => v.filter((_, idx) => idx !== i)), []);
@@ -142,15 +202,15 @@ export default function ReportFormScreen() {
     );
   }
 
+  const tabNav = navigation.getParent?.() ?? navigation;
   return (
     <View style={styles.wrapper}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <MaterialIcons name="arrow-back" size={24} color={colors.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Report Scammer</Text>
-        <View style={styles.headerRight} />
-      </View>
+      <SubScreenHeader
+        title="Report Scammer"
+        onBack={() => navigation.goBack()}
+        showProfileDropdown
+        navigation={tabNav}
+      />
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -212,11 +272,11 @@ export default function ReportFormScreen() {
         />
 
         <Text style={styles.label}>Evidence (optional)</Text>
-        <Text style={styles.hint}>Add images or videos from your device</Text>
+        <Text style={styles.hint}>Take a photo, record video, or choose from library</Text>
         <View style={styles.evidenceRow}>
           <TouchableOpacity
             style={[styles.evidenceBtn, uploadingMedia && styles.evidenceBtnDisabled]}
-            onPress={pickImage}
+            onPress={showImageOptions}
             disabled={uploadingMedia || evidencePhotos.length >= 6}
           >
             {uploadingMedia ? (
@@ -228,7 +288,7 @@ export default function ReportFormScreen() {
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.evidenceBtn, uploadingMedia && styles.evidenceBtnDisabled]}
-            onPress={pickVideo}
+            onPress={showVideoOptions}
             disabled={uploadingMedia || evidenceVideos.length >= 6}
           >
             <MaterialIcons name="videocam" size={24} color={colors.primary} />
@@ -282,10 +342,6 @@ export default function ReportFormScreen() {
 function createStyles(colors) {
   return StyleSheet.create({
     wrapper: { flex: 1, backgroundColor: colors.background },
-    header: { flexDirection: "row", alignItems: "center", paddingVertical: spacing.sm, paddingHorizontal: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border },
-    backBtn: { padding: spacing.sm },
-    headerTitle: { flex: 1, fontSize: 18, fontWeight: "700", color: colors.text, textAlign: "center" },
-    headerRight: { width: 40 },
     container: { flex: 1, backgroundColor: colors.background },
     content: { padding: spacing.md, paddingBottom: spacing.xl },
     label: { fontSize: 14, fontWeight: "600", color: colors.text, marginBottom: spacing.xs, marginTop: spacing.sm },

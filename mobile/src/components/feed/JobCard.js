@@ -1,8 +1,7 @@
 /**
- * JOB CARD — Instagram/Facebook post style.
- * Header: avatar + title + JOB tag | Body: salary + location | Chips | CTA: Chat Employer + Apply
+ * JOB CARD — Banner style (large image like marketplace), then body, CTAs, like/comment/share.
  */
-import React from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -15,9 +14,12 @@ import NeoCard from "../ui/NeoCard";
 import { spacing } from "../../theme/spacing";
 import { useThemeColors } from "../../theme/useThemeColors";
 
-export default function JobCard({ data, onPress, onChat, onApply }) {
+const BANNER_HEIGHT = 180;
+
+export default function JobCard({ data, onPress, onChat, onApply, onLike, onComment, onShare }) {
   const colors = useThemeColors();
   const styles = createStyles(colors);
+  const [liked, setLiked] = useState(false);
 
   const title = data?.title ?? "Job";
   const salary = data?.preview?.salary ?? "";
@@ -25,77 +27,87 @@ export default function JobCard({ data, onPress, onChat, onApply }) {
   const category = data?.preview?.category ?? "";
   const imageUrl = data?.preview?.imageUrl;
 
+  const handleLike = (e) => {
+    e?.stopPropagation?.();
+    setLiked((v) => !v);
+    onLike?.();
+  };
+  const handleComment = (e) => {
+    e?.stopPropagation?.();
+    onComment?.();
+  };
+  const handleShare = (e) => {
+    e?.stopPropagation?.();
+    onShare?.();
+  };
+
   return (
     <TouchableOpacity onPress={() => onPress?.()} activeOpacity={0.9}>
       <NeoCard style={styles.card}>
-        <View style={styles.header}>
-          <View style={styles.avatarWrap}>
-            {imageUrl ? (
-              <Image source={{ uri: imageUrl }} style={styles.avatar} />
-            ) : (
-              <View style={[styles.avatar, styles.avatarPlaceholder]}>
-                <MaterialIcons name="work" size={24} color={colors.textMuted} />
-              </View>
-            )}
-          </View>
-          <View style={styles.headerBody}>
-            <Text style={styles.title} numberOfLines={1}>{title}</Text>
-            <View style={styles.tagRow}>
-              <View style={[styles.tag, { backgroundColor: colors.primary + "25" }]}>
-                <Text style={[styles.tagText, { color: colors.primary }]}>JOB</Text>
-              </View>
-              {category ? (
-                <Text style={styles.subtitle} numberOfLines={1}>{category}</Text>
-              ) : null}
+        <View style={styles.bannerWrap}>
+          {imageUrl ? (
+            <Image source={{ uri: imageUrl }} style={styles.banner} resizeMode="cover" />
+          ) : (
+            <View style={[styles.banner, styles.bannerPlaceholder]}>
+              <MaterialIcons name="work" size={48} color={colors.textMuted} />
+            </View>
+          )}
+          <View style={styles.bannerBadge}>
+            <View style={[styles.tag, { backgroundColor: colors.primary + "e6" }]}>
+              <Text style={styles.tagText}>JOB</Text>
             </View>
           </View>
         </View>
 
-        {(salary || location) ? (
-          <View style={styles.metaRow}>
-            {salary ? (
-              <View style={styles.metaItem}>
-                <MaterialIcons name="attach-money" size={16} color={colors.textMuted} />
-                <Text style={styles.metaText}>{salary}</Text>
-              </View>
-            ) : null}
-            {location ? (
-              <View style={styles.metaItem}>
-                <MaterialIcons name="location-on" size={14} color={colors.textMuted} />
-                <Text style={styles.metaText} numberOfLines={1}>{location}</Text>
-              </View>
-            ) : null}
+        <View style={styles.body}>
+          <Text style={styles.title} numberOfLines={2}>{title}</Text>
+          {(salary || location) ? (
+            <View style={styles.metaRow}>
+              {salary ? (
+                <View style={styles.metaItem}>
+                  <MaterialIcons name="attach-money" size={16} color={colors.textMuted} />
+                  <Text style={styles.metaText}>{salary}</Text>
+                </View>
+              ) : null}
+              {location ? (
+                <View style={styles.metaItem}>
+                  <MaterialIcons name="location-on" size={14} color={colors.textMuted} />
+                  <Text style={styles.metaText} numberOfLines={1}>{location}</Text>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
+
+          <View style={styles.ctaRow}>
+            <TouchableOpacity
+              style={[styles.ctaPrimary, { backgroundColor: colors.primary }]}
+              onPress={(e) => { e?.stopPropagation?.(); onChat?.(); }}
+            >
+              <MaterialIcons name="chat" size={18} color="#fff" />
+              <Text style={styles.ctaPrimaryText}>Chat Employer</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.ctaSecondary, { borderColor: colors.primary }]}
+              onPress={(e) => { e?.stopPropagation?.(); onApply?.(); }}
+            >
+              <Text style={[styles.ctaSecondaryText, { color: colors.primary }]}>Apply</Text>
+            </TouchableOpacity>
           </View>
-        ) : null}
 
-        <View style={styles.chipsRow}>
-          <View style={[styles.chip, { backgroundColor: colors.surfaceLight }]}>
-            <Text style={styles.chipText}>Full-time</Text>
+          <View style={styles.actionRow}>
+            <TouchableOpacity style={styles.actionBtn} onPress={handleLike} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <MaterialIcons name={liked ? "favorite" : "favorite-border"} size={20} color={liked ? (colors.error || "#e53935") : colors.textMuted} />
+              <Text style={styles.actionLabel}>Like</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.actionBtn} onPress={handleComment} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <MaterialIcons name="comment" size={20} color={colors.textMuted} />
+              <Text style={styles.actionLabel}>Comment</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.actionBtn} onPress={handleShare} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <MaterialIcons name="share" size={20} color={colors.textMuted} />
+              <Text style={styles.actionLabel}>Share</Text>
+            </TouchableOpacity>
           </View>
-        </View>
-
-        <View style={styles.ctaRow}>
-          <TouchableOpacity
-            style={[styles.ctaPrimary, { backgroundColor: colors.primary }]}
-            onPress={() => onChat?.()}
-          >
-            <MaterialIcons name="chat" size={18} color="#fff" />
-            <Text style={styles.ctaPrimaryText}>Chat Employer</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.ctaSecondary, { borderColor: colors.primary }]}
-            onPress={() => onApply?.()}
-          >
-            <Text style={[styles.ctaSecondaryText, { color: colors.primary }]}>Apply</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.footer}>
-          <MaterialIcons name="verified" size={14} color={colors.success} />
-          <Text style={styles.verifiedText}>Verified employer</Text>
-          <TouchableOpacity hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} style={styles.reportBtn}>
-            <MaterialIcons name="more-vert" size={20} color={colors.textMuted} />
-          </TouchableOpacity>
         </View>
       </NeoCard>
     </TouchableOpacity>
@@ -105,29 +117,24 @@ export default function JobCard({ data, onPress, onChat, onApply }) {
 function createStyles(colors) {
   return StyleSheet.create({
     card: { marginHorizontal: spacing.md, marginBottom: spacing.sm },
-    header: { flexDirection: "row", alignItems: "flex-start", marginBottom: spacing.sm },
-    avatarWrap: { marginRight: spacing.sm },
-    avatar: { width: 48, height: 48, borderRadius: 24 },
-    avatarPlaceholder: { backgroundColor: colors.surfaceLight, justifyContent: "center", alignItems: "center" },
-    headerBody: { flex: 1, minWidth: 0 },
-    title: { fontSize: 16, fontWeight: "700", color: colors.text, marginBottom: 2 },
-    tagRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
-    tag: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
-    tagText: { fontSize: 10, fontWeight: "800", letterSpacing: 0.5 },
-    subtitle: { fontSize: 12, color: colors.textMuted, flex: 1 },
+    bannerWrap: { position: "relative", height: BANNER_HEIGHT, width: "100%", overflow: "hidden", borderTopLeftRadius: 12, borderTopRightRadius: 12 },
+    banner: { width: "100%", height: BANNER_HEIGHT },
+    bannerPlaceholder: { backgroundColor: colors.surfaceLight, justifyContent: "center", alignItems: "center" },
+    bannerBadge: { position: "absolute", top: spacing.sm, left: spacing.sm },
+    tag: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+    tagText: { fontSize: 11, fontWeight: "800", color: "#fff", letterSpacing: 0.5 },
+    body: { padding: spacing.md },
+    title: { fontSize: 17, fontWeight: "700", color: colors.text, marginBottom: spacing.sm },
     metaRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.md, marginBottom: spacing.sm },
     metaItem: { flexDirection: "row", alignItems: "center", gap: 4 },
     metaText: { fontSize: 13, color: colors.textSecondary },
-    chipsRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs, marginBottom: spacing.md },
-    chip: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 16 },
-    chipText: { fontSize: 12, color: colors.textSecondary },
-    ctaRow: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.sm },
+    ctaRow: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.md },
     ctaPrimary: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 10 },
     ctaPrimaryText: { color: "#fff", fontWeight: "600", fontSize: 14 },
     ctaSecondary: { paddingHorizontal: spacing.md, paddingVertical: 10, borderRadius: 10, borderWidth: 1, justifyContent: "center" },
     ctaSecondaryText: { fontWeight: "600", fontSize: 14 },
-    footer: { flexDirection: "row", alignItems: "center", gap: 4 },
-    verifiedText: { fontSize: 12, color: colors.textMuted },
-    reportBtn: { marginLeft: "auto", padding: 4 },
+    actionRow: { flexDirection: "row", alignItems: "center", borderTopWidth: 1, borderTopColor: colors.border, paddingTop: spacing.sm },
+    actionBtn: { flexDirection: "row", alignItems: "center", gap: 4, marginRight: spacing.lg },
+    actionLabel: { fontSize: 13, color: colors.textMuted },
   });
 }

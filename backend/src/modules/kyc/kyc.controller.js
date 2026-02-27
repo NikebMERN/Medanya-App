@@ -1,5 +1,6 @@
 // src/modules/kyc/kyc.controller.js
 const service = require("./kyc.service");
+const providerService = require("./kyc.provider.service");
 
 function sendErr(res, err) {
     const code = err.code || "SERVER_ERROR";
@@ -12,7 +13,9 @@ function sendErr(res, err) {
                     ? 404
                     : code === "VALIDATION_ERROR"
                         ? 400
-                        : 500;
+                        : code === "RATE_LIMIT"
+                            ? 429
+                            : 500;
     return res.status(status).json({ error: { code, message: err.message || code } });
 }
 
@@ -25,10 +28,41 @@ async function submit(req, res) {
     }
 }
 
+async function startProviderKyc(req, res) {
+    try {
+        const result = await service.startProviderKyc(req.user);
+        res.json({ success: true, ...result });
+    } catch (e) {
+        sendErr(res, e);
+    }
+}
+
+async function startVeriffKyc(req, res) {
+    try {
+        const result = await service.startVeriffKyc(req.user);
+        res.json({ success: true, ...result });
+    } catch (e) {
+        sendErr(res, e);
+    }
+}
+
 async function getStatus(req, res) {
     try {
         const result = await service.getStatus(req.user);
+        console.log("[Veriff] getKycStatus user", req.user?.id ?? req.user?.userId, "-> kycStatus:", result?.kycStatus ?? result?.kyc_status, "full:", result);
         res.json({ success: true, ...result });
+    } catch (e) {
+        sendErr(res, e);
+    }
+}
+
+async function veriffSync(req, res) {
+    try {
+        const userId = String(req.user?.id ?? req.user?.userId ?? "");
+        if (!userId) return sendErr(res, Object.assign(new Error("Unauthorized"), { code: "UNAUTHORIZED" }));
+        const result = await providerService.veriffSyncDecision(userId);
+        console.log("[Veriff] veriffSync user", userId, "-> kycStatus:", result.kycStatus, "updated:", result.updated, "full:", result);
+        res.json({ success: true, kycStatus: result.kycStatus, updated: result.updated });
     } catch (e) {
         sendErr(res, e);
     }
@@ -135,9 +169,35 @@ async function adminGetUserKycData(req, res) {
     }
 }
 
+async function adminVeriffDebug(req, res) {
+    try {
+        const result = await service.adminVeriffDebug(req.params.sessionId);
+        if (!result) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Session not found" } });
+        res.json({ success: true, ...result });
+    } catch (e) {
+        sendErr(res, e);
+    }
+}
+
+async function adminVeriffWebhooks(req, res) {
+    try {
+        const sessionId = req.query.sessionId || req.query.session_id || "";
+        if (!sessionId.trim()) {
+            return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "sessionId query param required" } });
+        }
+        const result = await service.adminVeriffWebhooks(sessionId.trim());
+        res.json({ success: true, events: result });
+    } catch (e) {
+        sendErr(res, e);
+    }
+}
+
 module.exports = {
     submit,
+    startProviderKyc,
+    startVeriffKyc,
     getStatus,
+    veriffSync,
     confirmDataChange,
     adminGetSubmission,
     adminList,
@@ -147,4 +207,6 @@ module.exports = {
     adminRequestOtp,
     adminVerifyOtp,
     adminGetUserKycData,
+    adminVeriffDebug,
+    adminVeriffWebhooks,
 };

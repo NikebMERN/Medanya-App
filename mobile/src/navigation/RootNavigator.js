@@ -8,6 +8,9 @@ import MainTabs from "./MainTabs";
 import ProfileCreationScreen from "../screens/auth/ProfileCreationScreen";
 import CreateScreen from "../screens/create/CreateScreen";
 import VideoUploadScreen from "../screens/videos/VideoUploadScreen";
+import VideoRecordScreen from "../screens/videos/VideoRecordScreen";
+import VideoEditScreen from "../screens/videos/VideoEditScreen";
+import VideoPublishScreen from "../screens/videos/VideoPublishScreen";
 import VideosStack from "./VideosStack";
 import LivestreamStack from "./LivestreamStack";
 import linking from "./linking";
@@ -46,6 +49,21 @@ export default function RootNavigator() {
               name="VideoCreate"
               component={VideoUploadScreen}
               options={{ presentation: "fullScreenModal", headerShown: false, gestureEnabled: true }}
+            />
+            <Stack.Screen
+              name="VideoRecord"
+              component={VideoRecordScreen}
+              options={{ presentation: "fullScreenModal", headerShown: false, gestureEnabled: true }}
+            />
+            <Stack.Screen
+              name="VideoEdit"
+              component={VideoEditScreen}
+              options={{ headerShown: false, gestureEnabled: true }}
+            />
+            <Stack.Screen
+              name="VideoPublish"
+              component={VideoPublishScreen}
+              options={{ headerShown: false, gestureEnabled: true }}
             />
             <Stack.Screen name="VideoReels" component={VideosStack} options={{ animation: "fade" }} />
             <Stack.Screen name="Live" component={LivestreamStack} options={{ animation: "fade" }} />

@@ -25,6 +25,7 @@ import { uploadToCloudinary } from "../../utils/env";
 import { canPostJobs, getDobFromUser } from "../../utils/age";
 import * as jobsApi from "../../services/jobs.api";
 import { JOB_CATEGORY_OPTIONS, CURRENCY_OPTIONS } from "../../store/jobs.store";
+import SubScreenHeader from "../../components/SubScreenHeader";
 
 export default function CreateJobScreen() {
   const navigation = useNavigation();
@@ -33,7 +34,10 @@ export default function CreateJobScreen() {
   const styles = useMemo(() => createStyles(colors, insets.top), [colors, insets.top]);
   const user = useAuthStore((s) => s.user);
   const isLoggedIn = !!useAuthStore((s) => s.token);
+  const kycStatus = user?.kyc_status ?? user?.kycStatus ?? "none";
+  const kycLevel = user?.kyc_level ?? user?.kycLevel ?? 0;
   const kycFaceVerified = user?.kyc_face_verified ?? user?.kycFaceVerified ?? false;
+  const kycVerified = kycFaceVerified || (["verified", "verified_auto", "verified_manual"].includes(kycStatus) && kycLevel >= 2);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -84,19 +88,56 @@ export default function CreateJobScreen() {
     }
   }, []);
 
+  const takePhoto = useCallback(async () => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission", "Allow camera access.");
+        return;
+      }
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ["images"],
+        allowsEditing: true,
+        aspect: [16, 9],
+        quality: 0.8,
+      });
+      if (result.canceled || !result.assets?.[0]?.uri) return;
+      setUploading(true);
+      try {
+        const url = await uploadToCloudinary(result.assets[0].uri, "image");
+        if (url) setImageUrl(url);
+      } catch (e) {
+        Alert.alert("Upload failed", e?.message ?? "Could not upload.");
+      } finally {
+        setUploading(false);
+      }
+    } catch (e) {
+      Alert.alert("Error", e?.message ?? "Could not open camera.");
+    }
+  }, []);
+
+  const showPhotoOptions = useCallback(() => {
+    if (uploading) return;
+    Alert.alert("Add photo", "", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Take Photo", onPress: takePhoto },
+      { text: "Choose from Library", onPress: pickImage },
+    ]);
+  }, [uploading, takePhoto, pickImage]);
+
   const handleSubmit = useCallback(async () => {
     if (!isLoggedIn) {
       Alert.alert("Login required", "Please sign in to post a job.");
       return;
     }
     if (!canPostJobs(getDobFromUser(user))) {
-      Alert.alert("Age requirement", "You must be 18 or older to post jobs. Add your date of birth in Edit Profile.");
+      Alert.alert("Age requirement", "Your age must be 18 or above to post jobs. Add your date of birth in Edit Profile to verify.");
       return;
     }
-    if (!kycFaceVerified) {
+    if (!kycVerified) {
       Alert.alert(
-        "Face verification required",
-        "Complete identity verification and have your face matched to your document before posting jobs. Go to Profile → Identity Verification.",
+        "Identity verification required",
+        "Complete identity verification in Profile before posting jobs. Go to Profile → Identity Verification.",
         [{ text: "OK" }, { text: "Go to verification", onPress: () => navigation.navigate("Profile", { screen: "Kyc" }) }]
       );
       return;
@@ -106,9 +147,14 @@ export default function CreateJobScreen() {
       Alert.alert("Required", "Job title is required.");
       return;
     }
-    const c = (category === "other" ? customCategory.trim() : category.trim()).toLowerCase().replace(/\s+/g, "_");
+    const raw = category === "other" ? customCategory.trim() : category.trim();
+    const c = raw.toLowerCase().replace(/\s+/g, "_").slice(0, 60);
     if (!c) {
-      Alert.alert("Required", category === "other" ? "Please enter the job category." : "Category is required.");
+      Alert.alert("Required", category === "other" ? "Please enter a job category (e.g. Carpenter, Teacher)." : "Category is required.");
+      return;
+    }
+    if (category === "other" && raw.length < 2) {
+      Alert.alert("Invalid", "Please enter at least 2 characters for custom category.");
       return;
     }
     const loc = location.trim();
@@ -140,8 +186,11 @@ export default function CreateJobScreen() {
     } catch (err) {
       const code = err?.response?.data?.error?.code;
       const msg = err?.response?.data?.error?.message || err?.message || "Failed to post.";
-      if (code === "FORBIDDEN" && (msg || "").toLowerCase().includes("face")) {
-        Alert.alert("Face verification required", msg || "Complete identity verification and have your face matched before posting jobs.", [{ text: "OK" }, { text: "Go to verification", onPress: () => navigation.navigate("Profile", { screen: "Kyc" }) }]);
+      const m = (msg || "").toLowerCase();
+      if (code === "FORBIDDEN" && (m.includes("18") || m.includes("age"))) {
+        Alert.alert("Age requirement", "Your age must be 18 or above to post jobs. Add your date of birth in Edit Profile.");
+      } else if (code === "FORBIDDEN" && m.includes("face")) {
+        Alert.alert("Identity verification required", msg || "Complete identity verification before posting jobs.", [{ text: "OK" }, { text: "Go to verification", onPress: () => navigation.navigate("Profile", { screen: "Kyc" }) }]);
       } else if (code === "OTP_REQUIRED") {
         Alert.alert("Verification required", "Please verify your phone number with OTP before posting.");
       } else if (code === "RATE_LIMIT") {
@@ -152,18 +201,22 @@ export default function CreateJobScreen() {
     } finally {
       setSubmitting(false);
     }
-  }, [isLoggedIn, kycFaceVerified, title, description, category, customCategory, salary, salaryCurrency, location, contactPhone, imageUrl, navigation]);
+  }, [isLoggedIn, kycVerified, title, description, category, customCategory, salary, salaryCurrency, location, contactPhone, imageUrl, navigation]);
+
+  const tabNav = navigation.getParent?.() ?? navigation;
+  const subHeader = (
+    <SubScreenHeader
+      title="Post Job"
+      onBack={() => navigation.goBack()}
+      showProfileDropdown
+      navigation={tabNav}
+    />
+  );
 
   if (!isLoggedIn) {
     return (
       <View style={styles.container}>
-        <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-            <MaterialIcons name="arrow-back" size={24} color={colors.text} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Post Job</Text>
-          <View style={styles.headerRight} />
-        </View>
+        {subHeader}
         <View style={styles.center}>
           <Text style={styles.placeholderText}>Please sign in to post a job.</Text>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtnText}>
@@ -174,16 +227,10 @@ export default function CreateJobScreen() {
     );
   }
 
-  if (!kycFaceVerified) {
+  if (!kycVerified) {
     return (
       <View style={styles.container}>
-        <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-            <MaterialIcons name="arrow-back" size={24} color={colors.text} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Post Job</Text>
-          <View style={styles.headerRight} />
-        </View>
+        {subHeader}
         <View style={styles.center}>
           <MaterialIcons name="verified-user" size={48} color={colors.textMuted} style={{ marginBottom: spacing.md }} />
           <Text style={styles.placeholderText}>Face verification required to post jobs.</Text>
@@ -201,17 +248,11 @@ export default function CreateJobScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <MaterialIcons name="arrow-back" size={24} color={colors.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Post Job</Text>
-        <View style={styles.headerRight} />
-      </View>
+      {subHeader}
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={80}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <Text style={styles.label}>Photo (optional)</Text>
-          <TouchableOpacity style={styles.imageSlot} onPress={pickImage} disabled={uploading}>
+          <TouchableOpacity style={styles.imageSlot} onPress={showPhotoOptions} disabled={uploading}>
             {imageUrl ? (
               <Image source={{ uri: imageUrl }} style={styles.thumb} resizeMode="cover" />
             ) : (
@@ -246,7 +287,7 @@ export default function CreateJobScreen() {
           {category === "other" && (
             <TextInput
               style={[styles.input, { marginTop: spacing.sm }]}
-              placeholder="Enter category (e.g. Carpenter)"
+              placeholder="Enter category (e.g. Carpenter, Teacher)"
               placeholderTextColor={colors.textMuted}
               value={customCategory}
               onChangeText={setCustomCategory}
@@ -333,10 +374,6 @@ function createStyles(colors, paddingTop) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
     flex: { flex: 1 },
-    header: { flexDirection: "row", alignItems: "center", paddingVertical: spacing.md, paddingHorizontal: spacing.sm, backgroundColor: colors.background, borderBottomWidth: 1, borderBottomColor: colors.border },
-    backBtn: { padding: spacing.sm },
-    headerTitle: { flex: 1, fontSize: 18, fontWeight: "700", color: colors.text, textAlign: "center" },
-    headerRight: { width: 40 },
     content: { padding: spacing.md, paddingBottom: spacing.xl * 2 },
     label: { fontSize: 14, fontWeight: "600", color: colors.text, marginBottom: spacing.xs, marginTop: spacing.sm },
     input: { backgroundColor: colors.surfaceLight, borderRadius: 12, padding: spacing.md, fontSize: 15, color: colors.text, borderWidth: 1, borderColor: colors.border },

@@ -1,0 +1,7 @@
+-- kyc_sessions: add reason_code and reason; extend status enum
+ALTER TABLE kyc_sessions ADD COLUMN reason_code VARCHAR(64) NULL;
+ALTER TABLE kyc_sessions ADD COLUMN reason VARCHAR(500) NULL;
+ALTER TABLE kyc_sessions MODIFY COLUMN status ENUM(
+  'CREATED','STARTED','SUBMITTED','APPROVED','DECLINED','RESUBMISSION_REQUESTED',
+  'EXPIRED','ABANDONED','REVIEW','VERIFIED','REJECTED','COMPLETED'
+) NOT NULL DEFAULT 'CREATED';

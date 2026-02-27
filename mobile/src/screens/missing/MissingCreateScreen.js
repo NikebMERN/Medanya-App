@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { MaterialIcons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
 import { Audio } from "expo-av";
 import { useThemeColors } from "../../theme/useThemeColors";
@@ -21,9 +22,11 @@ import { spacing } from "../../theme/spacing";
 import { useAuthStore } from "../../store/auth.store";
 import { uploadToCloudinary } from "../../utils/env";
 import * as missingApi from "../../services/missing.api";
+import SubScreenHeader from "../../components/SubScreenHeader";
 
 export default function MissingCreateScreen() {
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const isLoggedIn = !!useAuthStore((s) => s.token);
@@ -41,6 +44,19 @@ export default function MissingCreateScreen() {
   const [uploadingVoice, setUploadingVoice] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
+  const addPhotoFromUri = useCallback(async (uri) => {
+    setLocalPhotoUri(uri);
+    setUploadingPhoto(true);
+    try {
+      const url = await uploadToCloudinary(uri, "image");
+      setPhotoUrl(url || "");
+    } catch (e) {
+      Alert.alert("Upload failed", e?.message ?? "Could not upload photo.");
+    } finally {
+      setUploadingPhoto(false);
+    }
+  }, []);
+
   const pickPhoto = useCallback(async () => {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -55,21 +71,40 @@ export default function MissingCreateScreen() {
         quality: 0.8,
       });
       if (result.canceled || !result.assets?.[0]?.uri) return;
-      const uri = result.assets[0].uri;
-      setLocalPhotoUri(uri);
-      setUploadingPhoto(true);
-      try {
-        const url = await uploadToCloudinary(uri, "image");
-        setPhotoUrl(url || "");
-      } catch (e) {
-        Alert.alert("Upload failed", e?.message ?? "Could not upload photo.");
-      } finally {
-        setUploadingPhoto(false);
-      }
+      await addPhotoFromUri(result.assets[0].uri);
     } catch (e) {
       Alert.alert("Error", e?.message ?? "Could not open gallery.");
     }
-  }, []);
+  }, [addPhotoFromUri]);
+
+  const takePhoto = useCallback(async () => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission", "Allow camera access to take a photo.");
+        return;
+      }
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ["images"],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+      if (result.canceled || !result.assets?.[0]?.uri) return;
+      await addPhotoFromUri(result.assets[0].uri);
+    } catch (e) {
+      Alert.alert("Error", e?.message ?? "Could not open camera.");
+    }
+  }, [addPhotoFromUri]);
+
+  const showPhotoOptions = useCallback(() => {
+    if (uploadingPhoto) return;
+    Alert.alert("Add photo", "", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Take Photo", onPress: takePhoto },
+      { text: "Choose from Library", onPress: pickPhoto },
+    ]);
+  }, [uploadingPhoto, takePhoto, pickPhoto]);
 
   const toggleVoice = useCallback(async () => {
     if (recording) {
@@ -174,13 +209,12 @@ export default function MissingCreateScreen() {
 
   return (
     <View style={styles.wrapper}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <MaterialIcons name="arrow-back" size={24} color={colors.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Report Missing</Text>
-        <View style={styles.headerRight} />
-      </View>
+      <SubScreenHeader
+        title="Report Missing"
+        onBack={() => navigation.goBack()}
+        showProfileDropdown
+        navigation={navigation.getParent?.() ?? navigation}
+      />
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -188,7 +222,7 @@ export default function MissingCreateScreen() {
     >
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={styles.label}>Photo *</Text>
-        <TouchableOpacity style={styles.photoBox} onPress={pickPhoto} disabled={uploadingPhoto}>
+        <TouchableOpacity style={styles.photoBox} onPress={showPhotoOptions} disabled={uploadingPhoto}>
           {localPhotoUri || photoUrl ? (
             <Image source={{ uri: localPhotoUri || photoUrl }} style={styles.photoPreview} resizeMode="cover" />
           ) : (
@@ -281,10 +315,6 @@ export default function MissingCreateScreen() {
 function createStyles(colors) {
   return StyleSheet.create({
     wrapper: { flex: 1 },
-    header: { flexDirection: "row", alignItems: "center", paddingVertical: spacing.sm, paddingHorizontal: spacing.sm, backgroundColor: colors.background, borderBottomWidth: 1, borderBottomColor: colors.border },
-    backBtn: { padding: spacing.sm },
-    headerTitle: { flex: 1, fontSize: 18, fontWeight: "700", color: colors.text, textAlign: "center" },
-    headerRight: { width: 40 },
     container: { flex: 1, backgroundColor: colors.background },
     content: { padding: spacing.md, paddingBottom: spacing.xl },
     label: { fontSize: 14, fontWeight: "600", color: colors.text, marginBottom: spacing.xs, marginTop: spacing.sm },

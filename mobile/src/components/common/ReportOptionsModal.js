@@ -8,6 +8,7 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
+  Pressable,
   Alert,
   ActivityIndicator,
   ScrollView,
@@ -97,19 +98,22 @@ export default function ReportOptionsModal({
     }
     setLoading(true);
     try {
-      await reportsApi.createListingReport({
-        targetType: "user",
-        targetId: String(targetUserId),
+      await reportsApi.reportUser({
+        targetUserId: String(targetUserId),
         reason,
         customReason: reason === "other" ? customReason.trim() : "",
-        description: description.trim() || undefined,
-        contextSourceUrl: contextUrl.trim() || undefined,
+        description: description.trim() || "",
+        contextSourceUrl: contextUrl.trim() || "",
       });
       resetReportForm();
       onClose();
       Alert.alert("Reported", "Thank you. We will review this.");
     } catch (e) {
-      Alert.alert("Error", e?.response?.data?.error?.message || e?.message || "Failed");
+      const msg =
+        e?.response?.data?.error?.message ||
+        e?.message ||
+        "Failed to submit report.";
+      Alert.alert("Error", msg);
     } finally {
       setLoading(false);
     }
@@ -299,11 +303,14 @@ export default function ReportOptionsModal({
 
   return (
     <Modal visible={visible} transparent animationType="fade">
-      <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={handleClose}>
-        <TouchableOpacity style={styles.content} activeOpacity={1} onPress={() => {}}>
+      <Pressable style={styles.overlay} onPress={handleClose}>
+        <Pressable
+          style={[styles.content, showReportUserForm && styles.contentForm]}
+          onPress={(e) => e.stopPropagation?.()}
+        >
           {showReportUserForm ? reportUserForm : optionsView}
-        </TouchableOpacity>
-      </TouchableOpacity>
+        </Pressable>
+      </Pressable>
     </Modal>
   );
 }
@@ -322,6 +329,9 @@ function createStyles(colors) {
       padding: spacing.lg,
       paddingBottom: spacing.xl + 24,
       maxHeight: "85%",
+    },
+    contentForm: {
+      minHeight: "70%",
     },
     option: {
       flexDirection: "row",

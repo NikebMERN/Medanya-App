@@ -128,6 +128,28 @@ async function submit(reqUser, { docType, docNumber, frontImageUrl, backImageUrl
     };
 }
 
+async function startProviderKyc(reqUser) {
+    const providerService = require("./kyc.provider.service");
+    if (!providerService.isProviderKycEnabled()) {
+        throw err("CONFIG_ERROR", "Provider KYC is not enabled. Use legacy flow.");
+    }
+    const userId = getUserId(reqUser);
+    const user = await userDb.getById(userId, { forSelf: false });
+    if (!user) throw err("NOT_FOUND", "User not found");
+    return providerService.startKyc(userId, user);
+}
+
+async function startVeriffKyc(reqUser) {
+    const providerService = require("./kyc.provider.service");
+    if (providerService.getProvider() !== "VERIFF") {
+        throw err("CONFIG_ERROR", "Veriff KYC is not configured. Set KYC_PROVIDER=veriff.");
+    }
+    const userId = getUserId(reqUser);
+    const user = await userDb.getById(userId, { forSelf: false });
+    if (!user) throw err("NOT_FOUND", "User not found");
+    return providerService.startKyc(userId, user);
+}
+
 async function getStatus(reqUser) {
     const userId = getUserId(reqUser);
     const user = await userDb.getById(userId);
@@ -137,9 +159,12 @@ async function getStatus(reqUser) {
     const kycStatus = user.kyc_status || "none";
     const kycLevel = user.kyc_level ?? 0;
 
-    return {
+    const out = {
         kycStatus,
         kycLevel,
+        provider: user.kyc_provider || null,
+        lastReason: user.kyc_last_reason || null,
+        kycVerifiedAt: user.kyc_verified_at || null,
         latestSubmission: latest
             ? {
                   id: latest.id,
@@ -151,6 +176,7 @@ async function getStatus(reqUser) {
               }
             : null,
     };
+    return out;
 }
 
 async function adminGetSubmission(id) {
@@ -162,6 +188,9 @@ async function adminGetSubmission(id) {
         user_id: sub.user_id,
         doc_type: sub.doc_type,
         status: sub.status,
+        doc_front_url: (sub.cloudinary_url_private || "").split("|")[0] || null,
+        doc_back_url: (sub.cloudinary_url_private || "").split("|")[1] || null,
+        selfie_url: sub.selfie_image_url,
         cloudinary_url_private: sub.cloudinary_url_private,
         selfie_image_url: sub.selfie_image_url,
         full_name: sub.full_name,
@@ -170,8 +199,9 @@ async function adminGetSubmission(id) {
         extracted_dob: sub.extracted_dob,
         face_match_score: sub.face_match_score,
         name_match_score: sub.name_match_score,
+        reject_reason: sub.reject_reason,
         created_at: sub.created_at,
-        user: user ? { display_name: user.display_name } : null,
+        user: user ? { display_name: user.display_name, phone_number: user.phone_number } : null,
     };
 }
 
@@ -262,27 +292,57 @@ async function confirmDataChange(reqUser, submissionId) {
  */
 async function adminListUsersWithKycStatus(query) {
     const { pool } = require("../../config/mysql");
+    const ListingReport = require("../reports/listingReport.model");
+    const { computeUserRiskScore, getRiskLabel } = require("../../utils/riskScore.util");
+    const trustScoreService = require("../../services/trustScore.service");
     const p = Math.max(parseInt(query.page, 10) || 1, 1);
     const l = Math.min(Math.max(parseInt(query.limit, 10) || 50, 1), 100);
     const offset = (p - 1) * l;
     const q = String(query.query || "").trim();
     const like = q ? `%${q}%` : null;
-    let where = "";
-    const countParams = [];
-    const listParams = [];
+    const verifiedOnly =
+        query.verifiedOnly === true ||
+        query.verifiedOnly === "true" ||
+        query.verifiedOnly === "1" ||
+        query.verifiedOnly === 1;
+    const faceVerifiedOnly =
+        query.faceVerifiedOnly === true ||
+        query.faceVerifiedOnly === "true" ||
+        query.faceVerifiedOnly === "1" ||
+        query.faceVerifiedOnly === 1;
+    const statusFilter = String(query.status || "").toLowerCase();
+
+    const filters = [];
+    const baseParams = [];
     if (like) {
-        where = "WHERE u.phone_number LIKE ? OR u.display_name LIKE ? OR CAST(u.id AS CHAR) LIKE ?";
-        countParams.push(like, like, like);
-        listParams.push(like, like, like);
+        filters.push("(u.phone_number LIKE ? OR u.display_name LIKE ? OR CAST(u.id AS CHAR) LIKE ?)");
+        baseParams.push(like, like, like);
     }
-    listParams.push(l, offset);
+    if (statusFilter === "pending") {
+        filters.push("u.kyc_status = 'pending'");
+    } else if (statusFilter === "approved" || statusFilter === "verified") {
+        filters.push("u.kyc_status IN ('verified_auto','verified_manual','verified')");
+    } else if (statusFilter === "rejected") {
+        filters.push("u.kyc_status = 'rejected'");
+    }
+    if (verifiedOnly && !statusFilter) {
+        filters.push("u.kyc_status IN ('verified_auto','verified_manual','verified')");
+    }
+    if (faceVerifiedOnly) {
+        filters.push("u.kyc_face_verified = 1");
+    }
+    const where = filters.length ? `WHERE ${filters.join(" AND ")}` : "";
+    const countParams = [...baseParams];
+    const listParams = [...baseParams, l, offset];
+
     const [[countRow]] = await pool.query(
         `SELECT COUNT(*) AS total FROM users u ${where}`,
         countParams
     );
     const [rows] = await pool.query(
-        `SELECT u.id, u.display_name, u.phone_number, u.kyc_status, u.kyc_level, u.kyc_face_verified,
-                k.id AS submission_id, k.status AS submission_status, k.reject_reason,
+        `SELECT u.id, u.display_name, u.phone_number, u.otp_verified, u.created_at, u.is_banned,
+                u.kyc_status, u.kyc_level, u.kyc_face_verified, u.kyc_provider, u.kyc_verified_at, u.kyc_last_reason,
+                k.id AS submission_id, k.status AS submission_status, k.reject_reason, k.created_at AS submission_created_at,
                 k.face_match_score, k.name_match_score, k.doc_quality_ok, k.doc_hash_duplicate
          FROM users u
          LEFT JOIN (
@@ -295,23 +355,49 @@ async function adminListUsersWithKycStatus(query) {
          LIMIT ? OFFSET ?`,
         listParams
     );
-    const users = rows.map((r) => ({
-        id: r.id,
-        display_name: r.display_name,
-        phone_masked: r.phone_number ? `${String(r.phone_number).slice(0, 4)}****` : null,
-        kyc_status: r.kyc_status || "none",
-        kyc_level: r.kyc_level ?? 0,
-        kyc_face_verified: !!r.kyc_face_verified,
-        verification_reason: getVerificationReason(r),
-        reject_reason: r.reject_reason || null,
-    }));
+    const users = await Promise.all(
+        rows.map(async (r) => {
+            const reportsCount = await ListingReport.countDocuments({
+                targetType: "user",
+                targetId: String(r.id),
+            }).catch(() => 0);
+            const trustScore = await trustScoreService.getTrustScore(r.id);
+            const bars = await computeUserRiskScore(
+                {
+                    otp_verified: !!r.otp_verified,
+                    kyc_status: r.kyc_status || "none",
+                    created_at: r.created_at,
+                },
+                { reportsCount, trustScore, deviceRisk: 0 }
+            );
+            const timeResolved = r.kyc_verified_at || r.submission_created_at || r.created_at;
+            return {
+                id: r.id,
+                display_name: r.display_name,
+                phone_masked: r.phone_number ? `${String(r.phone_number).slice(0, 4)}****` : null,
+                account: r.display_name ? `${r.display_name} (ID ${r.id})` : `ID ${r.id}`,
+                kyc_status: r.kyc_status || "none",
+                kyc_level: r.kyc_level ?? 0,
+                kyc_face_verified: !!r.kyc_face_verified,
+                kyc_provider: r.kyc_provider || null,
+                kyc_verified_at: r.kyc_verified_at || null,
+                kyc_last_reason: r.kyc_last_reason || null,
+                time_resolved: timeResolved ? new Date(timeResolved).toISOString() : null,
+                verification_reason: getVerificationReason(r),
+                reject_reason: r.reject_reason || r.kyc_last_reason || null,
+                is_banned: !!r.is_banned,
+                risk_score: bars,
+                risk_label: getRiskLabel(bars),
+            };
+        })
+    );
     return { users, total: countRow.total, page: p, limit: l };
 }
 
 function getVerificationReason(row) {
     if (!row) return null;
     const status = row.submission_status || row.kyc_status;
-    if (["verified_auto", "verified_manual"].includes(status)) {
+    if (["verified_auto", "verified_manual", "verified"].includes(status)) {
         const parts = [];
         if (row.face_match_score >= 0.85) parts.push("Face matched");
         if (row.name_match_score >= 0.8) parts.push("Name matched");
@@ -444,8 +530,88 @@ async function adminGetUserKycData(adminUser, targetUserId) {
     return data;
 }
 
+/**
+ * Admin: last 20 webhook events for session. GET /admin/veriff/webhooks?sessionId=
+ */
+async function adminVeriffWebhooks(sessionId) {
+    const webhookEventDb = require("./veriffWebhookEvent.mysql");
+    const events = await webhookEventDb.findLast20BySessionId(sessionId);
+    return events.map((e) => ({
+        id: e.id,
+        kind: e.kind,
+        session_id: e.session_id,
+        received_at: e.received_at,
+        signature_valid: !!e.signature_valid,
+        error_text: e.error_text,
+        payload_raw: e.payload_raw,
+        payload_json: e.payload_json,
+    }));
+}
+
+/**
+ * Admin debug endpoint for Veriff session.
+ * Returns session, user kyc status, last webhook event, last decision poll result.
+ */
+async function adminVeriffDebug(sessionId) {
+    const kycSessionsDb = require("./kycSessions.mysql");
+    const webhookEventDb = require("./veriffWebhookEvent.mysql");
+    const { pool } = require("../../config/mysql");
+    const sid = String(sessionId || "").trim();
+    if (!sid) return null;
+
+    const session = await kycSessionsDb.findByProviderSessionId("VERIFF", sid);
+    if (!session) return null;
+
+    const [userRows] = await pool.query(
+        "SELECT id, display_name, kyc_status, kyc_level, kyc_verified_at, kyc_last_reason FROM users WHERE id = ?",
+        [session.user_id]
+    );
+    const user = userRows[0] || null;
+
+    const lastWebhookEvent = await webhookEventDb.findLastBySessionId(sid);
+    const recentWebhookEvents = await webhookEventDb.findRecentBySessionId(sid, 10);
+
+    return {
+        session: {
+            id: session.id,
+            user_id: session.user_id,
+            provider_session_id: session.provider_session_id,
+            status: session.status,
+            created_at: session.created_at,
+            updated_at: session.updated_at,
+            last_decision_poll_at: session.last_decision_poll_at,
+            last_decision_poll_result: session.last_decision_poll_result,
+        },
+        user: user ? {
+            id: user.id,
+            display_name: user.display_name,
+            kyc_status: user.kyc_status,
+            kyc_level: user.kyc_level,
+            kyc_verified_at: user.kyc_verified_at,
+            kyc_last_reason: user.kyc_last_reason,
+        } : null,
+        lastWebhookEvent: lastWebhookEvent ? {
+            id: lastWebhookEvent.id,
+            received_at: lastWebhookEvent.received_at,
+            signature_valid: !!lastWebhookEvent.signature_valid,
+            error_text: lastWebhookEvent.error_text,
+            payload_json: lastWebhookEvent.payload_json,
+        } : null,
+        recentWebhookEvents: recentWebhookEvents.map((e) => ({
+            id: e.id,
+            received_at: e.received_at,
+            signature_valid: !!e.signature_valid,
+            error_text: e.error_text,
+            action: e.payload_json?.action,
+            decision: e.payload_json?.verification?.status ?? e.payload_json?.decision ?? e.payload_json?.status,
+        })),
+    };
+}
+
 module.exports = {
     submit,
+    startProviderKyc,
+    startVeriffKyc,
     getStatus,
     confirmDataChange,
     adminGetSubmission,
@@ -456,4 +622,6 @@ module.exports = {
     adminRequestOtp,
     adminVerifyOtp,
     adminGetUserKycData,
+    adminVeriffDebug,
+    adminVeriffWebhooks,
 };

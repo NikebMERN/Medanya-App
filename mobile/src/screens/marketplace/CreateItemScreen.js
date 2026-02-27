@@ -25,8 +25,8 @@ import { uploadToCloudinary } from "../../utils/env";
 import { canUseMarketplace, getDobFromUser } from "../../utils/age";
 import * as marketplaceApi from "../../services/marketplace.api";
 import { CURRENCY_OPTIONS } from "../../store/jobs.store";
-
-const CATEGORIES = ["electronics", "furniture", "clothing", "other"];
+import { MARKETPLACE_CATEGORY_OPTIONS } from "../../store/marketplace.store";
+import SubScreenHeader from "../../components/SubScreenHeader";
 
 export default function CreateItemScreen() {
   const navigation = useNavigation();
@@ -43,16 +43,30 @@ export default function CreateItemScreen() {
   const [location, setLocation] = useState("");
   const [price, setPrice] = useState("");
   const [priceCurrency, setPriceCurrency] = useState("ETB");
+  const [categoryModalVisible, setCategoryModalVisible] = useState(false);
   const [currencyModalVisible, setCurrencyModalVisible] = useState(false);
   const [imageUrls, setImageUrls] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  const pickImage = useCallback(async () => {
+  const addImageFromUri = useCallback(async (uri) => {
     if (imageUrls.length >= 8) {
       Alert.alert("Limit", "Maximum 8 images.");
       return;
     }
+    setUploading(true);
+    try {
+      const url = await uploadToCloudinary(uri, "image");
+      if (url) setImageUrls((prev) => [...prev, url].slice(0, 8));
+    } catch (e) {
+      Alert.alert("Upload failed", e?.message ?? "Could not upload.");
+    } finally {
+      setUploading(false);
+    }
+  }, [imageUrls.length]);
+
+  const pickImage = useCallback(async () => {
+    if (imageUrls.length >= 8) return;
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== "granted") {
@@ -66,19 +80,41 @@ export default function CreateItemScreen() {
         quality: 0.8,
       });
       if (result.canceled || !result.assets?.[0]?.uri) return;
-      setUploading(true);
-      try {
-        const url = await uploadToCloudinary(result.assets[0].uri, "image");
-        if (url) setImageUrls((prev) => [...prev, url].slice(0, 8));
-      } catch (e) {
-        Alert.alert("Upload failed", e?.message ?? "Could not upload.");
-      } finally {
-        setUploading(false);
-      }
+      await addImageFromUri(result.assets[0].uri);
     } catch (e) {
       Alert.alert("Error", e?.message ?? "Could not open gallery.");
     }
-  }, [imageUrls.length]);
+  }, [imageUrls.length, addImageFromUri]);
+
+  const takePhoto = useCallback(async () => {
+    if (imageUrls.length >= 8) return;
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission", "Allow camera access.");
+        return;
+      }
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ["images"],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+      if (result.canceled || !result.assets?.[0]?.uri) return;
+      await addImageFromUri(result.assets[0].uri);
+    } catch (e) {
+      Alert.alert("Error", e?.message ?? "Could not open camera.");
+    }
+  }, [imageUrls.length, addImageFromUri]);
+
+  const showPhotoOptions = useCallback(() => {
+    if (uploading || imageUrls.length >= 8) return;
+    Alert.alert("Add photo", "", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Take Photo", onPress: takePhoto },
+      { text: "Choose from Library", onPress: pickImage },
+    ]);
+  }, [uploading, imageUrls.length, takePhoto, pickImage]);
 
   const removeImage = useCallback((index) => {
     setImageUrls((prev) => prev.filter((_, i) => i !== index));
@@ -116,9 +152,14 @@ export default function CreateItemScreen() {
       Alert.alert("Required", "Description is required.");
       return;
     }
-    const c = (category === "other" ? customCategory.trim() : category.trim()).toLowerCase().replace(/\s+/g, "_");
+    const raw = category === "other" ? customCategory.trim() : category.trim();
+    const c = raw.toLowerCase().replace(/\s+/g, "_").slice(0, 60);
     if (!c) {
-      Alert.alert("Required", category === "other" ? "Please enter the category." : "Category is required.");
+      Alert.alert("Required", category === "other" ? "Please enter a category (e.g. Books, Crafts)." : "Category is required.");
+      return;
+    }
+    if (category === "other" && raw.length < 2) {
+      Alert.alert("Invalid", "Please enter at least 2 characters for custom category.");
       return;
     }
     const loc = location.trim();
@@ -162,13 +203,26 @@ export default function CreateItemScreen() {
     }
   }, [isLoggedIn, accountPrivate, kycFaceVerified, title, description, category, customCategory, location, price, priceCurrency, imageUrls, navigation, user]);
 
+  const tabNav = navigation.getParent?.() ?? navigation;
+  const subHeader = (
+    <SubScreenHeader
+      title="Sell Item"
+      onBack={() => navigation.goBack()}
+      showProfileDropdown
+      navigation={tabNav}
+    />
+  );
+
   if (!isLoggedIn) {
     return (
       <View style={styles.container}>
-        <Text style={styles.placeholderText}>Please sign in to sell an item.</Text>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Text style={styles.backBtnText}>Go back</Text>
-        </TouchableOpacity>
+        {subHeader}
+        <View style={styles.center}>
+          <Text style={styles.placeholderText}>Please sign in to sell an item.</Text>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+            <Text style={styles.backBtnText}>Go back</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   }
@@ -176,13 +230,7 @@ export default function CreateItemScreen() {
   if (!kycFaceVerified) {
     return (
       <SafeAreaView style={styles.wrapper} edges={["top"]}>
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-            <MaterialIcons name="arrow-back" size={24} color={colors.text} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Sell Item</Text>
-          <View style={styles.headerRight} />
-        </View>
+        {subHeader}
         <View style={[styles.container, styles.center]}>
           <MaterialIcons name="verified-user" size={48} color={colors.textMuted} style={{ marginBottom: spacing.md }} />
           <Text style={styles.placeholderText}>Face verification required to list items.</Text>
@@ -200,13 +248,7 @@ export default function CreateItemScreen() {
 
   return (
     <SafeAreaView style={styles.wrapper} edges={["top"]}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <MaterialIcons name="arrow-back" size={24} color={colors.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Sell Item</Text>
-        <View style={styles.headerRight} />
-      </View>
+      {subHeader}
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={80}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={styles.label}>Photos (optional, max 8)</Text>
@@ -220,7 +262,7 @@ export default function CreateItemScreen() {
             </View>
           ))}
           {imageUrls.length < 8 && (
-            <TouchableOpacity style={styles.addPhoto} onPress={pickImage} disabled={uploading}>
+            <TouchableOpacity style={styles.addPhoto} onPress={showPhotoOptions} disabled={uploading}>
               {uploading ? <ActivityIndicator size="small" color={colors.primary} /> : <MaterialIcons name="add-a-photo" size={32} color={colors.textMuted} />}
             </TouchableOpacity>
           )}
@@ -233,22 +275,47 @@ export default function CreateItemScreen() {
         <TextInput style={[styles.input, styles.textArea]} placeholder="Describe your item" placeholderTextColor={colors.textMuted} value={description} onChangeText={setDescription} multiline numberOfLines={4} />
 
         <Text style={styles.label}>Category *</Text>
-        <View style={styles.chips}>
-          {CATEGORIES.map((c) => (
-            <TouchableOpacity key={c} style={[styles.chip, category === c && styles.chipActive]} onPress={() => setCategory(c)}>
-              <Text style={[styles.chipText, category === c && styles.chipTextActive]}>{c}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+        <TouchableOpacity style={styles.dropdown} onPress={() => setCategoryModalVisible(true)}>
+          <Text style={[styles.dropdownText, !category && styles.dropdownPlaceholder]}>
+            {category ? MARKETPLACE_CATEGORY_OPTIONS.find((o) => o.value === category)?.label ?? category : "Select category"}
+          </Text>
+          <MaterialIcons name="arrow-drop-down" size={24} color={colors.textSecondary} />
+        </TouchableOpacity>
         {category === "other" && (
           <TextInput
             style={[styles.input, { marginTop: spacing.sm }]}
-            placeholder="Enter category (e.g. Books)"
+            placeholder="Enter category (e.g. Books, Crafts, Art)"
             placeholderTextColor={colors.textMuted}
             value={customCategory}
             onChangeText={setCustomCategory}
           />
         )}
+        <Modal visible={categoryModalVisible} transparent animationType="fade">
+          <Pressable style={styles.modalOverlay} onPress={() => setCategoryModalVisible(false)}>
+            <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Select category</Text>
+              <ScrollView style={styles.modalList}>
+                {MARKETPLACE_CATEGORY_OPTIONS.map((opt) => (
+                  <TouchableOpacity
+                    key={opt.value}
+                    style={[styles.modalItem, category === opt.value && { backgroundColor: colors.primary + "20" }]}
+                    onPress={() => {
+                      setCategory(opt.value);
+                      setCategoryModalVisible(false);
+                      if (opt.value !== "other") setCustomCategory("");
+                    }}
+                  >
+                    <Text style={[styles.modalItemText, { color: colors.text }]}>{opt.label}</Text>
+                    {category === opt.value && <MaterialIcons name="check" size={20} color={colors.primary} />}
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+              <TouchableOpacity style={[styles.modalCloseBtn, { borderTopColor: colors.border }]} onPress={() => setCategoryModalVisible(false)}>
+                <Text style={[styles.modalCloseText, { color: colors.textSecondary }]}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Modal>
 
         <Text style={styles.label}>Location *</Text>
         <TextInput style={styles.input} placeholder="Where is the item?" placeholderTextColor={colors.textMuted} value={location} onChangeText={setLocation} />
@@ -303,10 +370,6 @@ export default function CreateItemScreen() {
 function createStyles(colors) {
   return StyleSheet.create({
     wrapper: { flex: 1 },
-    header: { flexDirection: "row", alignItems: "center", paddingVertical: spacing.sm, paddingHorizontal: spacing.sm, backgroundColor: colors.background, borderBottomWidth: 1, borderBottomColor: colors.border },
-    backBtn: { padding: spacing.sm },
-    headerTitle: { flex: 1, fontSize: 18, fontWeight: "700", color: colors.text, textAlign: "center" },
-    headerRight: { width: 40 },
     container: { flex: 1, backgroundColor: colors.background },
     center: { justifyContent: "center", alignItems: "center", padding: spacing.lg },
     content: { padding: spacing.md, paddingBottom: spacing.xl },
@@ -323,6 +386,11 @@ function createStyles(colors) {
     modalList: { maxHeight: 300 },
     modalItem: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border },
     modalItemText: { fontSize: 16 },
+    modalCloseBtn: { paddingVertical: spacing.md, alignItems: "center", borderTopWidth: 1, marginHorizontal: spacing.lg, marginTop: spacing.sm },
+    modalCloseText: { fontSize: 16, fontWeight: "600" },
+    dropdown: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: colors.surfaceLight, borderRadius: 12, padding: spacing.md, borderWidth: 1, borderColor: colors.border },
+    dropdownText: { fontSize: 15, color: colors.text },
+    dropdownPlaceholder: { color: colors.textMuted },
     imageRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginBottom: spacing.sm },
     imageWrap: { position: "relative" },
     thumb: { width: 80, height: 80, borderRadius: 8 },

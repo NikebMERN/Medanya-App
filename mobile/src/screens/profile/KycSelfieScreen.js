@@ -20,6 +20,7 @@ import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
 import { uploadToCloudinary } from "../../utils/env";
 import * as kycApi from "../../api/kyc.api";
+import SubScreenHeader from "../../components/SubScreenHeader";
 import { getMe } from "../../api/user.api";
 import { useAuthStore } from "../../store/auth.store";
 
@@ -28,6 +29,16 @@ export default function KycSelfieScreen() {
   const route = useRoute();
   const colors = useThemeColors();
   const { user: storeUser, updateUser } = useAuthStore();
+
+  const asBool = (v) => {
+    if (v === true || v === 1) return true;
+    if (v === false || v === 0 || v == null) return false;
+    if (typeof v === "string") {
+      const s = v.trim().toLowerCase();
+      return s === "true" || s === "1" || s === "yes";
+    }
+    return false;
+  };
 
   const docType = route.params?.docType;
   const docNumber = route.params?.docNumber;
@@ -115,7 +126,10 @@ export default function KycSelfieScreen() {
         consent: true,
       });
 
-      const { dataMismatch, faceMismatch, requireDataChange, verified } = result;
+      const verified = asBool(result?.verified);
+      const dataMismatch = asBool(result?.dataMismatch);
+      const faceMismatch = asBool(result?.faceMismatch);
+      const requireDataChange = asBool(result?.requireDataChange);
 
       if (verified) {
         Alert.alert("Verified", "Your identity has been verified successfully.", [
@@ -161,13 +175,12 @@ export default function KycSelfieScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={["top"]}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <MaterialIcons name="arrow-back" size={24} color={colors.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Live selfie</Text>
-        <View style={styles.headerRight} />
-      </View>
+      <SubScreenHeader
+        title="Live selfie"
+        onBack={() => navigation.goBack()}
+        showProfileDropdown
+        navigation={navigation.getParent?.() ?? navigation}
+      />
 
       <View style={styles.content}>
         <Text style={[styles.stepHint, { color: colors.textMuted }]}>
@@ -228,17 +241,6 @@ export default function KycSelfieScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: "transparent",
-  },
-  backBtn: { padding: spacing.sm },
-  headerTitle: { flex: 1, fontSize: 18, fontWeight: "700", textAlign: "center" },
-  headerRight: { width: 40 },
   content: { flex: 1, padding: spacing.lg },
   stepHint: { fontSize: 13, marginBottom: spacing.xs },
   hint: { fontSize: 14, marginBottom: spacing.xl },

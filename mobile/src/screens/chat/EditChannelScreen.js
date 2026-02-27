@@ -43,6 +43,20 @@ export default function EditChannelScreen() {
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [error, setError] = useState("");
 
+  const addAvatarFromUri = useCallback(async (uri) => {
+    setLocalAvatarUri(uri);
+    setUploadingAvatar(true);
+    setError("");
+    try {
+      const url = await uploadToCloudinary(uri, "image");
+      if (url) setAvatarUrl(url);
+    } catch (e) {
+      setError(e?.message ?? "Upload failed.");
+    } finally {
+      setUploadingAvatar(false);
+    }
+  }, []);
+
   const pickImage = useCallback(async () => {
     if (!chatId) return;
     try {
@@ -58,25 +72,43 @@ export default function EditChannelScreen() {
         quality: 0.8,
       });
       if (result.canceled || !result.assets?.[0]?.uri) return;
-      const uri = result.assets[0].uri;
-      setLocalAvatarUri(uri);
-      setUploadingAvatar(true);
-      setError("");
-      try {
-        const url = await uploadToCloudinary(uri, "image");
-        if (url) {
-          setAvatarUrl(url);
-        }
-      } catch (e) {
-        setError(e?.message ?? "Upload failed.");
-      } finally {
-        setUploadingAvatar(false);
-      }
+      await addAvatarFromUri(result.assets[0].uri);
     } catch (e) {
       setError(e?.message ?? "Could not open gallery.");
       setUploadingAvatar(false);
     }
-  }, [chatId]);
+  }, [chatId, addAvatarFromUri]);
+
+  const takePhoto = useCallback(async () => {
+    if (!chatId) return;
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission needed", "Allow camera access to set channel photo.");
+        return;
+      }
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ["images"],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+      if (result.canceled || !result.assets?.[0]?.uri) return;
+      await addAvatarFromUri(result.assets[0].uri);
+    } catch (e) {
+      setError(e?.message ?? "Could not open camera.");
+      setUploadingAvatar(false);
+    }
+  }, [chatId, addAvatarFromUri]);
+
+  const showPhotoOptions = useCallback(() => {
+    if (uploadingAvatar) return;
+    Alert.alert("Channel photo", "", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Take Photo", onPress: takePhoto },
+      { text: "Choose from Library", onPress: pickImage },
+    ]);
+  }, [uploadingAvatar, takePhoto, pickImage]);
 
   const handleSave = useCallback(async () => {
     const name = (channelName || "").trim();
@@ -121,7 +153,7 @@ export default function EditChannelScreen() {
       >
         <TouchableOpacity
           style={styles.avatarWrap}
-          onPress={pickImage}
+          onPress={showPhotoOptions}
           disabled={uploadingAvatar}
         >
           {(avatarUrl || localAvatarUri) ? (

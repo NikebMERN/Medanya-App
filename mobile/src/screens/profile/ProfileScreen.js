@@ -12,6 +12,7 @@ import {
   useWindowDimensions,
   RefreshControl,
   Animated,
+  AppState,
 } from "react-native";
 import {
   PinchGestureHandler,
@@ -26,6 +27,7 @@ import { useThemeColors } from "../../theme/useThemeColors";
 import { typography } from "../../theme/typography";
 import { spacing } from "../../theme/spacing";
 import { getMe, getFollowRequests } from "../../api/user.api";
+import * as kycApi from "../../api/kyc.api";
 
 export default function ProfileScreen() {
   const navigation = useNavigation();
@@ -132,6 +134,8 @@ export default function ProfileScreen() {
     storeUser?.account_private,
     storeUser?.accountPrivate,
     storeUser?.email,
+    storeUser?.kyc_status,
+    storeUser?.kycStatus,
   ]);
 
   const fetchFollowRequestCount = useCallback(async () => {
@@ -150,8 +154,49 @@ export default function ProfileScreen() {
   useFocusEffect(
     useCallback(() => {
       fetchFollowRequestCount();
-    }, [fetchFollowRequestCount])
+      // Refresh user to pick up kyc_status (e.g. after Veriff webhook updates)
+      const refreshUser = () => {
+        getMe()
+          .then((res) => {
+            if (res?.user) {
+              setUser(res.user);
+              useAuthStore.getState().updateUser(res.user);
+            }
+          })
+          .catch(() => {});
+      };
+      refreshUser();
+      // If KYC pending, also sync Veriff decision (webhook fallback)
+      const kyc = storeUser?.kyc_status ?? storeUser?.kycStatus;
+      if (kyc === "pending" || kyc === "PENDING") {
+        kycApi.veriffSync().catch(() => {}).then((res) => {
+          if (res?.updated && res?.kycStatus) {
+            useAuthStore.getState().updateUser({ kyc_status: res.kycStatus, kycStatus: res.kycStatus });
+            getMe().then((r) => r?.user && (setUser(r.user), useAuthStore.getState().updateUser(r.user)));
+          }
+        });
+      }
+    }, [fetchFollowRequestCount, storeUser?.kyc_status, storeUser?.kycStatus])
   );
+
+  // Refresh KYC status when app returns to foreground
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active" && storeUser?.id) {
+        getMe().then((res) => res?.user && (setUser(res.user), useAuthStore.getState().updateUser(res.user)));
+        const kyc = storeUser?.kyc_status ?? storeUser?.kycStatus;
+        if (kyc === "pending" || kyc === "PENDING") {
+          kycApi.veriffSync().catch(() => {}).then((res) => {
+            if (res?.updated && res?.kycStatus) {
+              useAuthStore.getState().updateUser({ kyc_status: res.kycStatus, kycStatus: res.kycStatus });
+              getMe().then((r) => r?.user && (setUser(r.user), useAuthStore.getState().updateUser(r.user)));
+            }
+          });
+        }
+      }
+    });
+    return () => sub?.remove?.();
+  }, [storeUser?.id, storeUser?.kyc_status, storeUser?.kycStatus]);
 
   const displayName = user?.display_name ?? user?.displayName ?? "—";
   const neighborhood = user?.neighborhood ?? "—";
@@ -160,6 +205,7 @@ export default function ProfileScreen() {
   const followerCount = user?.followerCount ?? 0;
   const followingCount = user?.followingCount ?? 0;
   const accountPrivate = user?.account_private ?? user?.accountPrivate;
+  const hasLegalName = !!String(user?.full_name ?? user?.fullName ?? "").trim();
   const riskBars = user?.risk_score ?? 0;
   const riskLabel = user?.risk_label ?? "risky";
   const riskBreakdown = user?.risk_breakdown ?? { score: 0, label: "risky", items: [] };
@@ -319,10 +365,19 @@ export default function ProfileScreen() {
             </View>
           </TouchableOpacity>
           <View style={styles.headerActions}>
-            <TouchableOpacity style={styles.editBtn} onPress={openEditProfile} activeOpacity={0.8}>
-              <MaterialIcons name="edit" size={14} color={colors.white} />
-              <Text style={styles.editLabel}>Edit</Text>
-            </TouchableOpacity>
+            <View style={styles.editLockRow}>
+              <View style={[styles.lockIconWrap, { backgroundColor: hasLegalName ? (colors.textMuted || "#888") : colors.surface }]}>
+                <MaterialIcons
+                  name={hasLegalName ? "lock" : "lock-open"}
+                  size={16}
+                  color={hasLegalName ? colors.white : colors.textMuted}
+                />
+              </View>
+              <TouchableOpacity style={styles.editBtn} onPress={openEditProfile} activeOpacity={0.8}>
+                <MaterialIcons name="edit" size={14} color={colors.white} />
+                <Text style={styles.editLabel}>Edit</Text>
+              </TouchableOpacity>
+            </View>
             {accountPrivate && followRequestCount > 0 && (
               <TouchableOpacity
                 style={styles.followRequestsBtn}
@@ -384,15 +439,31 @@ export default function ProfileScreen() {
         </View>
       </View>
 
-      {/* Identity verification */}
-      <TouchableOpacity
-        style={[styles.actionCard, styles.actionCardKyc]}
-        onPress={() => navigation.navigate("Kyc")}
-        activeOpacity={0.8}
-      >
-        <MaterialIcons name="badge" size={28} color={colors.primary} style={styles.actionIcon} />
-        <Text style={styles.actionLabel}>IDENTITY VERIFICATION</Text>
-      </TouchableOpacity>
+      {/* Identity verification – hidden when verified */}
+      {!["verified", "verified_auto", "verified_manual"].includes(user?.kyc_status ?? user?.kycStatus ?? "none") && (
+        <TouchableOpacity
+          style={[styles.actionCard, styles.actionCardKyc]}
+          onPress={async () => {
+            try {
+              const data = await kycApi.getKycStatus();
+              const kycStatus = data?.kycStatus ?? data?.kyc_status ?? "none";
+              if (["verified", "verified_auto", "verified_manual"].includes(kycStatus)) {
+                navigation.navigate("VerifyIdentity", { mode: "verified" });
+              } else if (kycStatus === "pending") {
+                navigation.navigate("VerifyIdentity", { mode: "waiting" });
+              } else {
+                navigation.navigate("Kyc");
+              }
+            } catch (_) {
+              navigation.navigate("Kyc");
+            }
+          }}
+          activeOpacity={0.8}
+        >
+          <MaterialIcons name="badge" size={28} color={colors.primary} style={styles.actionIcon} />
+          <Text style={styles.actionLabel}>IDENTITY VERIFICATION</Text>
+        </TouchableOpacity>
+      )}
 
       {/* Light mode + Logout */}
       <View style={styles.actionRow}>
@@ -622,6 +693,18 @@ function createStyles(colors) {
       flexDirection: "column",
       alignItems: "flex-end",
       gap: spacing.sm,
+    },
+    editLockRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.sm,
+    },
+    lockIconWrap: {
+      width: 36,
+      height: 36,
+      borderRadius: 10,
+      justifyContent: "center",
+      alignItems: "center",
     },
     editBtn: {
       flexDirection: "row",

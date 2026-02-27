@@ -90,7 +90,8 @@ async function createJob(reqUser, body) {
 
     const user = await userDb.getById(userId);
     if (!user) throw codeErr("UNAUTHORIZED", "User not found");
-    if (!user.kyc_face_verified) throw codeErr("FORBIDDEN", "Face verification required. Complete identity verification and have your face matched to your document before posting jobs.");
+    const kycVerified = !!(user.kyc_face_verified || (user.kyc_status === "verified" && (user.kyc_level || 0) >= 2));
+    if (!kycVerified) throw codeErr("FORBIDDEN", "Identity verification required. Complete verification in Profile before posting jobs.");
     if (user.dob) {
         const today = new Date();
         const dob = new Date(user.dob);
@@ -103,20 +104,55 @@ async function createJob(reqUser, body) {
     await fraudService.requireOtpVerified(userId);
     await fraudService.checkJobRateLimit(userId);
 
+    const trustScoreService = require("../../services/trustScore.service");
+    const trustScore = await trustScoreService.getTrustScore(userId);
+    if (trustScoreService.shouldRestrictPosting(trustScore)) {
+        throw codeErr("FORBIDDEN", "Your behavior trust score is too low. Maintain positive interactions to post jobs.");
+    }
+
     const data = validateCreate(body);
-    const { score, matchedKeywords, status } = await fraudService.computeRiskScore(userId, {
-        title: data.title,
-        description: data.description,
-        location: data.location,
-    });
+    const content = { title: data.title, description: data.description, location: data.location };
+    const risk = await fraudService.computeRiskScoreWithML(userId, content, "JOB");
+
+    const rule = risk.rule || {};
+    const ml = risk.ml || {};
+    const final = risk.final || {};
+    const ruleScore = rule.score ?? 0;
+
+    const weakLabel = ruleScore >= 80 ? "SCAM" : ruleScore <= 20 ? "LEGIT" : "UNKNOWN";
+    const scamTraining = require("../../services/scamML/scamTraining.mysql");
+    const text = scamTraining.normalizeText(data.title, data.description, data.location);
 
     const id = await jobDb.insertJob({
         created_by: userId,
         ...data,
-        risk_score: score,
-        matched_keywords: matchedKeywords.length ? JSON.stringify(matchedKeywords) : null,
-        status: status || "active",
+        risk_score: final.combinedScore ?? rule.score,
+        matched_keywords: (rule.matchedKeywords || []).length ? JSON.stringify(rule.matchedKeywords) : null,
+        ai_scam_score: ml.scamProbability != null ? Math.round(ml.scamProbability * 100) : null,
+        ai_scam_labels: (ml.labels || []).length ? ml.labels : null,
+        ai_confidence: ml.confidence ?? null,
+        ai_provider: ml.modelVersion ? "ml" : "rules-only",
+        ai_explanation: null,
+        ml_score: ml.scamProbability ?? null,
+        ml_model_version: ml.modelVersion ?? null,
+        ml_confidence: ml.confidence ?? null,
+        status: final.status || "active",
     });
+
+    await scamTraining.insertSample({ targetType: "JOB", targetId: id, userId, text, weakLabel, labelSource: "RULES" }).catch(() => {});
+
+    if (final.status === "PENDING_REVIEW") {
+        const ModerationQueue = require("../unifiedReports/moderationQueue.model");
+        const reasonSummary = `ML scam score ${Math.round((ml?.scamProbability ?? 0) * 100) || ruleScore}. Matched: ${(rule.matchedKeywords || []).join(", ") || "none"}`;
+        await ModerationQueue.updateOne(
+            { targetType: "JOB", targetId: String(id) },
+            { $set: { targetType: "JOB", targetId: String(id), priority: "HIGH", reasonSummary, reportCount24h: 0, status: "PENDING", updatedAt: new Date() } },
+            { upsert: true }
+        );
+    }
+
+    fraudService.enqueueDeepScan({ targetType: "JOB", targetId: id, userId, content }).catch(() => {});
+
     const job = await jobDb.findJobById(id);
     return job;
 }

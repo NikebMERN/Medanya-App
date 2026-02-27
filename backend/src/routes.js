@@ -15,6 +15,8 @@ const streamRoutes = require("./modules/livestream/stream.routes");
 const walletRoutes = require("./modules/wallet/wallet.routes");
 const stripeRoutes = require("./modules/payments/stripe.routes");
 const stripeWebhook = require("./webhooks/stripe.webhook");
+const veriffWebhook = require("./webhooks/veriff.webhook");
+const sumsubWebhook = require("./webhooks/sumsub.webhook");
 const notificationRoutes = require("./modules/notifications/notification.routes");
 const severeAbuseRoutes = require("./modules/severeAbuse/abuse.routes");
 const userRoutes = require("./modules/users/user.routes");
@@ -72,6 +74,8 @@ router.use("/", walletRoutes);
 // ✅ STRIPE PAYMENTS
 router.use("/", stripeRoutes);
 router.use("/", stripeWebhook);
+router.use("/", veriffWebhook);
+router.use("/", sumsubWebhook);
 
 // ✅ NOTIFICATIONS
 router.use("/", notificationRoutes);

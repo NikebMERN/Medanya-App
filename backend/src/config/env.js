@@ -43,6 +43,34 @@ const envSchema = z.object({
     // Admin panel / dev: comma-separated phone numbers (E.164 digits) that can use fixed OTP in development
     ADMIN_TEST_PHONES: z.string().optional(),
     ADMIN_TEST_OTP_CODE: z.string().optional().default("123456"),
+
+    // Provider KYC: sumsub | veriff
+    KYC_PROVIDER: z.enum(["sumsub", "veriff"]).optional(),
+    VERIFF_API_KEY: z.string().optional(),
+    VERIFF_SHARED_SECRET: z.string().optional(),
+    VERIFF_WEBHOOK_SECRET: z.string().optional(),
+    VERIFF_BASE_URL: z.string().optional().default("https://stationapi.veriff.com"),
+    PUBLIC_WEBHOOK_BASE_URL: z.string().optional(),
+    VERIFF_CALLBACK_URL: z.string().optional(),
+    VERIFF_CALLBACK_REDIRECT_URL: z.string().optional(),
+    SUMSUB_APP_TOKEN: z.string().optional(),
+    SUMSUB_SECRET_KEY: z.string().optional(),
+    SUMSUB_WEBHOOK_SECRET: z.string().optional(),
+    SUMSUB_BASE_URL: z.string().optional().default("https://api.sumsub.com"),
+    SUMSUB_LEVEL_NAME: z.string().optional().default("basic-kyc-level"),
+
+    // Scam AI (optional)
+    AI_PROVIDER: z.enum(["rules", "openai"]).optional().default("rules"),
+    OPENAI_API_KEY: z.string().optional(),
+    AI_MODEL: z.string().optional().default("gpt-4o-mini"),
+    SCAM_AI_SYNC_TIMEOUT_MS: z.string().optional(),
+    SCAM_AI_DEEP_TIMEOUT_MS: z.string().optional(),
+    SCAM_AI_HASH_SALT: z.string().optional(),
+
+    // Scam ML (optional)
+    ML_INFERENCE_URL: z.string().optional().default("http://127.0.0.1:8000"),
+    ML_INFERENCE_TIMEOUT_MS: z.string().optional(),
+    ML_MIN_LABELS_FOR_TRAINING: z.string().optional(),
 });
 
 const env = envSchema.parse(process.env);

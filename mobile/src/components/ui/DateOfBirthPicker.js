@@ -30,8 +30,9 @@ function getDaysInMonth(year, month) {
  * @param {function(string)} props.onChange - Called with YYYY-MM-DD
  * @param {string} [props.label]
  * @param {string} [props.placeholder]
+ * @param {boolean} [props.editable=true] - When false, field is read-only (e.g. legal data locked).
  */
-export default function DateOfBirthPicker({ value, onChange, label, placeholder = "Select date" }) {
+export default function DateOfBirthPicker({ value, onChange, label, placeholder = "Select date", editable = true }) {
   const colors = useThemeColors();
   const [show, setShow] = useState(false);
 
@@ -81,15 +82,21 @@ export default function DateOfBirthPicker({ value, onChange, label, placeholder 
         style={[
           styles.touchable,
           { backgroundColor: colors.surfaceLight, borderColor: colors.border },
+          !editable && { opacity: 0.7 },
         ]}
-        onPress={openPicker}
-        activeOpacity={0.7}
+        onPress={editable ? openPicker : undefined}
+        activeOpacity={editable ? 0.7 : 1}
+        disabled={!editable}
       >
         <MaterialIcons name="event" size={20} color={colors.text} />
         <Text style={[styles.text, { color: value ? colors.text : colors.textMuted }]}>
           {displayText}
         </Text>
-        <MaterialIcons name="arrow-drop-down" size={24} color={colors.textMuted} />
+        {editable ? (
+          <MaterialIcons name="arrow-drop-down" size={24} color={colors.textMuted} />
+        ) : (
+          <MaterialIcons name="lock" size={20} color={colors.textMuted} />
+        )}
       </TouchableOpacity>
 
       <Modal visible={show} transparent animationType="slide">

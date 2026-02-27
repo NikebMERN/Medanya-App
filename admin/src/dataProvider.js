@@ -77,7 +77,7 @@ export const dataProvider = {
       const q = new URLSearchParams({
         page: String(pageNum),
         limit: String(limit),
-        status: filter?.status ?? "pending_manual",
+        status: filter?.status ?? "all",
         ...(filter?.docType && { docType: filter.docType }),
       });
       const res = await httpClient(`${API_URL}/admin/kyc?${q}`);

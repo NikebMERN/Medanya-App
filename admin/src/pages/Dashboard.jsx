@@ -32,6 +32,9 @@ export default function Dashboard() {
   const dataProvider = useDataProvider();
 
   React.useEffect(() => {
+    const token = localStorage.getItem("medanya_admin_token");
+    const headers = token ? { Authorization: `Bearer ${token}` } : {};
+
     dataProvider
       .getList("moderationQueue", {
         filter: { status: "PENDING" },
@@ -49,11 +52,7 @@ export default function Dashboard() {
       .then((r) => setCounts((c) => ({ ...c, urgent: r.total })))
       .catch(() => {});
 
-    fetch("/api/admin/moderation/counts", {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("medanya_admin_token")}`,
-      },
-    })
+    fetch("/api/admin/moderation/counts", { headers })
       .then((res) => res.json())
       .then((d) => {
         if (d.success)
@@ -66,15 +65,26 @@ export default function Dashboard() {
       })
       .catch(() => {});
 
-    fetch("/api/admin/kyc?status=pending_manual&limit=1", {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("medanya_admin_token")}`,
-      },
-    })
+    fetch("/api/admin/kyc?status=pending_manual&limit=1", { headers })
       .then((res) => res.json())
       .then((d) => {
         if (d.success)
           setCounts((c) => ({ ...c, pendingKyc: d.total ?? 0 }));
+      })
+      .catch(() => {});
+
+    fetch("/api/admin/health", { headers })
+      .then((res) => res.json())
+      .then((d) => {
+        setCounts((c) => ({ ...c, serverOk: d?.ok === true }));
+      })
+      .catch(() => setCounts((c) => ({ ...c, serverOk: false })));
+
+    fetch("/api/admin/users?page=1&limit=1", { headers })
+      .then((res) => res.json())
+      .then((d) => {
+        if (d.success && typeof d.total === "number")
+          setCounts((c) => ({ ...c, totalUsers: d.total }));
       })
       .catch(() => {});
   }, [dataProvider]);
@@ -93,10 +103,12 @@ export default function Dashboard() {
         </Typography>
 
         <div style={{ display: "flex", flexWrap: "wrap", gap: 16, marginBottom: 24 }}>
+          <CardWithLink title="Total users" value={c.totalUsers} to="/users" />
           <CardWithLink title="Pending moderation" value={c.pending} to="/moderationQueue" />
           <CardWithLink title="Urgent items" value={c.urgent} to="/moderationQueue" />
           <CardWithLink title="Pending KYC" value={c.pendingKyc} to="/kycSubmissions" />
           <CardWithLink title="Banned users" value={c.bannedUsers} />
+          <CardWithLink title="Server status" value={c.serverOk === true ? "OK" : c.serverOk === false ? "Error" : "—"} />
         </div>
 
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>

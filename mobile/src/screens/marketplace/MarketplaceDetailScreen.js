@@ -24,6 +24,8 @@ import * as chatApi from "../../services/chat.api";
 import * as activityApi from "../../services/activity.api";
 import SafetyModal from "../../components/common/SafetyModal";
 import ReportOptionsModal from "../../components/common/ReportOptionsModal";
+import { useFavoritesStore } from "../../store/favorites.store";
+import SubScreenHeader from "../../components/SubScreenHeader";
 
 export default function MarketplaceDetailScreen() {
   const route = useRoute();
@@ -45,6 +47,15 @@ export default function MarketplaceDetailScreen() {
   const [imageViewerVisible, setImageViewerVisible] = useState(false);
   const [imageViewerIndex, setImageViewerIndex] = useState(0);
   const imageViewerScrollRef = useRef(null);
+
+  const toggleFavorite = useFavoritesStore((s) => s.toggleFavorite);
+  const isFavorite = useFavoritesStore((s) => (s.favoriteIds || []).includes(String(itemId)));
+  const setSnippet = useFavoritesStore((s) => s.setSnippet);
+  const hydrateFavorites = useFavoritesStore((s) => s.hydrate);
+
+  useEffect(() => {
+    if (!useFavoritesStore.getState().hydrated) hydrateFavorites();
+  }, [hydrateFavorites]);
 
   const load = useCallback(async () => {
     if (!itemId) return;
@@ -73,6 +84,18 @@ export default function MarketplaceDetailScreen() {
       });
     }
   }, [item, itemId, userId]);
+
+  useEffect(() => {
+    if (item && itemId) {
+      const img = Array.isArray(item.image_urls) && item.image_urls[0] ? item.image_urls[0] : item.image_url;
+      setSnippet(itemId, {
+        title: item.title,
+        price: item.price != null ? `${item.currency || "AED"} ${item.price}` : "",
+        imageUrl: img || "",
+        location: item.location || "",
+      });
+    }
+  }, [item, itemId, setSnippet]);
 
   const doChatWithSeller = useCallback(async () => {
     const sellerId = item?.seller_id ?? item?.sellerId;
@@ -141,21 +164,36 @@ export default function MarketplaceDetailScreen() {
   const isOwn = String(sellerId) === String(userId);
   const priceCurrency = item.currency || "AED";
 
+  const tabNav = navigation.getParent?.() ?? navigation;
+  const rightEl = (
+    <>
+      <TouchableOpacity
+        style={styles.moreBtn}
+        onPress={() => toggleFavorite(itemId, {
+          title: item.title,
+          price: item.price != null ? `${priceCurrency} ${item.price}` : "",
+          imageUrl: images[0] || "",
+          location: item.location || "",
+        })}
+      >
+        <MaterialIcons name={isFavorite ? "favorite" : "favorite-border"} size={24} color={isFavorite ? (colors.error || "#e53935") : colors.text} />
+      </TouchableOpacity>
+      {!isOwn && (
+        <TouchableOpacity style={styles.moreBtn} onPress={() => setReportModalVisible(true)}>
+          <MaterialIcons name="more-vert" size={24} color={colors.text} />
+        </TouchableOpacity>
+      )}
+    </>
+  );
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <MaterialIcons name="arrow-back" size={24} color={colors.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1}>Item</Text>
-        <View style={styles.headerRight}>
-          {!isOwn && (
-            <TouchableOpacity style={styles.moreBtn} onPress={() => setReportModalVisible(true)}>
-              <MaterialIcons name="more-vert" size={24} color={colors.text} />
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
+      <SubScreenHeader
+        title="Item"
+        onBack={() => navigation.goBack()}
+        showProfileDropdown
+        navigation={tabNav}
+        rightElement={rightEl}
+      />
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
         {images.length > 0 ? (
           <TouchableOpacity activeOpacity={1} onPress={() => { setImageViewerIndex(0); setImageViewerVisible(true); }}>
@@ -252,13 +290,9 @@ export default function MarketplaceDetailScreen() {
   );
 }
 
-function createStyles(colors, _paddingTop = 0) {
+function createStyles(colors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
-    header: { flexDirection: "row", alignItems: "center", paddingVertical: spacing.md, paddingHorizontal: spacing.sm, backgroundColor: colors.background, borderBottomWidth: 1, borderBottomColor: colors.border },
-    backBtn: { padding: spacing.sm },
-    headerTitle: { flex: 1, fontSize: 18, fontWeight: "700", color: colors.text, textAlign: "center" },
-    headerRight: { width: 40 },
     moreBtn: { padding: spacing.sm },
     badges: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs, marginBottom: spacing.sm },
     badge: { flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 4, paddingHorizontal: spacing.sm, borderRadius: 8, backgroundColor: colors.surfaceLight },

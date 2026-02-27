@@ -69,6 +69,11 @@ function AppHeaderComponent({ navigation, route, focusedRouteName }) {
     navigation?.navigate("Profile", { screen: "BlockedUsers" });
   };
 
+  const handleFavoriteItems = () => {
+    closeMenu();
+    navigation?.navigate("Profile", { screen: "FavoriteItems" });
+  };
+
   const handlePostJob = () => {
     closeMenu();
     navigation?.navigate("Jobs", { screen: "CreateJob" });
@@ -154,7 +159,12 @@ function AppHeaderComponent({ navigation, route, focusedRouteName }) {
               <Text style={styles.menuItemText}>Edit profile</Text>
               <MaterialIcons name="chevron-right" size={20} color={colors.textSecondary} />
             </TouchableOpacity>
-            {kycFaceVerified && (
+            <TouchableOpacity style={styles.menuItem} onPress={handleFavoriteItems} activeOpacity={0.7}>
+              <MaterialIcons name="favorite" size={22} color={colors.text} />
+              <Text style={styles.menuItemText}>Favorite items</Text>
+              <MaterialIcons name="chevron-right" size={20} color={colors.textSecondary} />
+            </TouchableOpacity>
+            {!!kycFaceVerified ? (
               <>
                 <TouchableOpacity style={styles.menuItem} onPress={handlePostJob} activeOpacity={0.7}>
                   <MaterialIcons name="work" size={22} color={colors.text} />
@@ -167,14 +177,14 @@ function AppHeaderComponent({ navigation, route, focusedRouteName }) {
                   <MaterialIcons name="chevron-right" size={20} color={colors.textSecondary} />
                 </TouchableOpacity>
               </>
-            )}
-            {accountPrivate && (
+            ) : null}
+            {!!accountPrivate ? (
               <TouchableOpacity style={styles.menuItem} onPress={handleFollowRequests} activeOpacity={0.7}>
                 <MaterialIcons name="people-outline" size={22} color={colors.text} />
                 <Text style={styles.menuItemText}>Follow requests</Text>
                 <MaterialIcons name="chevron-right" size={20} color={colors.textSecondary} />
               </TouchableOpacity>
-            )}
+            ) : null}
             <TouchableOpacity style={styles.menuItem} onPress={handleCreateGroupChat} activeOpacity={0.7}>
               <MaterialIcons name="group-add" size={22} color={colors.text} />
               <Text style={styles.menuItemText}>Create a group chat</Text>

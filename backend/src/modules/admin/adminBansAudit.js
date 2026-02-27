@@ -44,11 +44,34 @@ async function listBans({ page = 1, limit = 50 } = {}) {
     return { bans: rows, total: countRow.total, page: p, limit: l };
 }
 
-async function createBan({ type, value_hash, reason }, adminId) {
+function hashValue(val) {
+    if (!val) return null;
+    const crypto = require("crypto");
+    const SALT = process.env.KYC_HASH_SALT || "medanya-kyc-salt-v1";
+    return crypto.createHmac("sha256", SALT).update(String(val)).digest("hex");
+}
+
+async function createBan({ type, value_hash, value, reason }, adminId) {
+    const userDb = require("../users/user.mysql");
+    const rawValue = value != null ? String(value).trim() : null;
+    const hashed = rawValue ? hashValue(rawValue) : (value_hash || "");
+    if (!hashed) throw new Error("Either value or value_hash is required");
+
     const [result] = await pool.query(
         `INSERT INTO bans (type, value_hash, reason, created_by) VALUES (?, ?, ?, ?)`,
-        [type, value_hash || "", reason || "", adminId]
+        [type, hashed, reason || "", adminId]
     );
+
+    if (type === "USER" && rawValue) {
+        const uid = parseInt(rawValue, 10);
+        if (!isNaN(uid)) await userDb.banUser(uid, true, reason || "Admin ban");
+    } else if (type === "PHONE" && rawValue) {
+        const [rows] = await pool.query(
+            "UPDATE users SET is_banned = 1, banned_reason = ? WHERE phone_number = ?",
+            [reason || "Admin ban (phone)", rawValue]
+        );
+    }
+
     const [[row]] = await pool.query(`SELECT * FROM bans WHERE id = ?`, [result.insertId]);
     return row;
 }

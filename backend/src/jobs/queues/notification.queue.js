@@ -9,5 +9,7 @@ const connection = {
 };
 
 const notificationQueue = new Queue("notificationQueue", { connection });
+const scamAIQueue = new Queue("scamAIQueue", { connection });
+const scamMLQueue = new Queue("scamMLQueue", { connection });
 
-module.exports = { notificationQueue, connection };
+module.exports = { notificationQueue, scamAIQueue, scamMLQueue, connection };

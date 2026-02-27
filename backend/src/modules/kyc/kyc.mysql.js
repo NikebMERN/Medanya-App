@@ -97,9 +97,15 @@ async function listByStatus(status, { page = 1, limit = 20 } = {}) {
     let where = "";
     let countParams = [];
     let listParams = [];
-    if (status) {
+    if (status && status !== "all") {
         if (status === "pending_manual") {
             where = "WHERE status IN ('pending_manual', 'pending')";
+        } else if (status === "verified") {
+            where = "WHERE status IN ('verified_auto', 'verified_manual', 'verified')";
+        } else if (status === "submitted") {
+            where = "WHERE status IN ('pending_auto', 'pending_manual', 'pending')";
+        } else if (status === "pending") {
+            where = "WHERE status IN ('pending_manual', 'pending', 'pending_auto')";
         } else {
             where = "WHERE status = ?";
             countParams = [status];

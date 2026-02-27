@@ -23,10 +23,12 @@ export async function getStream(streamId) {
 }
 
 export async function createStream(body) {
-  const { data } = await client.post("/streams", {
+  const payload = {
     title: body?.title ?? "",
     category: body?.category ?? "",
-  });
+  };
+  if (body?.coverImageUrl) payload.coverImageUrl = body.coverImageUrl;
+  const { data } = await client.post("/streams", payload);
   return data?.stream ?? data;
 }
 

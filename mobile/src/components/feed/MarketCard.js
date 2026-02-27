@@ -1,16 +1,25 @@
 /**
  * MARKET ITEM CARD — Compact grid-style card.
- * Image, heart icon, price pill, title, location
+ * Image, heart icon (favorite toggle), price pill, title, location
  */
-import React from "react";
+import React, { useEffect } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, Image } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { spacing } from "../../theme/spacing";
 import { useThemeColors } from "../../theme/useThemeColors";
+import { useFavoritesStore } from "../../store/favorites.store";
 
-export default function MarketCard({ data, onPress }) {
+export default function MarketCard({ data, onPress, onShare }) {
   const colors = useThemeColors();
   const styles = createStyles(colors);
+  const itemId = data?.id ?? data?.itemId ?? "";
+  const isFav = useFavoritesStore((s) => (s.favoriteIds || []).includes(String(itemId)));
+  const toggleFavorite = useFavoritesStore((s) => s.toggleFavorite);
+  const hydrate = useFavoritesStore((s) => s.hydrate);
+
+  useEffect(() => {
+    if (!useFavoritesStore.getState().hydrated) hydrate();
+  }, [hydrate]);
 
   const imageUrl =
     (Array.isArray(data?.preview?.imageUrls) && data.preview.imageUrls[0]) ||
@@ -19,6 +28,13 @@ export default function MarketCard({ data, onPress }) {
   const title = data?.title ?? "Item";
   const price = data?.preview?.price ?? data?.summary?.split("•")[0] ?? "";
   const location = data?.location ?? "";
+
+  const onHeartPress = (e) => {
+    e?.stopPropagation?.();
+    if (itemId) {
+      toggleFavorite(itemId, { title, price, imageUrl, location });
+    }
+  };
 
   return (
     <TouchableOpacity onPress={() => onPress?.()} activeOpacity={0.9}>
@@ -31,8 +47,8 @@ export default function MarketCard({ data, onPress }) {
               <MaterialIcons name="storefront" size={32} color={colors.textMuted} />
             </View>
           )}
-          <TouchableOpacity style={styles.heartBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <MaterialIcons name="favorite-border" size={20} color={colors.textMuted} />
+          <TouchableOpacity style={styles.heartBtn} onPress={onHeartPress} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <MaterialIcons name={isFav ? "favorite" : "favorite-border"} size={20} color={isFav ? (colors.error || "#e53935") : colors.textMuted} />
           </TouchableOpacity>
           {price ? (
             <View style={[styles.pricePill, { backgroundColor: colors.primary }]}>
@@ -40,8 +56,16 @@ export default function MarketCard({ data, onPress }) {
             </View>
           ) : null}
         </View>
-        <Text style={styles.title} numberOfLines={2}>{title}</Text>
-        {location ? <Text style={styles.location} numberOfLines={1}>{location}</Text> : null}
+        <View style={styles.cardFooter}>
+          <Text style={styles.title} numberOfLines={2}>{title}</Text>
+          {location ? <Text style={styles.location} numberOfLines={1}>{location}</Text> : null}
+          {onShare ? (
+            <TouchableOpacity style={styles.shareBtn} onPress={(e) => { e?.stopPropagation?.(); onShare?.(); }} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+              <MaterialIcons name="share" size={18} color={colors.primary} />
+              <Text style={styles.shareBtnText}>Share</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
       </View>
     </TouchableOpacity>
   );
@@ -64,7 +88,10 @@ function createStyles(colors) {
     heartBtn: { position: "absolute", top: 8, right: 8, padding: 4 },
     pricePill: { position: "absolute", bottom: 8, left: 8, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
     priceText: { fontSize: 12, fontWeight: "700", color: "#fff" },
-    title: { padding: spacing.sm, fontSize: 14, fontWeight: "600", color: colors.text },
-    location: { paddingHorizontal: spacing.sm, paddingBottom: spacing.sm, fontSize: 12, color: colors.textMuted },
+    cardFooter: { padding: spacing.sm },
+    title: { fontSize: 14, fontWeight: "600", color: colors.text },
+    location: { paddingTop: 2, fontSize: 12, color: colors.textMuted },
+    shareBtn: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: spacing.xs },
+    shareBtnText: { fontSize: 12, fontWeight: "600", color: colors.primary },
   });
 }

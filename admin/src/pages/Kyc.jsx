@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { adminApi } from "../lib/api";
 import { DataTable } from "../components/DataTable";
 
@@ -8,12 +8,25 @@ export default function Kyc() {
   const navigate = useNavigate();
   const [page, setPage] = useState(1);
   const [query, setQuery] = useState("");
+  const [verifiedOnly, setVerifiedOnly] = useState(false);
+  const [faceVerifiedOnly, setFaceVerifiedOnly] = useState(false);
+  const [statusFilter, setStatusFilter] = useState("");
   const [otpModal, setOtpModal] = useState({ open: false, userId: null, otp: "", loading: false, error: null });
   const [dataModal, setDataModal] = useState({ open: false, userId: null, data: null, loading: false });
 
   const { data, isLoading } = useQuery({
-    queryKey: ["admin", "kyc", "users", page, query],
-    queryFn: () => adminApi.kycUsers({ page, limit: 50, query }).then((r) => r.data),
+    queryKey: ["admin", "kyc", "users", page, query, verifiedOnly, faceVerifiedOnly, statusFilter],
+    queryFn: () =>
+      adminApi
+        .kycUsers({
+          page,
+          limit: 50,
+          query,
+          verifiedOnly: verifiedOnly ? 1 : 0,
+          faceVerifiedOnly: faceVerifiedOnly ? 1 : 0,
+          status: statusFilter || undefined,
+        })
+        .then((r) => r.data),
   });
 
   const users = data?.users ?? [];
@@ -55,18 +68,40 @@ export default function Kyc() {
     }
   };
 
+  const queryClient = useQueryClient();
+
+  const handleBan = async (userId, banned) => {
+    try {
+      await adminApi.banUser(userId, banned);
+      queryClient.invalidateQueries({ queryKey: ["admin", "kyc", "users"] });
+    } catch (e) {
+      alert(e?.response?.data?.error?.message || e?.message || "Failed to update ban");
+    }
+  };
   const columns = [
     { key: "id", label: "ID" },
     { key: "display_name", label: "Name" },
+    { key: "account", label: "Account" },
     { key: "phone_masked", label: "Phone" },
     {
       key: "kyc_status",
       label: "Status",
       render: (v) => (
-        <span className={v === "verified_auto" || v === "verified_manual" ? "text-emerald-600 font-medium" : v === "rejected" ? "text-red-600" : "text-slate-600"}>
+        <span className={v === "verified_auto" || v === "verified_manual" || v === "verified" ? "text-emerald-600 font-medium" : v === "rejected" ? "text-red-600" : "text-slate-600"}>
           {v || "none"}
         </span>
       ),
+    },
+    { key: "kyc_level", label: "Level", render: (v) => v ?? "—" },
+    {
+      key: "time_resolved",
+      label: "Time resolved",
+      render: (v) => (v ? new Date(v).toLocaleString() : "—"),
+    },
+    {
+      key: "kyc_last_reason",
+      label: "Last reason",
+      render: (v) => (v ? <span className="text-amber-600 text-sm">{v}</span> : "—"),
     },
     {
       key: "verification_reason",
@@ -79,20 +114,63 @@ export default function Kyc() {
       render: (v) => (v ? <span className="text-red-600">{v}</span> : "—"),
     },
     {
+      key: "risk_label",
+      label: "Risk",
+      render: (v, row) => {
+        const bars = row?.risk_score ?? 0;
+        const label = v || "risky";
+        const color =
+          label === "safe"
+            ? "text-emerald-600"
+            : label === "half-safe"
+              ? "text-amber-600"
+              : "text-red-600";
+        return (
+          <span className={color} title={`${bars}/5 bars`}>
+            {label} ({bars}/5)
+          </span>
+        );
+      },
+    },
+    {
+      key: "is_banned",
+      label: "Banned",
+      render: (v) => (v ? <span className="text-red-600 font-medium">Yes</span> : "No"),
+    },
+    {
       key: "actions",
       label: "Actions",
       render: (_, row) => (
-        <div onClick={(e) => e.stopPropagation()}>
-        <button
-          type="button"
-          onClick={() => {
-            setOtpModal({ open: true, userId: row.id, otp: "", loading: false, error: null });
-            handleRequestOtp(row.id);
-          }}
-          className="rounded bg-primary px-2 py-1 text-xs text-white hover:opacity-90"
-        >
-          View data (OTP)
-        </button>
+        <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+          <button
+            type="button"
+            onClick={() => {
+              setOtpModal({ open: true, userId: row.id, otp: "", loading: false, error: null });
+              handleRequestOtp(row.id);
+            }}
+            className="rounded bg-primary px-2 py-1 text-xs text-white hover:opacity-90"
+          >
+            View data (OTP)
+          </button>
+          {row.is_banned ? (
+            <button
+              type="button"
+              onClick={() => handleBan(row.id, false)}
+              className="rounded border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
+            >
+              Unban
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                if (confirm(`Ban user ID ${row.id} (${row.display_name || "—"})?`)) handleBan(row.id, true);
+              }}
+              className="rounded border border-red-300 px-2 py-1 text-xs text-red-600 hover:bg-red-50"
+            >
+              Ban
+            </button>
+          )}
         </div>
       ),
     },
@@ -120,6 +198,48 @@ export default function Kyc() {
         >
           Search
         </button>
+      </div>
+      <div className="mb-4 flex flex-wrap items-center gap-4 text-sm text-slate-700">
+        <label>
+          Status:{" "}
+          <select
+            value={statusFilter}
+            onChange={(e) => {
+              setPage(1);
+              setStatusFilter(e.target.value);
+            }}
+            className="rounded border border-slate-300 px-2 py-1"
+          >
+            <option value="">All</option>
+            <option value="pending">Pending</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+          </select>
+        </label>
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={verifiedOnly}
+            onChange={(e) => {
+              setPage(1);
+              setVerifiedOnly(e.target.checked);
+              if (!e.target.checked) setFaceVerifiedOnly(false);
+            }}
+          />
+          Only KYC verified users
+        </label>
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={faceVerifiedOnly}
+            disabled={!verifiedOnly}
+            onChange={(e) => {
+              setPage(1);
+              setFaceVerifiedOnly(e.target.checked);
+            }}
+          />
+          Only face-verified (selfie matched)
+        </label>
       </div>
       {isLoading ? (
         <div className="rounded-lg border border-slate-200 bg-white p-8 text-center text-slate-500">Loading…</div>
@@ -233,22 +353,53 @@ export default function Kyc() {
                         <strong>Reject reason:</strong> {dataModal.data.submission.reject_reason}
                       </div>
                     )}
-                    {dataModal.data.submission.doc_front_url && (
-                      <div>
-                        <strong>Doc front:</strong>{" "}
-                        <a href={dataModal.data.submission.doc_front_url} target="_blank" rel="noopener noreferrer" className="text-primary underline">
-                          View
-                        </a>
-                      </div>
-                    )}
-                    {dataModal.data.submission.selfie_url && (
-                      <div>
-                        <strong>Selfie:</strong>{" "}
-                        <a href={dataModal.data.submission.selfie_url} target="_blank" rel="noopener noreferrer" className="text-primary underline">
-                          View
-                        </a>
-                      </div>
-                    )}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      {dataModal.data.submission.doc_front_url && (
+                        <div>
+                          <div className="font-semibold mb-1">Doc front</div>
+                          <a href={dataModal.data.submission.doc_front_url} target="_blank" rel="noopener noreferrer">
+                            <img
+                              src={dataModal.data.submission.doc_front_url}
+                              alt="Document front"
+                              className="w-full max-h-56 object-contain rounded border bg-slate-50"
+                            />
+                          </a>
+                          <a href={dataModal.data.submission.doc_front_url} target="_blank" rel="noopener noreferrer" className="text-primary underline text-xs">
+                            Open full
+                          </a>
+                        </div>
+                      )}
+                      {dataModal.data.submission.doc_back_url && (
+                        <div>
+                          <div className="font-semibold mb-1">Doc back</div>
+                          <a href={dataModal.data.submission.doc_back_url} target="_blank" rel="noopener noreferrer">
+                            <img
+                              src={dataModal.data.submission.doc_back_url}
+                              alt="Document back"
+                              className="w-full max-h-56 object-contain rounded border bg-slate-50"
+                            />
+                          </a>
+                          <a href={dataModal.data.submission.doc_back_url} target="_blank" rel="noopener noreferrer" className="text-primary underline text-xs">
+                            Open full
+                          </a>
+                        </div>
+                      )}
+                      {dataModal.data.submission.selfie_url && (
+                        <div>
+                          <div className="font-semibold mb-1">Selfie</div>
+                          <a href={dataModal.data.submission.selfie_url} target="_blank" rel="noopener noreferrer">
+                            <img
+                              src={dataModal.data.submission.selfie_url}
+                              alt="Uploaded selfie"
+                              className="w-full max-h-56 object-contain rounded border bg-slate-50"
+                            />
+                          </a>
+                          <a href={dataModal.data.submission.selfie_url} target="_blank" rel="noopener noreferrer" className="text-primary underline text-xs">
+                            Open full
+                          </a>
+                        </div>
+                      )}
+                    </div>
                   </>
                 ) : (
                   <p>{dataModal.data.reason || "No submission"}</p>

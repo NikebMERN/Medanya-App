@@ -69,6 +69,11 @@ async function createListingReport(reporterId, body) {
         if (item) await marketDb.incrementReportsAndMaybeHide("marketplace", targetId, newCount);
     }
     // user reports: stored but no auto-hide (just for admin visibility)
+    if (targetType === "user") {
+        const trustScoreService = require("../../services/trustScore.service");
+        const delta = /fraud|scam|abuse|harassment|physical/i.test(reason) ? trustScoreService.DELTAS.SEVERE_REPORT : trustScoreService.DELTAS.MINOR_REPORT;
+        trustScoreService.updateTrustScore(targetId, delta).catch(() => {});
+    }
 
     return doc.toObject();
 }

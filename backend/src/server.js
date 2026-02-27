@@ -36,6 +36,15 @@ const startServer = async () => {
 
         // Start background workers
         startNotificationWorker();
+        const { startScamAIWorker } = require("./jobs/workers/scamAI.worker");
+        startScamAIWorker();
+        const { startScamMLWorker } = require("./jobs/workers/scamML.worker");
+        startScamMLWorker();
+
+        const { scamMLQueue } = require("./jobs/queues/notification.queue");
+        await scamMLQueue.add("autoLegitLabeling", {}, { repeat: { pattern: "0 2 * * *" } }).catch(() => {}); // daily 2am
+        await scamMLQueue.add("weeklyTraining", {}, { repeat: { pattern: "0 3 * * 0" } }).catch(() => {}); // weekly Sun 3am
+        await scamMLQueue.add("activeLearningPick", {}, { repeat: { pattern: "0 4 * * *" } }).catch(() => {}); // daily 4am
 
         const PORT = Number(env.PORT || 4001);
         server.listen(PORT, () => {

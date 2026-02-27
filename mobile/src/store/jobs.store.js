@@ -22,7 +22,14 @@ export const JOB_CATEGORIES = [
   { value: "electrician", label: "Electrician" },
   { value: "plumber", label: "Plumber" },
   { value: "painter", label: "Painter" },
-  { value: "other", label: "Others" },
+  { value: "carpenter", label: "Carpenter" },
+  { value: "handyman", label: "Handyman" },
+  { value: "tutor", label: "Tutor" },
+  { value: "pet_care", label: "Pet Care" },
+  { value: "laundry", label: "Laundry" },
+  { value: "waiter", label: "Waiter" },
+  { value: "chef", label: "Chef" },
+  { value: "other", label: "Other (specify)" },
 ];
 
 export const JOB_CATEGORY_OPTIONS = JOB_CATEGORIES.filter((c) => c.value);

@@ -6,6 +6,8 @@ import StackBackHeader from "../components/StackBackHeader";
 import LiveListScreen from "../screens/livestream/LiveListScreen";
 
 const LiveHostSetupScreen = React.lazy(() => import("../screens/livestream/LiveHostSetupScreen"));
+const LiveSetupScreen = React.lazy(() => import("../screens/livestream/LiveSetupScreen"));
+const LiveHostScreen = React.lazy(() => import("../screens/livestream/LiveHostScreen"));
 const LivePlayerScreen = React.lazy(() => import("../screens/livestream/LivePlayerScreen"));
 
 const Stack = createNativeStackNavigator();
@@ -33,6 +35,8 @@ export default function LivestreamStack() {
       <Stack.Navigator screenOptions={rootScreenOptions}>
         <Stack.Screen name="LiveList" component={LiveListScreen} options={{ animation: "none" }} />
         <Stack.Screen name="LiveHostSetup" component={LiveHostSetupScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="LiveSetup" component={LiveSetupScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="LiveHost" component={LiveHostScreen} options={{ headerShown: false }} />
         <Stack.Screen name="LivePlayer" component={LivePlayerScreen} options={{ headerShown: false, animation: "none" }} />
       </Stack.Navigator>
     </Suspense>

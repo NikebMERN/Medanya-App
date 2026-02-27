@@ -168,7 +168,7 @@ export default function ReportedUsers() {
         Reported Users
       </h1>
       <p className="text-slate-600 mb-4">
-        Users who have been reported by other members. Risk score is computed from OTP, KYC, face verification, account age (30+ days), and report count.
+        Users who have been reported by other members. Risk score is computed from OTP, KYC, Behavior Trust Score, Device Fingerprinting, account age (30+ days), and report count.
       </p>
 
       {contextRow && (

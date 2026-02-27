@@ -156,6 +156,12 @@ async function createReport(reporterId, body) {
     }
     // USER: no auto-hide, only moderation queue
 
+    if (shouldHide && (targetType === "JOB" || targetType === "MARKET_ITEM")) {
+        const scamTraining = require("../../services/scamML/scamTraining.mysql");
+        const mqTarget = targetType === "MARKET_ITEM" ? "MARKET" : "JOB";
+        await scamTraining.updateFinalLabel(mqTarget, targetId, "SCAM", "REPORTS").catch(() => {});
+    }
+
     if (shouldHide) {
         const reasonSummary = await getReasonSummary(targetType, targetId);
         await ModerationQueue.updateOne(

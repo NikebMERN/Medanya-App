@@ -9,6 +9,13 @@ const kycController = require("../kyc/kyc.controller");
 const reviewsController = require("./reviews.controller");
 const { validateRoleChange, validateBanChange, validatePagination } = require("./admin.validation.js");
 
+// Prevent caching so admin panel always gets fresh data
+router.use((_req, res, next) => {
+    res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.set("Pragma", "no-cache");
+    res.set("Expires", "0");
+    next();
+});
 // All admin routes require JWT + admin role
 router.use(authMiddleware);
 router.use(requireRole("admin"));
@@ -27,11 +34,14 @@ router.patch("/users/:id/ban", adminController.banUser);
 router.patch("/users/:id/unban", adminController.unbanUser);
 
 router.get("/kyc", kycController.adminList);
+router.get("/kyc/sessions", adminController.listKycSessions);
 router.get("/kyc/submission/:id", kycController.adminGetSubmission);
 router.get("/kyc/users", kycController.adminListUsersWithKyc);
 router.post("/kyc/request-otp", kycController.adminRequestOtp);
 router.post("/kyc/verify-otp", kycController.adminVerifyOtp);
 router.get("/kyc/user/:userId/data", kycController.adminGetUserKycData);
+router.get("/kyc/veriff/debug/:sessionId", kycController.adminVeriffDebug);
+router.get("/veriff/webhooks", kycController.adminVeriffWebhooks);
 router.patch("/kyc/:submissionId/approve", kycController.adminApprove);
 router.patch("/kyc/:submissionId/reject", kycController.adminReject);
 
@@ -53,5 +63,8 @@ router.get("/bans", adminController.listBans);
 router.post("/bans", adminController.createBan);
 router.delete("/bans/:id", adminController.deleteBan);
 router.get("/audit", adminController.listAuditLog);
+
+router.get("/ml/samples", adminController.listLabelSamples);
+router.patch("/ml/samples/:id/label", adminController.labelSample);
 
 module.exports = router;

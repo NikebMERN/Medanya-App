@@ -104,7 +104,8 @@ async function create(user, body) {
     const seller = await userDb.getById(seller_id);
     if (!seller) throw codeErr("UNAUTHORIZED", "User not found");
     if (seller.account_private) throw codeErr("FORBIDDEN", "Your account must be public to sell items. Change it in Profile → Edit Profile.");
-    if (!seller.kyc_face_verified) throw codeErr("FORBIDDEN", "Face verification required. Complete identity verification and have your face matched to your document before listing items.");
+    const kycVerified = !!(seller.kyc_face_verified || (seller.kyc_status === "verified" && (seller.kyc_level || 0) >= 2));
+    if (!kycVerified) throw codeErr("FORBIDDEN", "Identity verification required. Complete verification in Profile before listing items.");
     if (seller.dob) {
         const today = new Date();
         const dob = new Date(seller.dob);
@@ -117,20 +118,55 @@ async function create(user, body) {
     await fraudService.requireOtpVerified(seller_id);
     await fraudService.checkListingRateLimit(seller_id);
 
+    const trustScoreService = require("../../services/trustScore.service");
+    const trustScore = await trustScoreService.getTrustScore(seller_id);
+    if (trustScoreService.shouldRestrictPosting(trustScore)) {
+        throw codeErr("FORBIDDEN", "Your behavior trust score is too low. Maintain positive interactions to list items.");
+    }
+
     const data = validateCreate(body);
-    const { score, matchedKeywords, status } = await fraudService.computeRiskScore(seller_id, {
-        title: data.title,
-        description: data.description,
-        location: data.location,
-    });
+    const content = { title: data.title, description: data.description, location: data.location };
+    const risk = await fraudService.computeRiskScoreWithML(seller_id, content, "MARKET");
+
+    const ml = risk.ml || {};
+    const final = risk.final || {};
+    const rule = risk.rule || {};
+    const ruleScore = rule.score ?? 0;
+
+    const weakLabel = ruleScore >= 80 ? "SCAM" : ruleScore <= 20 ? "LEGIT" : "UNKNOWN";
+    const scamTraining = require("../../services/scamML/scamTraining.mysql");
+    const text = scamTraining.normalizeText(data.title, data.description, data.location);
 
     const id = await db.insertItem({
         seller_id,
         ...data,
-        risk_score: score,
-        matched_keywords: matchedKeywords.length ? JSON.stringify(matchedKeywords) : null,
-        status: status || "active",
+        risk_score: final.combinedScore ?? rule.score,
+        matched_keywords: (rule.matchedKeywords || []).length ? JSON.stringify(rule.matchedKeywords) : null,
+        ai_scam_score: ml.scamProbability != null ? Math.round(ml.scamProbability * 100) : null,
+        ai_scam_labels: (ml.labels || []).length ? ml.labels : null,
+        ai_confidence: ml.confidence ?? null,
+        ai_provider: ml.modelVersion ? "ml" : "rules-only",
+        ai_explanation: null,
+        ml_score: ml.scamProbability ?? null,
+        ml_model_version: ml.modelVersion ?? null,
+        ml_confidence: ml.confidence ?? null,
+        status: final.status || "active",
     });
+
+    await scamTraining.insertSample({ targetType: "MARKET", targetId: id, userId: seller_id, text, weakLabel, labelSource: "RULES" }).catch(() => {});
+
+    if (final.status === "PENDING_REVIEW") {
+        const ModerationQueue = require("../unifiedReports/moderationQueue.model");
+        const reasonSummary = `ML scam score ${Math.round((ml?.scamProbability ?? 0) * 100) || ruleScore}. Matched: ${(rule.matchedKeywords || []).join(", ") || "none"}`;
+        await ModerationQueue.updateOne(
+            { targetType: "MARKET_ITEM", targetId: String(id) },
+            { $set: { targetType: "MARKET_ITEM", targetId: String(id), priority: "HIGH", reasonSummary, reportCount24h: 0, status: "PENDING", updatedAt: new Date() } },
+            { upsert: true }
+        );
+    }
+
+    fraudService.enqueueDeepScan({ targetType: "MARKET", targetId: id, userId: seller_id, content }).catch(() => {});
+
     return db.findById(id);
 }
 

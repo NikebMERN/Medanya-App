@@ -9,7 +9,7 @@
         "seed": "node src/database/seeds/admin.seed.js",
         "dev": "firebase login",
         "token": "npx firebase emulators:start --only auth",
-        "test": "echo \"Error: no test specified\" && exit 1"
+        "test": "node --test tests/kyc.veriff.test.js"
     },
     "keywords": [],
     "author": "",

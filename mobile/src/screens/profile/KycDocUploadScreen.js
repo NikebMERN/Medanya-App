@@ -24,6 +24,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
+import SubScreenHeader from "../../components/SubScreenHeader";
 import { uploadToCloudinary } from "../../utils/env";
 import { KYC_DOC_TYPES, DEFAULT_DOC_TYPE, isValidFaydaFin, normalizeFaydaFin } from "../../data/kycDocTypes";
 import DateOfBirthPicker from "../../components/ui/DateOfBirthPicker";
@@ -68,6 +69,21 @@ export default function KycDocUploadScreen() {
     if (!result.canceled && result.assets?.[0]?.uri) setFrontUri(result.assets[0].uri);
   }, [needsBack]);
 
+  const takeFrontPhoto = useCallback(async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission", "Allow camera access to capture document.");
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ["images"],
+      allowsEditing: true,
+      aspect: needsBack ? [4, 3] : [3, 2],
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets?.[0]?.uri) setFrontUri(result.assets[0].uri);
+  }, [needsBack]);
+
   const pickBack = useCallback(async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") return;
@@ -79,6 +95,37 @@ export default function KycDocUploadScreen() {
     });
     if (!result.canceled && result.assets?.[0]?.uri) setBackUri(result.assets[0].uri);
   }, []);
+
+  const takeBackPhoto = useCallback(async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission", "Allow camera access to capture document.");
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ["images"],
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets?.[0]?.uri) setBackUri(result.assets[0].uri);
+  }, []);
+
+  const showFrontOptions = useCallback(() => {
+    Alert.alert(docTypeConfig.uploadLabel, "", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Take Photo", onPress: takeFrontPhoto },
+      { text: "Choose from Library", onPress: pickFront },
+    ]);
+  }, [docTypeConfig.uploadLabel, takeFrontPhoto, pickFront]);
+
+  const showBackOptions = useCallback(() => {
+    Alert.alert(docTypeConfig.uploadLabelBack || "Document back", "", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Take Photo", onPress: takeBackPhoto },
+      { text: "Choose from Library", onPress: pickBack },
+    ]);
+  }, [docTypeConfig.uploadLabelBack, takeBackPhoto, pickBack]);
 
   const openDocPicker = () => setDocPickerVisible(true);
   const closeDocPicker = () => setDocPickerVisible(false);
@@ -152,13 +199,12 @@ export default function KycDocUploadScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <MaterialIcons name="arrow-back" size={24} color={colors.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Document upload</Text>
-        <View style={styles.headerRight} />
-      </View>
+      <SubScreenHeader
+        title="Document upload"
+        onBack={() => navigation.goBack()}
+        showProfileDropdown
+        navigation={navigation.getParent?.() ?? navigation}
+      />
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
         <Text style={styles.stepHint}>Step 1 of 2 — Upload your identity document</Text>
 
@@ -178,7 +224,7 @@ export default function KycDocUploadScreen() {
 
         <Text style={styles.sectionTitle}>Document images</Text>
         <Text style={styles.hint}>{docTypeConfig.uploadLabel}</Text>
-        <TouchableOpacity style={styles.imageSlot} onPress={pickFront}>
+        <TouchableOpacity style={styles.imageSlot} onPress={showFrontOptions}>
           {frontUri ? (
             <Image source={{ uri: frontUri }} style={styles.thumb} resizeMode="cover" />
           ) : (
@@ -192,7 +238,7 @@ export default function KycDocUploadScreen() {
         {needsBack && (
           <>
             <Text style={styles.hint}>{docTypeConfig.uploadLabelBack}</Text>
-            <TouchableOpacity style={styles.imageSlot} onPress={pickBack}>
+            <TouchableOpacity style={styles.imageSlot} onPress={showBackOptions}>
               {backUri ? (
                 <Image source={{ uri: backUri }} style={styles.thumb} resizeMode="cover" />
               ) : (
@@ -306,18 +352,6 @@ export default function KycDocUploadScreen() {
 function createStyles(colors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
-    header: {
-      flexDirection: "row",
-      alignItems: "center",
-      paddingVertical: spacing.md,
-      paddingHorizontal: spacing.sm,
-      backgroundColor: colors.background,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.border,
-    },
-    backBtn: { padding: spacing.sm },
-    headerTitle: { flex: 1, fontSize: 18, fontWeight: "700", color: colors.text, textAlign: "center" },
-    headerRight: { width: 40 },
     scroll: { flex: 1 },
     content: { padding: spacing.lg, paddingBottom: spacing.xl * 3 },
     stepHint: { fontSize: 13, color: colors.textMuted, marginBottom: spacing.lg },

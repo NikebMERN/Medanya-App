@@ -1,0 +1,10 @@
+[
+  {"text": "Earn 5000 per week! Work from home. Send passport copy. Deposit 500 required. Contact WhatsApp.", "label": "SCAM", "source": "synthetic_job"},
+  {"text": "Software Engineer at TechCorp. Full-time in Dubai. Apply through website.", "label": "LEGIT", "source": "synthetic_job"},
+  {"text": "iPhone 15 Pro - 1200. Contact WhatsApp only. Pay half upfront. Crypto OK.", "label": "SCAM", "source": "synthetic_market"},
+  {"text": "Used bicycle for sale 200. Pickup in Abu Dhabi. Cash on pickup.", "label": "LEGIT", "source": "synthetic_market"},
+  {"text": "High paying remote job. Pay upfront for software. Wire transfer or crypto accepted.", "label": "SCAM", "source": "synthetic_job"},
+  {"text": "Marketing Coordinator at Global Services. Based in Riyadh. Send resume to hr@company.com", "label": "LEGIT", "source": "synthetic_job"},
+  {"text": "Car for sale. Western Union payment. Send passport for paperwork.", "label": "SCAM", "source": "synthetic_market"},
+  {"text": "Customer Support Rep. Join Alpha Inc in Cairo. Benefits included. No fees to apply.", "label": "LEGIT", "source": "synthetic_job"}
+]
