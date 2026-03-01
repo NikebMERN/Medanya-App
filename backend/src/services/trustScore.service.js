@@ -32,10 +32,29 @@ function shouldAutoFlag(trustScore) {
     return trustScore < 20;
 }
 
+/** Level 2 anti-bot: score < 35 => high risk, ignore view counting. */
+function isHighRiskViewer(trustScore) {
+    return trustScore < 35;
+}
+
+/**
+ * Deterministic sampling for 35–50 band: count 1 out of 3.
+ * Uses hash(userId + entityId + date) mod 3 === 0.
+ */
+function shouldCountSampledView(userId, entityId, dateStr) {
+    const crypto = require("crypto");
+    const input = `${userId}|${entityId}|${dateStr}`;
+    const h = crypto.createHash("sha256").update(input).digest("hex");
+    const mod = parseInt(h.slice(0, 8), 16) % 3;
+    return mod === 0;
+}
+
 module.exports = {
     updateTrustScore,
     getTrustScore,
     shouldRestrictPosting,
     shouldAutoFlag,
+    isHighRiskViewer,
+    shouldCountSampledView,
     DELTAS,
 };

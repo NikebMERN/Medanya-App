@@ -16,6 +16,7 @@ import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
 import SubScreenHeader from "../../components/SubScreenHeader";
 import * as ordersApi from "../../services/orders.api";
+import { trackEvent } from "../../utils/trackEvent";
 import * as marketplaceApi from "../../services/marketplace.api";
 
 export default function CheckoutScreen() {
@@ -88,6 +89,8 @@ export default function CheckoutScreen() {
             return;
           }
         }
+        const totalUSD = (item.price || 0) * qty;
+        trackEvent("market_purchase", "market_item", item.id, { amountUSD: totalUSD });
         navigation.replace("OrderStatus", { orderId: order.id });
       } else {
         Alert.alert("Error", "Failed to create order.");
@@ -125,7 +128,7 @@ export default function CheckoutScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
-      <SubScreenHeader title="Checkout" onBack={() => navigation.goBack()} />
+      <SubScreenHeader title="Checkout" onBack={() => navigation.goBack()} showProfileDropdown navigation={navigation?.getParent?.() ?? navigation} />
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
         <View style={styles.itemRow}>
           <Text style={styles.itemTitle}>{item.title}</Text>

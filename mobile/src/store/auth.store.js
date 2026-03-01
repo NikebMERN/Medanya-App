@@ -4,6 +4,23 @@ import { disconnectSocket } from "../realtime/socket";
 
 const TOKEN_KEY = "medanya_jwt";
 const USER_KEY = "medanya_user";
+const SECURE_STORE_MAX = 2048;
+
+const SLIM_USER_KEYS = [
+  "id", "userId", "phone_number", "display_name", "avatar_url", "avatarUrl",
+  "role", "is_verified", "otp_verified", "otpVerified", "kyc_status", "kycStatus",
+  "kyc_face_verified", "kycFaceVerified", "kyc_level", "kycLevel",
+  "account_private", "accountPrivate", "dob", "date_of_birth", "dateOfBirth", "isGuest",
+];
+
+const slimUser = (user) => {
+  if (!user || typeof user !== "object") return null;
+  const out = {};
+  for (const k of SLIM_USER_KEYS) {
+    if (user[k] !== undefined) out[k] = user[k];
+  }
+  return out;
+};
 
 const persistToken = async (token) => {
   if (token) await SecureStore.setItemAsync(TOKEN_KEY, token);
@@ -11,8 +28,25 @@ const persistToken = async (token) => {
 };
 
 const persistUser = async (user) => {
-  if (user) await SecureStore.setItemAsync(USER_KEY, JSON.stringify(user));
-  else await SecureStore.deleteItemAsync(USER_KEY);
+  if (!user) {
+    await SecureStore.deleteItemAsync(USER_KEY);
+    return;
+  }
+  const slim = slimUser(user);
+  const json = JSON.stringify(slim);
+  if (json.length > SECURE_STORE_MAX) {
+    const minimal = {
+      id: user.id ?? user.userId,
+      userId: user.userId ?? user.id,
+      role: user.role,
+      otp_verified: user.otp_verified ?? user.otpVerified,
+      kyc_face_verified: user.kyc_face_verified ?? user.kycFaceVerified,
+      display_name: ((user.display_name ?? user.displayName) || "").slice(0, 50),
+    };
+    await SecureStore.setItemAsync(USER_KEY, JSON.stringify(minimal));
+  } else {
+    await SecureStore.setItemAsync(USER_KEY, json);
+  }
 };
 
 export const useAuthStore = create((set, get) => ({

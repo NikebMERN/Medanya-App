@@ -1,10 +1,13 @@
 import { Admin, Resource } from "react-admin";
+import { Route } from "react-router-dom";
 import { dataProvider } from "./dataProvider";
 import { authProvider } from "./authProvider";
 import { darkTheme } from "./theme";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import ModerationShow from "./pages/ModerationShow";
+import AnalyticsDashboard from "./pages/AnalyticsDashboard";
+import UserAnalytics from "./pages/UserAnalytics";
 import { ModerationQueueList } from "./resources/moderationQueue";
 import { UserList, UserShow } from "./resources/users";
 import { ReportList } from "./resources/reports";
@@ -15,6 +18,10 @@ import { AuditList } from "./resources/auditLog";
 function App() {
   return (
     <Admin
+      customRoutes={[
+        <Route key="analytics" path="/analytics" element={<AnalyticsDashboard />} />,
+        <Route key="user-analytics" path="/analytics/users/:userId" element={<UserAnalytics />} />,
+      ]}
       dataProvider={dataProvider}
       authProvider={authProvider}
       theme={darkTheme}

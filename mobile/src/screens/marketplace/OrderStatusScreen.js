@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRoute, useNavigation } from "@react-navigation/native";
 import { MaterialIcons } from "@expo/vector-icons";
@@ -8,6 +8,7 @@ import { spacing } from "../../theme/spacing";
 import SubScreenHeader from "../../components/SubScreenHeader";
 import { useAuthStore } from "../../store/auth.store";
 import * as ordersApi from "../../services/orders.api";
+import DeliveryCodeSection from "./DeliveryCodeSection";
 
 const STATUS_LABELS = {
   PENDING_PAYMENT: "Awaiting payment",
@@ -70,12 +71,13 @@ export default function OrderStatusScreen() {
 
   const status = order.status || "PENDING_PAYMENT";
   const isSeller = userId && String(order.seller_id) === String(userId);
+  const isBuyer = userId && String(order.buyer_id || order.user_id) === String(userId);
   const canConfirmDelivery = isSeller && ["SHIPPED", "DELIVERED_PENDING_CODE", "COD_SELECTED", "AUTHORIZED"].includes(status);
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
-      <SubScreenHeader title="Order Status" onBack={() => navigation.goBack()} />
-      <View style={styles.content}>
+      <SubScreenHeader title="Order Status" onBack={() => navigation.goBack()} showProfileDropdown navigation={navigation?.getParent?.() ?? navigation} />
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
         <View style={styles.card}>
           <Text style={styles.orderId}>Order #{order.id}</Text>
           <View style={styles.statusRow}>
@@ -91,6 +93,7 @@ export default function OrderStatusScreen() {
           </Text>
         </View>
 
+        {isBuyer && <DeliveryCodeSection orderId={order.id} orderStatus={status} />}
         {canConfirmDelivery && (
           <TouchableOpacity
             style={styles.btn}
@@ -99,7 +102,7 @@ export default function OrderStatusScreen() {
             <Text style={styles.btnText}>Confirm delivery</Text>
           </TouchableOpacity>
         )}
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -108,7 +111,8 @@ function createStyles(colors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
     center: { flex: 1, justifyContent: "center", alignItems: "center", padding: spacing.lg },
-    content: { padding: spacing.lg },
+    scroll: { flex: 1 },
+    content: { padding: spacing.lg, paddingBottom: spacing.xxl },
     card: {
       backgroundColor: colors.surface,
       borderRadius: 16,

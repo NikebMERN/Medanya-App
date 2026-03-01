@@ -6,8 +6,11 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useAuthStore } from "../../store/auth.store";
 import * as videosApi from "../../api/videos.api";
 import * as activityApi from "../../services/activity.api";
+import { trackEvent } from "../../utils/trackEvent";
+import { useVideoViewTimer } from "../../hooks/useVideoViewTimer";
 import ReportModal from "./ReportModal";
 import PinItemSheet from "../../components/PinItemSheet";
+import BoostBottomSheet from "../../modules/support/components/BoostBottomSheet";
 
 export default function VideoDetailScreen({ route, navigation }) {
   const colors = useThemeColors();
@@ -20,6 +23,7 @@ export default function VideoDetailScreen({ route, navigation }) {
   const [submitting, setSubmitting] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [pinSheetVisible, setPinSheetVisible] = useState(false);
+  const [boostVisible, setBoostVisible] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -43,6 +47,12 @@ export default function VideoDetailScreen({ route, navigation }) {
     if (videoId) load();
   }, [videoId, load]);
 
+  useVideoViewTimer(!!(video && userId), {
+    entityId: videoId,
+    entityType: "video",
+    creatorId: video?.uploaderId ?? video?.createdBy,
+  });
+
   useEffect(() => {
     if (video && userId) {
       activityApi.logActivity({ action: "view_video", targetType: "video", targetId: String(videoId) });
@@ -56,7 +66,10 @@ export default function VideoDetailScreen({ route, navigation }) {
     try {
       const res = await videosApi.addComment(videoId, text);
       const newComment = res?.comment || res?.data?.comment;
-      if (newComment) setComments((prev) => [newComment, ...prev]);
+      if (newComment) {
+        setComments((prev) => [newComment, ...prev]);
+        trackEvent("video_comment", "video", videoId);
+      }
       setCommentText("");
     } catch (e) {
       Alert.alert("Error", e?.response?.data?.error?.message || e?.message || "Failed to comment");
@@ -81,6 +94,12 @@ export default function VideoDetailScreen({ route, navigation }) {
         </TouchableOpacity>
         <Text style={styles.title} numberOfLines={1}>Video</Text>
         <View style={styles.headerRight}>
+          <TouchableOpacity
+            onPress={() => setBoostVisible(true)}
+            style={styles.iconBtn}
+          >
+            <MaterialIcons name="bolt" size={22} color={colors.primary} />
+          </TouchableOpacity>
           <TouchableOpacity
             onPress={() => setPinSheetVisible(true)}
             style={styles.iconBtn}
@@ -145,6 +164,16 @@ export default function VideoDetailScreen({ route, navigation }) {
             Alert.alert("Error", e?.response?.data?.error?.message || e?.message || "Failed to report");
           }
         }}
+      />
+      <BoostBottomSheet
+        visible={boostVisible}
+        onClose={() => setBoostVisible(false)}
+        creatorId={video?.uploaderId ?? video?.createdBy}
+        creatorName={video?.uploaderName ?? video?.createdByName}
+        context="VIDEO"
+        contextId={videoId}
+        isOwnContent={!!(userId && (video?.uploaderId ?? video?.createdBy) === userId)}
+        onRecharge={() => navigation?.getParent?.()?.getParent?.()?.navigate?.("Main", { screen: "Profile", params: { screen: "Recharge" } })}
       />
     </View>
   );

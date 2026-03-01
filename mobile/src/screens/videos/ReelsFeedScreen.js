@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback } from "react";
+import { useVideoViewTimer } from "../../hooks/useVideoViewTimer";
 import {
   View,
   Text,
@@ -15,6 +16,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useVideosStore } from "../../store/videos.store";
 import { useAuthStore } from "../../store/auth.store";
 import PinItemSheet from "../../components/PinItemSheet";
+import BoostBottomSheet from "../../modules/support/components/BoostBottomSheet";
 
 export default function ReelsFeedScreen({ navigation }) {
   const { height: windowHeight, width: windowWidth } = useWindowDimensions();
@@ -26,6 +28,24 @@ export default function ReelsFeedScreen({ navigation }) {
   const { videos, loading, loadMore, refresh, error, optimisticToggleLike } = useVideosStore();
   const [pinSheetVisible, setPinSheetVisible] = useState(false);
   const [selectedVideo, setSelectedVideo] = useState(null);
+  const [boostVisible, setBoostVisible] = useState(false);
+  const [boostVideo, setBoostVideo] = useState(null);
+  const [viewableIndex, setViewableIndex] = useState(null);
+  const userId = useAuthStore((s) => s.user)?.id ?? useAuthStore((s) => s.user)?.userId;
+
+  const currentVideo = viewableIndex != null && videos?.[viewableIndex] ? videos[viewableIndex] : null;
+
+  useVideoViewTimer(!!(currentVideo && userId), {
+    entityId: currentVideo?._id,
+    entityType: "video",
+    creatorId: currentVideo?.uploaderId ?? currentVideo?.createdBy,
+  });
+
+  const viewabilityConfig = useMemo(() => ({ viewAreaCoveragePercentThreshold: 50 }), []);
+  const onViewableItemsChanged = useCallback(({ viewableItems }) => {
+    const v = viewableItems?.[0];
+    setViewableIndex(v != null ? v.index : null);
+  }, []);
 
   useEffect(() => {
     refresh();
@@ -45,7 +65,7 @@ export default function ReelsFeedScreen({ navigation }) {
         <View style={styles.rightColumn}>
           <TouchableOpacity
             style={styles.iconStack}
-            onPress={() => optimisticToggleLike(item._id, !(item._optimisticLiked ?? false))}
+            onPress={() => optimisticToggleLike(item._id, !(item._optimisticLiked ?? false), { creatorId: item.uploaderId ?? item.createdBy })}
           >
             <MaterialIcons name="favorite" size={32} color={(item._optimisticLiked ?? false) ? colors.error : colors.white} />
             <Text style={styles.countText}>{item.likeCount ?? 0}</Text>
@@ -54,6 +74,16 @@ export default function ReelsFeedScreen({ navigation }) {
             <MaterialIcons name="chat-bubble-outline" size={32} color={colors.white} />
             <Text style={styles.countText}>{item.commentCount ?? 0}</Text>
           </View>
+          <TouchableOpacity
+            style={styles.iconStack}
+            onPress={() => {
+              setBoostVideo(item);
+              setBoostVisible(true);
+            }}
+          >
+            <MaterialIcons name="bolt" size={28} color={colors.white} />
+            <Text style={styles.countText}>Boost</Text>
+          </TouchableOpacity>
           <TouchableOpacity
             style={styles.iconStack}
             onPress={() => {
@@ -97,6 +127,8 @@ export default function ReelsFeedScreen({ navigation }) {
         showsVerticalScrollIndicator={false}
         onEndReached={onEndReached}
         onEndReachedThreshold={0.5}
+        onViewableItemsChanged={onViewableItemsChanged}
+        viewabilityConfig={viewabilityConfig}
         getItemLayout={(_, index) => ({ length: itemHeight, offset: itemHeight * index, index })}
         ListEmptyComponent={
           <View style={[styles.center, { height: itemHeight }]}>
@@ -118,6 +150,17 @@ export default function ReelsFeedScreen({ navigation }) {
           const nav = navigation?.getParent?.()?.getParent?.() ?? navigation;
           nav?.navigate?.("Main", { screen: "Marketplace", params: { screen: "MarketplaceDetail", params: { itemId: listItem.id } } });
         }}
+      />
+      <BoostBottomSheet
+        visible={boostVisible}
+        onClose={() => { setBoostVisible(false); setBoostVideo(null); }}
+        creatorId={boostVideo?.uploaderId ?? boostVideo?.createdBy}
+        creatorName={boostVideo?.uploaderName ?? boostVideo?.createdByName}
+        context="VIDEO"
+        contextId={boostVideo?._id}
+        isOwnContent={!!(userId && (boostVideo?.uploaderId ?? boostVideo?.createdBy) === userId)}
+        onSuccess={() => refresh?.()}
+        onRecharge={() => navigation?.getParent?.()?.getParent?.()?.navigate?.("Main", { screen: "Profile", params: { screen: "Recharge" } })}
       />
       <View style={[styles.topBar, { top: insets.top + 8 }]}>
         <TouchableOpacity style={styles.topBarBtn} onPress={() => navigation?.goBack?.()}>

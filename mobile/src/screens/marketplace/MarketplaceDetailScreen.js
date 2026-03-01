@@ -23,6 +23,7 @@ import { useAuthStore } from "../../store/auth.store";
 import * as marketplaceApi from "../../services/marketplace.api";
 import * as chatApi from "../../services/chat.api";
 import * as activityApi from "../../services/activity.api";
+import { trackEvent } from "../../utils/trackEvent";
 import * as userApi from "../../api/user.api";
 import SafetyWarningModal from "../../components/SafetyWarningModal";
 import ReportOptionsModal from "../../components/common/ReportOptionsModal";
@@ -88,6 +89,7 @@ export default function MarketplaceDetailScreen() {
         targetType: "marketplace",
         targetId: String(itemId),
       });
+      trackEvent("market_view", "market_item", itemId);
     }
   }, [item, itemId, userId]);
 

@@ -19,6 +19,7 @@ import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
 import { useJobsStore, JOB_CATEGORIES } from "../../store/jobs.store";
 import { useAuthStore } from "../../store/auth.store";
+import { canPostJobs, getDobFromUser } from "../../utils/age";
 import StatusChip from "../../components/StatusChip";
 import RiskBadge from "../../components/RiskBadge";
 import SkeletonCard from "../../components/SkeletonCard";
@@ -35,7 +36,10 @@ export default function JobsListScreen() {
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   const userId = useAuthStore((s) => s.user?.id ?? s.user?.userId ?? "");
-  const otpVerified = !!(useAuthStore((s) => s.user?.otp_verified ?? s.user?.otpVerified));
+  const user = useAuthStore((s) => s.user);
+  const otpVerified = !!(user?.otp_verified ?? user?.otpVerified);
+  const kycFaceVerified = !!(user?.kyc_face_verified ?? user?.kycFaceVerified);
+  const canPost = canPostJobs(getDobFromUser(user));
   const isLoggedIn = !!useAuthStore((s) => s.token);
 
   const jobs = useJobsStore((s) => s.jobs);
@@ -185,20 +189,7 @@ export default function JobsListScreen() {
     [navigation, styles, colors, userId]
   );
 
-  const listHeader = (
-    <View style={styles.headerRow}>
-      <Text style={styles.headerTitle}>Jobs</Text>
-      {isLoggedIn && otpVerified && (
-        <TouchableOpacity
-          style={styles.addBtn}
-          onPress={() => navigation.navigate("CreateJob")}
-          activeOpacity={0.8}
-        >
-          <MaterialIcons name="add" size={24} color={colors.white} />
-        </TouchableOpacity>
-      )}
-    </View>
-  );
+  const listHeader = null;
 
   const filterRow = (
     <View style={styles.filterRow}>
@@ -243,7 +234,6 @@ export default function JobsListScreen() {
 
   const ListHeaderComponent = (
     <>
-      {listHeader}
       <View style={styles.searchRow}>
         <View style={styles.searchWrap}>
           <MaterialIcons name="search" size={20} color={colors.textMuted} />
@@ -374,7 +364,7 @@ export default function JobsListScreen() {
           </View>
         </Pressable>
       </Modal>
-      {isLoggedIn && otpVerified && (
+      {isLoggedIn && otpVerified && kycFaceVerified && canPost && (
         <TouchableOpacity
           style={styles.fab}
           onPress={() => navigation.navigate("CreateJob")}
@@ -411,7 +401,8 @@ function createStyles(colors) {
     searchRow: {
       flexDirection: "row",
       paddingHorizontal: spacing.md,
-      paddingVertical: spacing.sm,
+      paddingTop: spacing.md,
+      paddingBottom: spacing.sm,
       gap: spacing.sm,
     },
     searchWrap: {

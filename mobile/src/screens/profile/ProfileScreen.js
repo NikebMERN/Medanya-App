@@ -465,6 +465,16 @@ export default function ProfileScreen() {
         </TouchableOpacity>
       )}
 
+      {/* Insights */}
+      <TouchableOpacity
+        style={[styles.actionCard, styles.actionCardKyc]}
+        onPress={() => navigation.navigate("Insights")}
+        activeOpacity={0.8}
+      >
+        <MaterialIcons name="insights" size={28} color={colors.primary} style={styles.actionIcon} />
+        <Text style={styles.actionLabel}>INSIGHTS</Text>
+      </TouchableOpacity>
+
       {/* Wallet */}
       <TouchableOpacity
         style={[styles.actionCard, styles.actionCardKyc]}

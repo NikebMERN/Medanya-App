@@ -37,3 +37,21 @@ This runs `node src/database/seeds/admin.seed.js`.
 
 - **Admin panel (web):** Open the admin Vite app, enter the same phone number, request OTP, then enter the code. The backend must be able to send/verify OTP for that number (e.g. Firebase test number or real SMS).
 - **API:** Use the same auth flow as the mobile app (e.g. `POST /api/auth/otp/send`, then `POST /api/auth/otp/verify`) to get a JWT. Use that JWT for `GET /api/admin/*` routes.
+
+## Analytics seed
+
+Creates analytics_daily documents for chart testing.
+
+### Run
+
+```bash
+npm run seed:analytics
+```
+
+This runs `node scripts/seed_analytics.js` with defaults (30 days, 50 users, 10 creators).
+
+### Params
+
+```
+node scripts/seed_analytics.js [days] [users] [creators]
+```

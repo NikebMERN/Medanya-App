@@ -53,7 +53,7 @@ const CHAT_SUB_SCREENS = new Set(["ChatRoom", "CreateGroup", "CreateChannel", "A
 const JOBS_SUB_SCREENS = new Set(["JobDetail", "CreateJob"]);
 const MARKETPLACE_SUB_SCREENS = new Set(["MarketplaceDetail", "CreateItem", "Checkout", "OrderStatus", "DeliveryConfirm"]);
 const SAFETY_SUB_SCREENS = new Set(["ReportForm", "BlacklistSearch", "BlacklistDetail", "MissingList", "MissingDetail", "MissingCreate"]);
-const PROFILE_SUB_SCREENS = new Set(["EditProfile", "FollowRequests", "BlockedUsers", "FollowersList", "FollowingList", "UserProfile", "Kyc", "KycDocUpload", "KycSelfie", "KycMismatch", "VerifyIdentity", "FavoriteItems", "Wallet", "Recharge"]);
+const PROFILE_SUB_SCREENS = new Set(["EditProfile", "FollowRequests", "BlockedUsers", "FollowersList", "FollowingList", "UserProfile", "Kyc", "KycDocUpload", "KycSelfie", "KycMismatch", "VerifyIdentity", "Insights", "FavoriteItems", "Wallet", "WalletHistory", "EarnCoins", "Referral", "Withdraw", "Recharge"]);
 
 const renderHeader = ({ navigation, route }) => {
   const rawFocused = getFocusedRouteNameFromRoute(route);

@@ -6,7 +6,11 @@ import { spacing } from "../../theme/spacing";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useAuthStore } from "../../store/auth.store";
 import * as activityApi from "../../services/activity.api";
+import { useLivestreamJoinTimer } from "../../hooks/useLivestreamJoinTimer";
 import PinItemSheet from "../../components/PinItemSheet";
+import GiftPanelBottomSheet from "../../modules/gifts/components/GiftPanelBottomSheet";
+import SupporterLeaderboardSheet from "../../modules/gifts/components/SupporterLeaderboardSheet";
+import BoostBottomSheet from "../../modules/support/components/BoostBottomSheet";
 
 export default function LivePlayerScreen({ route, navigation }) {
   const { streamId, stream: routeStream, isHost } = route?.params ?? {};
@@ -16,7 +20,17 @@ export default function LivePlayerScreen({ route, navigation }) {
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors, insets), [colors, insets]);
   const [viewerCount, setViewerCount] = useState(routeStream?.viewerCount ?? 0);
+  const [giftPanelVisible, setGiftPanelVisible] = useState(false);
+  const [leaderboardVisible, setLeaderboardVisible] = useState(false);
+  const [boostVisible, setBoostVisible] = useState(false);
   const userId = useAuthStore((s) => s.user)?.id ?? useAuthStore((s) => s.user)?.userId;
+  const hostId = stream?.hostId ?? routeStream?.hostId;
+  const isOwnLive = !!(userId && hostId && String(hostId) === String(userId));
+
+  useLivestreamJoinTimer(!!(streamId && userId && !isHost), {
+    streamId,
+    creatorId: hostId,
+  });
 
   useEffect(() => {
     if (streamId && userId) {
@@ -56,14 +70,28 @@ export default function LivePlayerScreen({ route, navigation }) {
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
           <MaterialIcons name="arrow-back" size={24} color={colors.white} />
         </TouchableOpacity>
-        {(stream?.field === "MARKETING" || routeStream?.field === "MARKETING") && !isHost && (
-          <TouchableOpacity
-            style={styles.shopBtn}
-            onPress={() => setPinSheetVisible(true)}
-          >
-            <MaterialIcons name="storefront" size={24} color={colors.white} />
-          </TouchableOpacity>
-        )}
+        <View style={styles.rightActions}>
+          {!isHost && (
+            <>
+              <TouchableOpacity style={styles.actionBtn} onPress={() => setGiftPanelVisible(true)}>
+                <MaterialIcons name="card-giftcard" size={24} color={colors.white} />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.actionBtn} onPress={() => setLeaderboardVisible(true)}>
+                <MaterialIcons name="leaderboard" size={24} color={colors.white} />
+              </TouchableOpacity>
+              {!isOwnLive && (
+                <TouchableOpacity style={styles.actionBtn} onPress={() => setBoostVisible(true)}>
+                  <MaterialIcons name="bolt" size={24} color={colors.white} />
+                </TouchableOpacity>
+              )}
+              {(stream?.field === "MARKETING" || routeStream?.field === "MARKETING") && (
+                <TouchableOpacity style={styles.actionBtn} onPress={() => setPinSheetVisible(true)}>
+                  <MaterialIcons name="storefront" size={24} color={colors.white} />
+                </TouchableOpacity>
+              )}
+            </>
+          )}
+        </View>
         {isHost && (
           <TouchableOpacity
             style={styles.endBtn}
@@ -85,6 +113,29 @@ export default function LivePlayerScreen({ route, navigation }) {
           const nav = navigation?.getParent?.()?.getParent?.() ?? navigation;
           nav?.navigate?.("Main", { screen: "Marketplace", params: { screen: "MarketplaceDetail", params: { itemId: listItem.id } } });
         }}
+      />
+      <GiftPanelBottomSheet
+        visible={giftPanelVisible}
+        onClose={() => setGiftPanelVisible(false)}
+        streamId={streamId}
+        creatorId={hostId}
+        onGiftSent={() => {}}
+        onRecharge={() => navigation?.getParent?.()?.getParent?.()?.navigate?.("Main", { screen: "Profile", params: { screen: "Recharge" } })}
+      />
+      <SupporterLeaderboardSheet
+        visible={leaderboardVisible}
+        onClose={() => setLeaderboardVisible(false)}
+        streamId={streamId}
+      />
+      <BoostBottomSheet
+        visible={boostVisible}
+        onClose={() => setBoostVisible(false)}
+        creatorId={hostId}
+        creatorName={stream?.hostName ?? routeStream?.hostName}
+        context="LIVE"
+        contextId={streamId}
+        isOwnContent={isOwnLive}
+        onRecharge={() => navigation?.getParent?.()?.getParent?.()?.navigate?.("Main", { screen: "Profile", params: { screen: "Recharge" } })}
       />
     </View>
   );
@@ -109,7 +160,8 @@ function createStyles(colors, insets) {
       paddingHorizontal: spacing.md,
     },
     backBtn: { width: 44, height: 44, justifyContent: "center", alignItems: "center" },
-    shopBtn: { position: "absolute", right: 60, top: 8, width: 44, height: 44, justifyContent: "center", alignItems: "center" },
+    rightActions: { flexDirection: "row", alignItems: "center", gap: 4 },
+    actionBtn: { width: 44, height: 44, justifyContent: "center", alignItems: "center" },
     endBtn: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 8, backgroundColor: (colors.error || "#e53935") + "cc" },
     endBtnText: { color: colors.white, fontWeight: "700" },
   });

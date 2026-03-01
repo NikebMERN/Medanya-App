@@ -60,3 +60,10 @@ export const adminApi = {
     api.get("/admin/moderation/item", { params: { targetType, targetId } }),
   moderationAction: (body) => api.patch("/admin/moderation/action", body),
 };
+
+// Analytics (JWT + admin role required)
+export const analyticsApi = {
+  overview: (range = 28) => api.get("/analytics/admin/overview", { params: { range } }),
+  userActivity: (userId, range = 28) =>
+    api.get(`/analytics/admin/users/${userId}/activity`, { params: { range } }),
+};

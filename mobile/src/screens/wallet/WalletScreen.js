@@ -60,6 +60,8 @@ export default function WalletScreen() {
       <SubScreenHeader
         title="Wallet"
         onBack={() => navigation.goBack()}
+        showProfileDropdown
+        navigation={navigation?.getParent?.() ?? navigation}
         rightElement={
           <TouchableOpacity onPress={() => navigation.navigate("Recharge")}>
             <MaterialIcons name="add-circle" size={28} color={colors.primary} />

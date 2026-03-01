@@ -15,8 +15,13 @@ const KycDocUploadScreen = React.lazy(() => import("../screens/profile/KycDocUpl
 const KycSelfieScreen = React.lazy(() => import("../screens/profile/KycSelfieScreen"));
 const KycMismatchScreen = React.lazy(() => import("../screens/profile/KycMismatchScreen"));
 const VerifyIdentityScreen = React.lazy(() => import("../screens/profile/VerifyIdentityScreen"));
+const InsightsScreen = React.lazy(() => import("../screens/profile/InsightsScreen"));
 const FavoriteItemsScreen = React.lazy(() => import("../screens/marketplace/FavoriteItemsScreen"));
-const WalletScreen = React.lazy(() => import("../screens/wallet/WalletScreen"));
+const WalletHomeScreen = React.lazy(() => import("../modules/wallet/screens/WalletHomeScreen"));
+const WalletHistoryScreen = React.lazy(() => import("../modules/wallet/screens/WalletHistoryScreen"));
+const EarnCoinsScreen = React.lazy(() => import("../modules/wallet/screens/EarnCoinsScreen"));
+const ReferralScreen = React.lazy(() => import("../modules/wallet/screens/ReferralScreen"));
+const WithdrawScreen = React.lazy(() => import("../modules/wallet/screens/WithdrawScreen"));
 const RechargeScreen = React.lazy(() => import("../screens/wallet/RechargeScreen"));
 
 const Stack = createNativeStackNavigator();
@@ -52,8 +57,13 @@ export default function ProfileStack() {
         <Stack.Screen name="KycSelfie" component={KycSelfieScreen} />
         <Stack.Screen name="KycMismatch" component={KycMismatchScreen} />
         <Stack.Screen name="VerifyIdentity" component={VerifyIdentityScreen} />
+        <Stack.Screen name="Insights" component={InsightsScreen} />
         <Stack.Screen name="FavoriteItems" component={FavoriteItemsScreen} />
-        <Stack.Screen name="Wallet" component={WalletScreen} />
+        <Stack.Screen name="Wallet" component={WalletHomeScreen} />
+        <Stack.Screen name="WalletHistory" component={WalletHistoryScreen} />
+        <Stack.Screen name="EarnCoins" component={EarnCoinsScreen} />
+        <Stack.Screen name="Referral" component={ReferralScreen} />
+        <Stack.Screen name="Withdraw" component={WithdrawScreen} />
         <Stack.Screen name="Recharge" component={RechargeScreen} />
       </Stack.Navigator>
     </Suspense>

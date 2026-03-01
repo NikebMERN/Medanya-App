@@ -15,6 +15,7 @@ import { useAuthStore } from "../store/auth.store";
 import { useThemeStore } from "../store/theme.store";
 import { spacing } from "../theme/spacing";
 import { typography } from "../theme/typography";
+import { canUseMarketplace, canPostJobs, getDobFromUser } from "../utils/age";
 
 /**
  * Header for sub-screens: back arrow + title (no "Back" text), optional rightElement, profile pic + dropdown on the right.
@@ -100,20 +101,20 @@ export default function SubScreenHeader({
               <Text style={styles.menuItemText}>Favorite items</Text>
               <MaterialIcons name="chevron-right" size={20} color={colors.textSecondary} />
             </TouchableOpacity>
-            {!!kycFaceVerified ? (
-              <>
-                <TouchableOpacity style={styles.menuItem} onPress={() => nav("Jobs", "CreateJob")} activeOpacity={0.7}>
-                  <MaterialIcons name="work" size={22} color={colors.text} />
-                  <Text style={styles.menuItemText}>Create job</Text>
-                  <MaterialIcons name="chevron-right" size={20} color={colors.textSecondary} />
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.menuItem} onPress={() => nav("Marketplace", "CreateItem")} activeOpacity={0.7}>
-                  <MaterialIcons name="storefront" size={22} color={colors.text} />
-                  <Text style={styles.menuItemText}>Trade</Text>
-                  <MaterialIcons name="chevron-right" size={20} color={colors.textSecondary} />
-                </TouchableOpacity>
-              </>
-            ) : null}
+            {!!(kycFaceVerified && canUseMarketplace(getDobFromUser(user))) && (
+              <TouchableOpacity style={styles.menuItem} onPress={() => nav("Marketplace", "CreateItem")} activeOpacity={0.7}>
+                <MaterialIcons name="storefront" size={22} color={colors.text} />
+                <Text style={styles.menuItemText}>Trade</Text>
+                <MaterialIcons name="chevron-right" size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+            )}
+            {!!(kycFaceVerified && canPostJobs(getDobFromUser(user))) && (
+              <TouchableOpacity style={styles.menuItem} onPress={() => nav("Jobs", "CreateJob")} activeOpacity={0.7}>
+                <MaterialIcons name="work" size={22} color={colors.text} />
+                <Text style={styles.menuItemText}>Post job</Text>
+                <MaterialIcons name="chevron-right" size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+            )}
             {!!accountPrivate ? (
               <TouchableOpacity style={styles.menuItem} onPress={() => nav("Profile", "FollowRequests")} activeOpacity={0.7}>
                 <MaterialIcons name="people-outline" size={22} color={colors.text} />

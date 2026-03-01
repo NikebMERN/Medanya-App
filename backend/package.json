@@ -7,9 +7,11 @@
         "start": "nodemon src/server.js",
         "tables": "node src/database/migrate.js",
         "seed": "node src/database/seeds/admin.seed.js",
+        "seed:analytics": "node scripts/seed_analytics.js",
         "dev": "firebase login",
         "token": "npx firebase emulators:start --only auth",
-        "test": "node --test tests/kyc.veriff.test.js"
+        "test": "node --test tests/kyc.veriff.test.js",
+        "test:analytics": "node --test tests/analytics.integration.test.js"
     },
     "keywords": [],
     "author": "",
@@ -17,6 +19,7 @@
     "type": "commonjs",
     "dependencies": {
         "agora-access-token": "^2.0.4",
+        "bcryptjs": "^3.0.3",
         "bullmq": "^5.67.3",
         "cloudinary": "^2.5.1",
         "cors": "^2.8.6",

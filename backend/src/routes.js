@@ -27,6 +27,7 @@ const moderationRoutes = require("./modules/moderation/moderation.routes");
 const recommendationRoutes = require("./modules/recommendations/recommendation.routes");
 const activityRoutes = require("./modules/activity/activity.routes");
 const unifiedReportRoutes = require("./modules/unifiedReports/report.routes");
+const analyticsRoutes = require("./modules/analytics/analytics.routes");
 
 router.use("/auth", authRoutes);
 
@@ -41,6 +42,9 @@ router.use("/jobs", jobRoutes);
 
 // ✅ ACTIVITY (for report context - last 20 min)
 router.use("/", activityRoutes);
+
+// ✅ ANALYTICS (events, user insights, admin overview)
+router.use("/analytics", analyticsRoutes);
 
 // ✅ UNIFIED REPORTS (POST /reports) — must be before legacy report routes
 router.use("/", unifiedReportRoutes);

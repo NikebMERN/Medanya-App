@@ -1,7 +1,15 @@
+import * as React from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { adminApi } from "../lib/api";
 import { ArrowLeft } from "lucide-react";
+import { AnalyticsAreaChart } from "../components/AnalyticsAreaChart";
+
+const fetchWithAuth = (path) => {
+  const token = localStorage.getItem("medanya_admin_token") || sessionStorage.getItem("medanya_admin_token");
+  const base = import.meta.env?.VITE_API_URL || "";
+  return fetch(`${base}${path}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} }).then((r) => r.json());
+};
 
 function DataSection({ title, data, render }) {
   if (!data || (Array.isArray(data) && data.length === 0)) {
@@ -64,6 +72,15 @@ export default function UserDetail() {
 
   const { mysql, mongo, risk } = data;
   const user = mysql?.user || {};
+  const [activityRange, setActivityRange] = React.useState(28);
+  const { data: activityData } = useQuery({
+    queryKey: ["admin", "user-activity", id, activityRange],
+    queryFn: () => fetchWithAuth(`/api/analytics/admin/users/${id}/activity?range=${activityRange}`),
+    enabled: !!id,
+  });
+  const actSummary = activityData?.summary ?? {};
+  const actSeries = activityData?.series ?? [];
+  const byModule = activityData?.byModule ?? {};
 
   return (
     <div className="max-w-4xl">
@@ -229,6 +246,28 @@ export default function UserDetail() {
           </div>
         )}
       />
+
+      <section className="rounded-lg border border-slate-200 bg-white p-4 mb-4">
+        <h3 className="font-semibold text-slate-800 mb-2">Activity & Insights</h3>
+        <AnalyticsAreaChart
+          title={`Views — ${(actSummary.totalViews ?? 0).toLocaleString()} total`}
+          subtitle={actSummary.percentChangeViews != null ? `↑${actSummary.percentChangeViews}% from previous period` : "Last " + activityRange + " days"}
+          seriesKey="views"
+          data={actSeries}
+          range={activityRange}
+          onRangeChange={setActivityRange}
+          height={220}
+        />
+        {byModule && Object.keys(byModule).length > 0 && (
+          <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
+            {Object.entries(byModule).map(([mod, info]) => (
+              <div key={mod} className="p-2 bg-slate-50 rounded">
+                <span className="font-medium capitalize">{mod}</span>: {info?.count ?? 0} events
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
 
       <DataSection
         title="MongoDB — activities (last 7 days)"

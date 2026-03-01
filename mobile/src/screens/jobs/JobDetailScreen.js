@@ -19,6 +19,7 @@ import { useAuthStore } from "../../store/auth.store";
 import * as jobsApi from "../../services/jobs.api";
 import * as chatApi from "../../services/chat.api";
 import * as activityApi from "../../services/activity.api";
+import { trackEvent } from "../../utils/trackEvent";
 import * as userApi from "../../api/user.api";
 import SafetyWarningModal from "../../components/SafetyWarningModal";
 import ReportOptionsModal from "../../components/common/ReportOptionsModal";
@@ -73,6 +74,7 @@ export default function JobDetailScreen() {
         targetType: "job",
         targetId: String(jobId),
       });
+      trackEvent("job_view", "job", jobId);
     }
   }, [job, jobId, userId]);
 
@@ -81,6 +83,7 @@ export default function JobDetailScreen() {
     setApplying(true);
     try {
       await jobsApi.applyToJob(jobId);
+      trackEvent("job_apply", "job", jobId);
       Alert.alert("Applied", "Your application has been submitted.");
     } catch (err) {
       const msg = err?.response?.data?.error?.message || err?.message || "Failed to apply.";

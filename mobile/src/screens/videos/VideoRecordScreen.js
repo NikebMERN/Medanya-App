@@ -1,6 +1,7 @@
 /**
- * VideoRecordScreen — Shorts-style: back arrow only, record with camera or pick from gallery.
- * Uses ImagePicker for camera recording and gallery video pick; stores draft and goes to Edit.
+ * VideoRecordScreen — Shorts-style: record with camera or pick from gallery.
+ * FilterTray ready for VisionCamera frame processor pipeline (color matrix / blur).
+ * When VisionCamera is added: replace preview with <Camera>, use useFrameProcessor.
  */
 import React, { useState, useCallback, useMemo } from "react";
 import {
@@ -20,6 +21,7 @@ import * as ImagePicker from "expo-image-picker";
 import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
 import { useVideoCreateStore } from "../../store/videoCreate.store";
+import FilterTray from "../../components/camera/FilterTray.js";
 
 const DURATION_OPTIONS = [15, 30, 60];
 
@@ -47,6 +49,10 @@ export default function VideoRecordScreen() {
   const setDraft = useVideoCreateStore((s) => s.setDraft);
   const [loading, setLoading] = useState(false);
   const [maxDuration, setMaxDuration] = useState(60);
+  const [filterTrayVisible, setFilterTrayVisible] = useState(false);
+  const [selectedFilter, setSelectedFilter] = useState("none");
+  const [flashOn, setFlashOn] = useState(false);
+  const [timerSec, setTimerSec] = useState(0);
 
   const close = useCallback(() => navigation.goBack(), [navigation]);
 
@@ -116,14 +122,30 @@ export default function VideoRecordScreen() {
         </View>
       </View>
 
-      {/* Back arrow only — top left */}
-      <TouchableOpacity
-        style={styles.backBtn}
-        onPress={close}
-        activeOpacity={0.8}
-      >
+      {/* Back arrow — top left */}
+      <TouchableOpacity style={styles.backBtn} onPress={close} activeOpacity={0.8}>
         <MaterialIcons name="arrow-back" size={28} color={colors.text} />
       </TouchableOpacity>
+
+      {/* Filter button — right side */}
+      <TouchableOpacity
+        style={styles.filterBtn}
+        onPress={() => setFilterTrayVisible((v) => !v)}
+        activeOpacity={0.8}
+      >
+        <MaterialIcons
+          name="filter"
+          size={24}
+          color={filterTrayVisible ? colors.primary : colors.text}
+        />
+      </TouchableOpacity>
+
+      {/* FilterTray — horizontal filter list */}
+      {filterTrayVisible && (
+        <View style={[styles.filterTrayWrap, { bottom: insets.bottom + spacing.lg + 120 }]}>
+          <FilterTray selectedFilterId={selectedFilter} onSelectFilter={setSelectedFilter} />
+        </View>
+      )}
 
       {/* Bottom controls */}
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + spacing.lg }]}>
@@ -147,18 +169,43 @@ export default function VideoRecordScreen() {
             <MaterialIcons name="photo-library" size={28} color={colors.text} />
             <Text style={styles.uploadLabel}>Gallery</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.recordBtn, loading && styles.recordBtnDisabled]}
-            onPress={startRecord}
-            disabled={loading}
-            activeOpacity={0.8}
-          >
-            {loading ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <View style={styles.recordBtnInner} />
-            )}
-          </TouchableOpacity>
+          <View style={styles.centerControls}>
+            <TouchableOpacity
+              style={styles.flipBtn}
+              onPress={() => {}}
+            >
+              <MaterialIcons name="flip-camera-ios" size={22} color={colors.text} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.recordBtn, loading && styles.recordBtnDisabled]}
+              onPress={startRecord}
+              disabled={loading}
+              activeOpacity={0.8}
+            >
+              {loading ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <View style={styles.recordBtnInner} />
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.timerBtn}
+              onPress={() => setTimerSec((s) => (s === 0 ? 3 : s === 3 ? 5 : 0))}
+            >
+              <MaterialIcons name="timer" size={22} color={timerSec ? colors.primary : colors.text} />
+              {timerSec > 0 && <Text style={styles.timerLabel}>{timerSec}s</Text>}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.flashBtn}
+              onPress={() => setFlashOn((f) => !f)}
+            >
+              <MaterialIcons
+                name={flashOn ? "flash-on" : "flash-off"}
+                size={22}
+                color={flashOn ? colors.primary : colors.text}
+              />
+            </TouchableOpacity>
+          </View>
           <View style={styles.placeholder} />
         </View>
       </View>
@@ -191,6 +238,18 @@ function createStyles(colors) {
       justifyContent: "center",
       alignItems: "center",
     },
+    filterBtn: {
+      position: "absolute",
+      right: spacing.md,
+      top: spacing.sm,
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: "rgba(0,0,0,0.4)",
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    filterTrayWrap: { position: "absolute", left: 0, right: 0 },
     bottomBar: {
       position: "absolute",
       left: 0,
@@ -212,8 +271,13 @@ function createStyles(colors) {
       alignItems: "center",
       justifyContent: "space-between",
       width: "100%",
-      maxWidth: 300,
+      maxWidth: 340,
     },
+    centerControls: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+    flipBtn: { width: 44, height: 44, justifyContent: "center", alignItems: "center" },
+    timerBtn: { width: 44, height: 44, justifyContent: "center", alignItems: "center" },
+    flashBtn: { width: 44, height: 44, justifyContent: "center", alignItems: "center" },
+    timerLabel: { fontSize: 10, color: colors.primary, fontWeight: "700", marginTop: -2 },
     uploadBtn: {
       width: 64,
       alignItems: "center",

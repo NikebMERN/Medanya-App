@@ -2,6 +2,15 @@ import * as React from "react";
 import { useNavigate } from "react-router-dom";
 import { Button, useDataProvider } from "react-admin";
 import { Card, CardContent, Typography } from "@mui/material";
+import { useQuery } from "@tanstack/react-query";
+import { AnalyticsAreaChart } from "../components/AnalyticsAreaChart";
+
+const apiBase = () => import.meta.env?.VITE_API_URL || "";
+const api = (path) => `${apiBase()}/api${path}`;
+const fetchWithAuth = (path) => {
+  const token = localStorage.getItem("medanya_admin_token") || sessionStorage.getItem("medanya_admin_token");
+  return fetch(path, { headers: token ? { Authorization: `Bearer ${token}` } : {} }).then((r) => r.json());
+};
 
 const CardWithLink = ({ title, value, to }) => {
   const navigate = useNavigate();
@@ -27,10 +36,7 @@ const CardWithLink = ({ title, value, to }) => {
   );
 };
 
-const api = (path) => {
-  const base = import.meta.env?.VITE_API_URL || "";
-  return `${base}/api/admin${path}`;
-};
+const adminApi = (path) => `${apiBase()}/api/admin${path}`;
 
 export default function Dashboard() {
   const [counts, setCounts] = React.useState(null);
@@ -41,7 +47,7 @@ export default function Dashboard() {
   const fetchMlRetrain = React.useCallback(() => {
     const token = localStorage.getItem("medanya_admin_token");
     const headers = token ? { Authorization: `Bearer ${token}` } : {};
-    fetch(api("/ml/retrain-status"), { headers })
+    fetch(adminApi("/ml/retrain-status"), { headers })
       .then((r) => r.json())
       .then((d) => {
         if (d.success) setMlRetrain({ pending: d.pending, labeledCount: d.labeledCount ?? 0 });
@@ -53,7 +59,7 @@ export default function Dashboard() {
     setMlLoading(true);
     const token = localStorage.getItem("medanya_admin_token");
     const headers = { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) };
-    fetch(api("/ml/request-retrain"), { method: "POST", headers })
+    fetch(adminApi("/ml/request-retrain"), { method: "POST", headers })
       .then((r) => r.json())
       .then((d) => { setMlLoading(false); if (d.success) fetchMlRetrain(); else alert(d.error || "Failed"); })
       .catch(() => setMlLoading(false));
@@ -63,7 +69,7 @@ export default function Dashboard() {
     setMlLoading(true);
     const token = localStorage.getItem("medanya_admin_token");
     const headers = { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) };
-    fetch(api("/ml/approve-retrain"), { method: "POST", headers })
+    fetch(adminApi("/ml/approve-retrain"), { method: "POST", headers })
       .then((r) => r.json())
       .then((d) => { setMlLoading(false); if (d.success) { alert("Retrain approved – training started"); fetchMlRetrain(); } else alert(d.error || "Failed"); })
       .catch(() => setMlLoading(false));
@@ -73,7 +79,7 @@ export default function Dashboard() {
     setMlLoading(true);
     const token = localStorage.getItem("medanya_admin_token");
     const headers = { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) };
-    fetch(api("/ml/reject-retrain"), { method: "POST", headers })
+    fetch(adminApi("/ml/reject-retrain"), { method: "POST", headers })
       .then((r) => r.json())
       .then((d) => { setMlLoading(false); if (d.success) fetchMlRetrain(); })
       .catch(() => setMlLoading(false));
@@ -100,7 +106,7 @@ export default function Dashboard() {
       .then((r) => setCounts((c) => ({ ...c, urgent: r.total })))
       .catch(() => {});
 
-    fetch(api("/moderation/counts"), { headers })
+    fetch(adminApi("/moderation/counts"), { headers })
       .then((res) => res.json())
       .then((d) => {
         if (d.success)
@@ -113,7 +119,7 @@ export default function Dashboard() {
       })
       .catch(() => {});
 
-    fetch(api("/kyc?status=pending_manual&limit=1"), { headers })
+    fetch(adminApi("/kyc?status=pending_manual&limit=1"), { headers })
       .then((res) => res.json())
       .then((d) => {
         if (d.success)
@@ -121,14 +127,14 @@ export default function Dashboard() {
       })
       .catch(() => {});
 
-    fetch(api("/health"), { headers })
+    fetch(adminApi("/health"), { headers })
       .then((res) => res.json())
       .then((d) => {
         setCounts((c) => ({ ...c, serverOk: d?.ok === true }));
       })
       .catch(() => setCounts((c) => ({ ...c, serverOk: false })));
 
-    fetch(api("/users?page=1&limit=1"), { headers })
+    fetch(adminApi("/users?page=1&limit=1"), { headers })
       .then((res) => res.json())
       .then((d) => {
         if (d.success && typeof d.total === "number")
@@ -140,6 +146,14 @@ export default function Dashboard() {
 
   const navigate = useNavigate();
   const c = counts ?? {};
+  const [chartRange, setChartRange] = React.useState(28);
+  const { data: analyticsData } = useQuery({
+    queryKey: ["analytics-overview", chartRange],
+    queryFn: () => fetchWithAuth(`/api/analytics/admin/overview?range=${chartRange}`),
+    staleTime: 60000,
+  });
+  const analyticsTotals = analyticsData?.totals ?? {};
+  const analyticsSeries = analyticsData?.series ?? [];
 
   return (
     <>
@@ -181,6 +195,26 @@ export default function Dashboard() {
 
       </CardContent>
     </Card>
+
+    <Card sx={{ mt: 3 }}>
+      <CardContent>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+          <Typography variant="h6" fontWeight={700}>Insights</Typography>
+          <Button label="See all" onClick={() => navigate("/analytics")} variant="text" size="small" sx={{ color: "#2E6BFF" }} />
+        </div>
+        <Typography color="textSecondary" variant="body2" sx={{ mb: 2 }}>Last {chartRange} days</Typography>
+        <AnalyticsAreaChart
+          title={`Total app views — ${(analyticsTotals.totalViews ?? 0).toLocaleString()}`}
+          subtitle="App-wide views over time"
+          seriesKey="views"
+          data={analyticsSeries}
+          range={chartRange}
+          onRangeChange={setChartRange}
+          height={260}
+        />
+      </CardContent>
+    </Card>
+
     <Card sx={{ mt: 3 }}>
       <CardContent>
         <Typography variant="h6" gutterBottom>Scam ML Retrain</Typography>

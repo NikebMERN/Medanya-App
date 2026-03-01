@@ -27,6 +27,7 @@ import SubScreenHeader from "../../components/SubScreenHeader";
 import ReportOptionsModal from "../../components/common/ReportOptionsModal";
 import { useAuthStore } from "../../store/auth.store";
 import * as userApi from "../../api/user.api";
+import { trackEvent } from "../../utils/trackEvent";
 import * as chatApi from "../../services/chat.api";
 import { ensureChatSocket, sendChatMessage } from "../../realtime/chat.socket";
 import { useAuthStore as useAuthStoreForToken } from "../../store/auth.store";
@@ -155,6 +156,7 @@ export default function UserProfileScreen() {
         setUser((prev) => (prev ? { ...prev, isFollowing: false, followRequestPending: false } : null));
       } else {
         await userApi.followUser(user.id);
+        trackEvent("follow", "profile", user.id);
         const data = await userApi.getPublicProfile(user.id);
         const u = data?.user ?? data;
         setUser((prev) => (prev && u ? { ...prev, ...u, isFollowing: u.isFollowing, followRequestPending: u.followRequestPending ?? u.follow_request_pending } : prev));

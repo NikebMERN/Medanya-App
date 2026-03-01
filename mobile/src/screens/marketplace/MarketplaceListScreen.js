@@ -201,20 +201,7 @@ export default function MarketplaceListScreen() {
     [navigation, styles, colors, userId]
   );
 
-  const listHeader = (
-    <View style={styles.headerRow}>
-      <Text style={styles.headerTitle}>Marketplace</Text>
-      {isLoggedIn && otpVerified && kycFaceVerified && canSell && (
-        <TouchableOpacity
-          style={styles.addBtn}
-          onPress={() => navigation.navigate("CreateItem")}
-          activeOpacity={0.8}
-        >
-          <MaterialIcons name="add" size={24} color={colors.white} />
-        </TouchableOpacity>
-      )}
-    </View>
-  );
+  const listHeader = null;
 
   const filterRow = (
     <View style={styles.filterRow}>
@@ -480,7 +467,7 @@ function createStyles(colors) {
       justifyContent: "center",
       alignItems: "center",
     },
-    searchRow: { flexDirection: "row", padding: spacing.md, paddingTop: 0, gap: spacing.sm },
+    searchRow: { flexDirection: "row", padding: spacing.md, paddingTop: spacing.md, gap: spacing.sm },
     searchWrap: {
       flex: 1,
       flexDirection: "row",

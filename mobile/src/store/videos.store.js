@@ -4,6 +4,7 @@
  */
 import { create } from "zustand";
 import * as videosApi from "../api/videos.api";
+import { trackEvent } from "../utils/trackEvent";
 
 export const useVideosStore = create((set, get) => ({
   videos: [],
@@ -42,7 +43,7 @@ export const useVideosStore = create((set, get) => ({
     }
   },
 
-  optimisticToggleLike: async (videoId, liked) => {
+  optimisticToggleLike: async (videoId, liked, meta = {}) => {
     // optimistic update local list
     set((s) => ({
       videos: (s.videos ?? []).map((v) =>
@@ -56,8 +57,12 @@ export const useVideosStore = create((set, get) => ({
       ),
     }));
     try {
-      if (liked) await videosApi.likeVideo(videoId);
-      else await videosApi.unlikeVideo(videoId);
+      if (liked) {
+        await videosApi.likeVideo(videoId);
+        trackEvent("video_like", "video", videoId, meta);
+      } else {
+        await videosApi.unlikeVideo(videoId);
+      }
     } catch (_) {
       // revert on failure
       set((s) => ({
