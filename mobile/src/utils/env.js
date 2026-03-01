@@ -54,7 +54,16 @@ export async function uploadToCloudinary(uri, resourceType = "image", mimeType) 
     method: "POST",
     body: formData,
   });
-  const data = await res.json();
+  const text = await res.text();
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch (_) {
+    if (text.trimStart().startsWith("<")) {
+      throw new Error("Upload failed: server returned an error page. Check your Cloudinary config (cloud name and upload preset).");
+    }
+    throw new Error("Upload failed: invalid response from server.");
+  }
   if (data.error) {
     const msg = data.error.message || "Cloudinary upload failed";
     if (msg.toLowerCase().includes("unknown") || msg.toLowerCase().includes("invalid")) {
