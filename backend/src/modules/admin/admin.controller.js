@@ -3,6 +3,7 @@ const adminService = require("./admin.service");
 const moderationService = require("./moderation.service");
 const adminBansAudit = require("./adminBansAudit");
 const kycSessionsDb = require("../kyc/kycSessions.mysql");
+const ordersService = require("../orders/orders.service");
 
 const health = async (req, res) => {
     return res.json({ ok: true, serverTime: new Date().toISOString() });
@@ -345,4 +346,38 @@ module.exports = {
     requestRetrain,
     approveRetrain,
     rejectRetrain,
+    listOrders: listOrdersAdmin,
+    listDisputes: listDisputesAdmin,
+    resolveDispute: resolveDisputeAdmin,
 };
+
+async function listOrdersAdmin(req, res, next) {
+    try {
+        const { status, page, limit } = req.query;
+        const data = await ordersService.adminListOrders(req.user, { status, page, limit });
+        return res.json({ success: true, ...data });
+    } catch (err) {
+        return next(err);
+    }
+}
+
+async function listDisputesAdmin(req, res, next) {
+    try {
+        const { status, page, limit } = req.query;
+        const data = await ordersService.adminListDisputes(req.user, { status, page, limit });
+        return res.json({ success: true, ...data });
+    } catch (err) {
+        return next(err);
+    }
+}
+
+async function resolveDisputeAdmin(req, res, next) {
+    try {
+        const disputeId = req.params.id;
+        const { action } = req.body || {};
+        const data = await ordersService.adminResolveDispute(req.user, disputeId, action);
+        return res.json({ success: true, ...data });
+    } catch (err) {
+        return next(err);
+    }
+}

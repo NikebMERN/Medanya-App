@@ -7,10 +7,13 @@ import {
   ActivityIndicator,
   Alert,
   ScrollView,
+  Linking,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { MaterialIcons } from "@expo/vector-icons";
+import * as WebBrowser from "expo-web-browser";
 import { useThemeColors } from "../../theme/useThemeColors";
 import { radii, layout } from "../../theme/designSystem";
 import { spacing } from "../../theme/spacing";
@@ -50,28 +53,72 @@ export default function RechargeScreen() {
       const data = await walletApi.createRechargeIntent(pkg.packageId);
       const clientSecret = data?.clientSecret;
       if (clientSecret) {
+        let paid = false;
         try {
-          const { initPaymentSheet, presentPaymentSheet } = require("@stripe/stripe-react-native");
-          await initPaymentSheet({
-            paymentIntentClientSecret: clientSecret,
-            merchantDisplayName: "Medanya",
-          });
-          const { error } = await presentPaymentSheet();
-          if (error) {
-            Alert.alert("Payment failed", error.message);
-          } else {
-            updateBalanceAfterRecharge?.(pkg.coins ?? 0);
-            await fetchWallet?.();
-            Alert.alert("Success", `You received ${pkg.coins ?? pkg.coinAmount ?? 0} MedCoins!`, [
-              { text: "OK", onPress: () => navigation.goBack() },
-            ]);
+          const stripe = require("@stripe/stripe-react-native");
+          if (stripe?.initPaymentSheet && stripe?.presentPaymentSheet) {
+            await stripe.initPaymentSheet({
+              paymentIntentClientSecret: clientSecret,
+              merchantDisplayName: "Medanya",
+            });
+            const { error } = await stripe.presentPaymentSheet();
+            if (error) {
+              Alert.alert("Payment failed", error.message);
+            } else {
+              paid = true;
+              updateBalanceAfterRecharge?.(pkg.coins ?? 0);
+              await fetchWallet?.();
+              Alert.alert("Success", `You received ${pkg.coins ?? pkg.coinAmount ?? 0} MedCoins!`, [
+                { text: "OK", onPress: () => navigation.goBack() },
+              ]);
+            }
           }
-        } catch (stripeErr) {
-          Alert.alert(
-            "Stripe not configured",
-            "Install @stripe/stripe-react-native for in-app payments. Or use web checkout.",
-            [{ text: "OK" }]
-          );
+        } catch (_) {
+          /* Stripe native not available */
+        }
+        if (!paid) {
+          const checkoutData = await walletApi.createCheckoutSession(pkg.packageId ?? pkg.id);
+          const url = checkoutData?.checkoutUrl;
+          if (url) {
+            const redirectUrl = "medanya://recharge-success";
+            if (Platform.OS === "web") {
+              Linking.openURL(url);
+              Alert.alert("Complete payment in browser", "Finish payment, then return here and tap Refresh on the Wallet screen.", [{ text: "OK" }]);
+            } else {
+              const result = await WebBrowser.openAuthSessionAsync(url, redirectUrl);
+              if (result.type === "success" && result.url) {
+                try {
+                  const u = new URL(result.url);
+                  const sessionId = u.searchParams.get("session_id");
+                  if (sessionId) {
+                    const verify = await walletApi.verifyCheckoutSession(sessionId);
+                    if (verify?.credited && verify?.coins) {
+                      updateBalanceAfterRecharge?.(verify.coins);
+                      await fetchWallet?.();
+                      Alert.alert("Success", `You received ${verify.coins} MedCoins!`, [
+                        { text: "OK", onPress: () => navigation.goBack() },
+                      ]);
+                    } else if (verify?.credited === false && verify?.reason === "duplicate") {
+                      await fetchWallet?.();
+                      Alert.alert("Success", "Coins were already added. Balance updated.", [
+                        { text: "OK", onPress: () => navigation.goBack() },
+                      ]);
+                    } else {
+                      await fetchWallet?.();
+                      Alert.alert("Payment complete", "Balance refreshed.", [{ text: "OK" }]);
+                    }
+                  }
+                } catch (_) {
+                  await fetchWallet?.();
+                  Alert.alert("Payment complete", "Balance refreshed.", [{ text: "OK" }]);
+                }
+              } else if (result.type !== "cancel" && result.type !== "dismiss") {
+                Alert.alert("Complete payment in browser", "Finish payment in the browser, then return to the app. Your coins will be added.", [{ text: "OK" }]);
+              }
+            }
+          } else {
+            Alert.alert("Payment unavailable", "Could not open payment. Please try again later.");
+          }
         }
       } else {
         Alert.alert("Error", "Could not start payment.");

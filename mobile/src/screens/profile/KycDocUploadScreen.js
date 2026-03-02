@@ -27,7 +27,10 @@ import { spacing } from "../../theme/spacing";
 import SubScreenHeader from "../../components/SubScreenHeader";
 import { uploadToCloudinary } from "../../utils/env";
 import { KYC_DOC_TYPES, DEFAULT_DOC_TYPE, isValidFaydaFin, normalizeFaydaFin } from "../../data/kycDocTypes";
+import * as kycApi from "../../api/kyc.api";
 import DateOfBirthPicker from "../../components/ui/DateOfBirthPicker";
+import { normalizePlaceholder } from "../../components/ui/Input";
+import { inputStyleAndroid } from "../../theme/inputStyles";
 
 const PRIVACY_NOTICE =
   "We store your document number securely (encrypted). Images are stored privately and may be deleted after verification.";
@@ -180,18 +183,34 @@ export default function KycDocUploadScreen() {
         needsBack && backUri ? uploadToCloudinary(backUri, "image") : Promise.resolve(null),
       ]);
       const backUrl = needsBack ? backUrlResult : null;
-
       const backendDocType = docType.backendValue ?? docType.value;
-      navigation.navigate("KycSelfie", {
+
+      const result = await kycApi.submitKyc({
         docType: backendDocType,
         docNumber: docNum,
-        docFullName: nameOnDoc,
-        docBirthdate: dobOnDoc,
         frontImageUrl: frontUrl,
         backImageUrl: backUrl,
+        fullName: nameOnDoc,
+        birthdate: dobOnDoc,
+        consent: true,
       });
+
+      if (result?.dataMismatch && result?.requireDataChange) {
+        navigation.navigate("KycMismatch", {
+          submissionId: result.submissionId,
+          extractedName: result.extractedName,
+          extractedDob: result.extractedDob,
+          docFullName: nameOnDoc,
+          docBirthdate: dobOnDoc,
+        });
+      } else {
+        Alert.alert("Submitted", "Your document has been submitted for verification.", [
+          { text: "OK", onPress: () => navigation.navigate("Kyc") },
+        ]);
+      }
     } catch (e) {
-      Alert.alert("Upload failed", e?.message || "Could not upload document images.");
+      const msg = e?.response?.data?.error?.message ?? e?.message ?? "Could not submit.";
+      Alert.alert("Error", msg);
     } finally {
       setUploading(false);
     }
@@ -254,8 +273,8 @@ export default function KycDocUploadScreen() {
         <Text style={styles.sectionTitle}>Name as on document *</Text>
         <Text style={styles.hint}>Must match your profile full name for verification.</Text>
         <TextInput
-          style={styles.input}
-          placeholder="Full name as shown on ID"
+          style={[styles.input, inputStyleAndroid]}
+          placeholder={normalizePlaceholder("Full name as shown on ID")}
           placeholderTextColor={colors.textMuted}
           value={docFullName}
           onChangeText={setDocFullName}
@@ -274,8 +293,8 @@ export default function KycDocUploadScreen() {
         <Text style={styles.sectionTitle}>Document number *</Text>
         <Text style={styles.hint}>{docTypeConfig.hint}</Text>
         <TextInput
-          style={styles.input}
-          placeholder={docTypeConfig.placeholder}
+          style={[styles.input, inputStyleAndroid]}
+          placeholder={normalizePlaceholder(docTypeConfig.placeholder)}
           placeholderTextColor={colors.textMuted}
           value={docNumber}
           onChangeText={(t) => {

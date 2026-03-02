@@ -2,6 +2,7 @@ const {
     verifyFirebaseToken,
     findOrCreateUser,
     findOrCreateGuestUser,
+    linkFirebaseToUser,
     issueJWT,
     sendOtp,
     verifyOtp,
@@ -153,9 +154,46 @@ const guestLogin = async (req, res, next) => {
     }
 };
 
+const linkFirebaseHandler = async (req, res, next) => {
+    try {
+        const userId = req.user?.id ?? req.user?.userId;
+        if (!userId) return res.status(401).json({ message: "Auth required" });
+        const { idToken } = req.body;
+        if (!idToken) return res.status(400).json({ message: "Firebase ID token required" });
+
+        const user = await linkFirebaseToUser(userId, idToken);
+        if (user.is_banned) return res.status(403).json({ message: "User banned" });
+
+        const token = issueJWT(user);
+        const dobStr = user.dob instanceof Date ? user.dob.toISOString().slice(0, 10) : (user.dob ? String(user.dob) : null);
+        res.json({
+            success: true,
+            token,
+            user: {
+                id: user.id,
+                phone: user.phone_number,
+                role: user.role,
+                display_name: user.display_name ?? null,
+                full_name: user.full_name ?? null,
+                email: user.email ?? null,
+                neighborhood: user.neighborhood ?? null,
+                avatar_url: user.avatar_url ?? null,
+                dob: dobStr,
+                otp_verified: !!user.otp_verified,
+                kyc_face_verified: !!(user.kyc_face_verified),
+                account_private: !!user.account_private,
+            },
+        });
+    } catch (err) {
+        if (err.code === "ALREADY_LINKED") return res.status(400).json({ message: err.message });
+        next(err);
+    }
+};
+
 module.exports = {
     verifyOtpAndLogin,
     sendOtpHandler,
     verifyOtpAndLoginServer,
     guestLogin,
+    linkFirebaseHandler,
 };

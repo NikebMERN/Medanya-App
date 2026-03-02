@@ -46,7 +46,7 @@ export default function WalletHomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
-    await Promise.all([fetchWallet(), fetchHistory({ page: 1, limit: 20 })]);
+    await Promise.all([fetchWallet(), fetchHistory({ page: 1, limit: 50 })]);
   }, [fetchWallet, fetchHistory]);
 
   useEffect(() => {
@@ -70,8 +70,11 @@ export default function WalletHomeScreen() {
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <MaterialIcons name="arrow-back" size={24} color={colors.text} />
+        </TouchableOpacity>
         <Text style={styles.headerTitle}>Wallet</Text>
-        <TouchableOpacity onPress={() => navigation.navigate("WalletHistory")} style={styles.historyBtn}>
+        <TouchableOpacity onPress={() => navigation.navigate("WalletHistory")} style={styles.historyBtn} accessibilityLabel="Transaction history">
           <MaterialIcons name="history" size={24} color={colors.primary} />
         </TouchableOpacity>
       </View>
@@ -187,12 +190,13 @@ function createStyles(colors) {
     center: { flex: 1, justifyContent: "center", alignItems: "center" },
     header: {
       flexDirection: "row",
-      justifyContent: "space-between",
       alignItems: "center",
       paddingHorizontal: layout.screenPadding,
       paddingVertical: spacing.md,
+      gap: spacing.sm,
     },
-    headerTitle: { fontSize: 22, fontWeight: "800", color: colors.text },
+    backBtn: { padding: spacing.sm, marginLeft: -spacing.sm },
+    headerTitle: { flex: 1, fontSize: 22, fontWeight: "800", color: colors.text, textAlign: "center" },
     historyBtn: { padding: spacing.sm },
     errorBanner: {
       flexDirection: "row",

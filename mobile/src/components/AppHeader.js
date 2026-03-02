@@ -1,4 +1,4 @@
-import React, { useState, useMemo, memo } from "react";
+import React, { useState, useMemo, memo, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useThemeColors } from "../theme/useThemeColors";
 import { typography } from "../theme/typography";
 import { useAuthStore } from "../store/auth.store";
+import { useWalletStore } from "../modules/wallet/wallet.store";
 import { canUseMarketplace, canPostJobs, getDobFromUser } from "../utils/age";
 import { useThemeStore } from "../store/theme.store";
 import { spacing } from "../theme/spacing";
@@ -31,6 +32,28 @@ function AppHeaderComponent({ navigation, route, focusedRouteName }) {
   const accountPrivate = user?.account_private ?? user?.accountPrivate;
   const kycFaceVerified = user?.kyc_face_verified ?? user?.kycFaceVerified ?? false;
   const [menuVisible, setMenuVisible] = useState(false);
+  const [unseenCount, setUnseenCount] = useState(0);
+  const coinBalance = useWalletStore((s) => s.coinBalance ?? 0);
+  const fetchWallet = useWalletStore((s) => s.fetchWallet);
+
+  const fetchUnseenCount = useCallback(async () => {
+    if (isGuest) return;
+    try {
+      const api = require("../api/notifications.api");
+      const count = await api.getUnseenCount();
+      setUnseenCount(count);
+    } catch (_) {}
+  }, [isGuest]);
+
+  useEffect(() => {
+    if (menuVisible && !isGuest) fetchWallet?.();
+  }, [menuVisible, isGuest, fetchWallet]);
+
+  useEffect(() => {
+    fetchUnseenCount();
+    const t = setInterval(fetchUnseenCount, 30000);
+    return () => clearInterval(t);
+  }, [fetchUnseenCount]);
 
   const handleLogoPress = () => {
     if (navigation?.navigate) {
@@ -85,6 +108,16 @@ function AppHeaderComponent({ navigation, route, focusedRouteName }) {
     navigation?.navigate("Marketplace", { screen: "CreateItem" });
   };
 
+  const handleOrders = () => {
+    closeMenu();
+    navigation?.navigate("Marketplace", { screen: "OrdersList" });
+  };
+
+  const handleNotifications = () => {
+    closeMenu();
+    navigation?.navigate("Profile", { screen: "Notifications" });
+  };
+
   const handleToggleTheme = () => {
     setTheme(theme === "dark" ? "light" : "dark");
     closeMenu();
@@ -118,6 +151,16 @@ function AppHeaderComponent({ navigation, route, focusedRouteName }) {
           >
             <Text style={styles.playIcon}>▶</Text>
           </TouchableOpacity>
+          {!isGuest && (
+            <TouchableOpacity style={styles.iconBtn} activeOpacity={0.8} onPress={handleNotifications}>
+              <MaterialIcons name="notifications" size={22} color={colors.text} />
+              {unseenCount > 0 && (
+                <View style={[styles.badge, { backgroundColor: colors.primary || "#2196F3" }]}>
+                  <Text style={styles.badgeText}>{unseenCount > 99 ? "99+" : unseenCount}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          )}
           {isGuest ? (
             <TouchableOpacity
               style={styles.signInBtn}
@@ -155,6 +198,17 @@ function AppHeaderComponent({ navigation, route, focusedRouteName }) {
         <Pressable style={styles.menuOverlay} onPress={closeMenu}>
           <Pressable style={[styles.menuSheet, { paddingBottom: insets.bottom + spacing.md }]} onPress={(e) => e.stopPropagation()}>
             <View style={styles.menuHandle} />
+            {!isGuest && (
+              <TouchableOpacity
+                style={[styles.menuItem, styles.menuItemCoins]}
+                onPress={() => { closeMenu(); navigation?.navigate?.("Profile", { screen: "Wallet" }); }}
+                activeOpacity={0.7}
+              >
+                <MaterialIcons name="account-balance-wallet" size={22} color={colors.primary} />
+                <Text style={styles.menuItemText}>MedCoins</Text>
+                <Text style={[styles.menuItemCoinsValue, { color: colors.primary }]}>{coinBalance?.toLocaleString?.() ?? coinBalance ?? 0} MC</Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity style={styles.menuItem} onPress={handleEditProfile} activeOpacity={0.7}>
               <MaterialIcons name="edit" size={22} color={colors.text} />
               <Text style={styles.menuItemText}>Edit profile</Text>
@@ -165,17 +219,24 @@ function AppHeaderComponent({ navigation, route, focusedRouteName }) {
               <Text style={styles.menuItemText}>Favorite items</Text>
               <MaterialIcons name="chevron-right" size={20} color={colors.textSecondary} />
             </TouchableOpacity>
-            {!!(kycFaceVerified && canUseMarketplace(getDobFromUser(user))) && (
-              <TouchableOpacity style={styles.menuItem} onPress={handleSellItem} activeOpacity={0.7}>
-                <MaterialIcons name="storefront" size={22} color={colors.text} />
-                <Text style={styles.menuItemText}>Trade</Text>
-                <MaterialIcons name="chevron-right" size={20} color={colors.textSecondary} />
-              </TouchableOpacity>
+            {!!user && (
+              <>
+                <TouchableOpacity style={styles.menuItem} onPress={handleOrders} activeOpacity={0.7}>
+                  <MaterialIcons name="receipt-long" size={22} color={colors.text} />
+                  <Text style={styles.menuItemText}>Orders</Text>
+                  <MaterialIcons name="chevron-right" size={20} color={colors.textSecondary} />
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.menuItem} onPress={handleSellItem} activeOpacity={0.7}>
+                  <MaterialIcons name="storefront" size={22} color={colors.text} />
+                  <Text style={styles.menuItemText}>Sell</Text>
+                  <MaterialIcons name="chevron-right" size={20} color={colors.textSecondary} />
+                </TouchableOpacity>
+              </>
             )}
             {!!(kycFaceVerified && canPostJobs(getDobFromUser(user))) && (
               <TouchableOpacity style={styles.menuItem} onPress={handlePostJob} activeOpacity={0.7}>
                 <MaterialIcons name="work" size={22} color={colors.text} />
-                <Text style={styles.menuItemText}>Create job</Text>
+                <Text style={styles.menuItemText}>Post job</Text>
                 <MaterialIcons name="chevron-right" size={20} color={colors.textSecondary} />
               </TouchableOpacity>
             )}
@@ -279,6 +340,21 @@ function createStyles(colors, paddingTop, paddingBottom = 0) {
       justifyContent: "center",
       alignItems: "center",
     },
+    badge: {
+      position: "absolute",
+      top: 2,
+      right: 2,
+      minWidth: 16,
+      height: 16,
+      borderRadius: 8,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    badgeText: {
+      fontSize: 10,
+      fontWeight: "700",
+      color: "#fff",
+    },
     playIcon: {
       fontSize: 12,
       color: colors.text,
@@ -357,6 +433,8 @@ function createStyles(colors, paddingTop, paddingBottom = 0) {
       color: colors.text,
       fontStyle: typography.fontStyle,
     },
+    menuItemCoins: { backgroundColor: colors.surface },
+    menuItemCoinsValue: { fontSize: 15, fontWeight: "700", fontStyle: typography.fontStyle },
     menuItemDanger: {
       borderBottomWidth: 0,
       marginTop: spacing.sm,

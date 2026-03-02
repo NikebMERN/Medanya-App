@@ -15,7 +15,7 @@ const pool = mysql.createPool({
 
 const testMySQLConnection = async () => {
     try {
-        const [rows] = await pool.query("SELECT 1");
+        await pool.query("SELECT 1");
         console.log("✅ MySQL connected");
     } catch (err) {
         console.error("❌ MySQL connection failed:", err);

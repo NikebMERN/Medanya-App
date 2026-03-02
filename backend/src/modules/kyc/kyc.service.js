@@ -79,7 +79,19 @@ async function submit(reqUser, { docType, docNumber, frontImageUrl, backImageUrl
     if (backImageUrl) cloudinaryUrlPrivate = cloudinaryUrlPrivate ? `${cloudinaryUrlPrivate}|${backImageUrl}` : backImageUrl;
     if (!cloudinaryUrlPrivate) throw err("VALIDATION_ERROR", "At least one document image required");
     const selfieUrl = selfieImageUrl ? String(selfieImageUrl).trim().slice(0, 600) : null;
-    if (!selfieUrl) throw err("VALIDATION_ERROR", "Selfie photo is required to match your face with the document");
+
+    const existingCount = await db.countByDocHash(docHash, userId);
+    if (existingCount > 0) {
+        throw err("VALIDATION_ERROR", "This document is already registered to another account. One person, one document.");
+    }
+
+    if (fullNameVal) {
+        const legalNameNorm = db.normalizeLegalName(fullNameVal);
+        const legalNameDuplicate = await db.countByLegalName(legalNameNorm, userId);
+        if (legalNameDuplicate > 0) {
+            throw err("VALIDATION_ERROR", "This legal name (first, middle, last) is already registered to another account. One person, one identity.");
+        }
+    }
 
     const id = await db.insertSubmission({
         user_id: userId,

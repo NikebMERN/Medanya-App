@@ -36,7 +36,6 @@ async function getUserAnalytics(req, res) {
         }
         const range = req.query.range || "28";
         const data = await analyticsService.getUserAnalytics(userId, range);
-        console.log("[analytics.controller] getUserAnalytics:", { userId, range, totalViews: data.summary.totalViews });
         return res.json(data);
     } catch (err) {
         return res.status(500).json({ error: { code: "SERVER_ERROR", message: err.message || "Failed to fetch analytics" } });
@@ -47,7 +46,6 @@ async function getAdminOverview(req, res) {
     try {
         const range = req.query.range || "28";
         const data = await analyticsService.getAdminOverview(range);
-        console.log("[analytics.controller] getAdminOverview:", { range, totals: data.totals });
         return res.json(data);
     } catch (err) {
         return res.status(500).json({ error: { code: "SERVER_ERROR", message: err.message || "Failed to fetch overview" } });

@@ -36,10 +36,16 @@ export function ageFromDob(dob) {
   return age;
 }
 
-/** Get DOB from user object (handles snake_case, camelCase, Date, string). */
+/**
+ * Get DOB from user object. Prefers Veriff/KYC-verified birth year when available
+ * (backend syncs Veriff birthdate to user.dob on KYC approval for cross-check).
+ */
 export function getDobFromUser(user) {
   if (!user) return null;
   const val =
+    user.kyc_dob ??
+    user.veriff_dob ??
+    user.veriff_birth_year ??
     user.dob ??
     user.date_of_birth ??
     user.dateOfBirth ??
@@ -48,7 +54,10 @@ export function getDobFromUser(user) {
   if (val == null || val === "") return null;
   if (val instanceof Date) return val;
   if (typeof val === "number") return val;
-  return String(val).trim() || null;
+  const s = String(val).trim();
+  // Veriff may return year only (e.g. "1990") — normalize to YYYY-MM-DD
+  if (/^\d{4}$/.test(s)) return `${s}-01-01`;
+  return s || null;
 }
 
 export function canPostJobs(dob) {

@@ -1,1 +1,68 @@
-{"expo":{"name":"Medanya","slug":"medanya","version":"1.0.0","scheme":"medanya","orientation":"portrait","icon":"./assets/icon.png","userInterfaceStyle":"light","newArchEnabled":true,"splash":{"image":"./assets/splash-icon.png","resizeMode":"contain","backgroundColor":"#f2f6ff"},"ios":{"supportsTablet":true,"bundleIdentifier":"com.medanya.app","googleServicesFile":"./GoogleService-Info.plist","deploymentTarget":"15.1"},"android":{"package":"com.medanya.app","googleServicesFile":"./google-services.json","adaptiveIcon":{"foregroundImage":"./assets/adaptive-icon.png","backgroundColor":"#f2f6ff"},"edgeToEdgeEnabled":true},"web":{"favicon":"./assets/favicon.png"},"plugins":["expo-web-browser",["expo-image-picker",{"photosPermission":"The app needs access to your photos to let you upload a profile picture and share images or videos in chat."}],["expo-media-library",{"photosPermission":"Allow access to save photos to your photo library.","savePhotosPermission":"Allow access to save photos to your photo library."}],["expo-splash-screen",{"image":"./assets/splash-icon.png","backgroundColor":"#f2f6ff","resizeMode":"contain","imageWidth":280}],"expo-video"]}}
+{
+    "expo": {
+        "name": "Medanya",
+        "slug": "medanya",
+        "version": "1.0.0",
+        "scheme": "medanya",
+        "orientation": "portrait",
+        "icon": "./assets/icon.png",
+        "userInterfaceStyle": "light",
+        "newArchEnabled": true,
+        "splash": {
+            "image": "./assets/splash-icon.png",
+            "resizeMode": "contain",
+            "backgroundColor": "#f2f6ff"
+        },
+        "ios": {
+            "supportsTablet": true,
+            "bundleIdentifier": "com.medanya.app",
+            "googleServicesFile": "./GoogleService-Info.plist",
+            "deploymentTarget": "15.1"
+        },
+        "android": {
+            "package": "com.medanya.app",
+            "googleServicesFile": "./google-services.json",
+            "adaptiveIcon": {
+                "foregroundImage": "./assets/adaptive-icon.png",
+                "backgroundColor": "#f2f6ff"
+            },
+            "edgeToEdgeEnabled": true
+        },
+        "web": {
+            "favicon": "./assets/favicon.png"
+        },
+        "plugins": [
+            "expo-web-browser",
+            [
+                "expo-image-picker",
+                {
+                    "photosPermission": "The app needs access to your photos to let you upload a profile picture and share images or videos in chat."
+                }
+            ],
+            [
+                "expo-media-library",
+                {
+                    "photosPermission": "Allow access to save photos to your photo library.",
+                    "savePhotosPermission": "Allow access to save photos to your photo library."
+                }
+            ],
+            [
+                "expo-splash-screen",
+                {
+                    "image": "./assets/splash-icon.png",
+                    "backgroundColor": "#f2f6ff",
+                    "resizeMode": "contain",
+                    "imageWidth": 280
+                }
+            ],
+            "expo-video",
+            [
+                "react-native-google-mobile-ads",
+                {
+                    "androidAppId": "ca-app-pub-1717403054658770~9594579402",
+                    "iosAppId": "ca-app-pub-1717403054658770~7234011500"
+                }
+            ]
+        ]
+    }
+}

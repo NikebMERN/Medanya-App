@@ -82,6 +82,30 @@ const createRechargeIntent = async (req, res) => {
     }
 };
 
+const getTasks = async (req, res) => {
+    try {
+        const userId = req.user?.id ?? req.user?.userId;
+        if (!userId) return res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Auth required" } });
+        const data = await service.getTasks(String(userId));
+        return res.json({ success: true, ...data });
+    } catch (e) {
+        return sendErr(res, e);
+    }
+};
+
+const claimTask = async (req, res) => {
+    try {
+        const userId = req.user?.id ?? req.user?.userId;
+        if (!userId) return res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Auth required" } });
+        const { type } = req.body || {};
+        if (!type) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "type required" } });
+        const result = await service.claimTask(String(userId), type);
+        return res.status(201).json({ success: true, ...result });
+    } catch (e) {
+        return sendErr(res, e);
+    }
+};
+
 const support = async (req, res) => {
     try {
         const supporterId = req.user?.id ?? req.user?.userId;
@@ -101,4 +125,4 @@ const support = async (req, res) => {
     }
 };
 
-module.exports = { me, myTransactions, adminCredit, adminDebit, createRechargeIntent, support };
+module.exports = { me, myTransactions, adminCredit, adminDebit, createRechargeIntent, support, getTasks, claimTask };

@@ -1,0 +1,15 @@
+-- Disputes for orders (admin resolve: REFUND | COMPLETE)
+CREATE TABLE IF NOT EXISTS disputes (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  order_id BIGINT UNSIGNED NOT NULL,
+  buyer_id BIGINT UNSIGNED NOT NULL,
+  seller_id BIGINT UNSIGNED NOT NULL,
+  reason VARCHAR(255) NULL,
+  notes TEXT NULL,
+  attachments_json JSON NULL,
+  status ENUM('OPEN','RESOLVED','REFUNDED') NOT NULL DEFAULT 'OPEN',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_disputes_order (order_id),
+  INDEX idx_disputes_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

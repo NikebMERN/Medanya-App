@@ -32,8 +32,21 @@ npx expo start
 
 ### 4. Google / Facebook sign-in
 
-- In `mobile/.env` set `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` and `EXPO_PUBLIC_FACEBOOK_APP_ID`.
-- In Google Cloud and Facebook App settings, add the redirect URI (e.g. `exp://YOUR_IP:8081`) to the allowed list.
+1. **Google Cloud Console** — create OAuth 2.0 client IDs:
+   - **Web client** (for Expo Go + dev builds): Add redirect URI `https://auth.expo.io/@YOUR_EXPO_USERNAME/medanya` (replace with your Expo username and app slug). Use this client’s ID for `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` and `EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID`.
+   - **Android client** (for dev/prod builds): Create an Android OAuth client, add your app’s SHA-1 fingerprint (from `cd android && ./gradlew signingReport`), and use its ID for `EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID`.
+   - **iOS client** (for dev/prod builds): Create an iOS OAuth client with bundle ID `com.medanya.app` and use its ID for `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`.
+
+2. **mobile/.env** — set:
+   - `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` — Web OAuth client ID.
+   - `EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID` — Same or separate Web client for Expo Go (proxy). Fallback: `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`.
+   - `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` — iOS client (optional; defaults to web client).
+   - `EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID` — Android client (optional; defaults to web client).
+   - `EXPO_PUBLIC_FACEBOOK_APP_ID` — Facebook App ID.
+
+3. **Redirect URIs**:
+   - **Expo Go**: `https://auth.expo.io/@username/slug` — add to Google and Facebook allowed redirect URIs.
+   - **Dev/Prod build**: `medanya://redirect` — add to Google and Facebook allowed redirect URIs.
 
 ### 5. Profile avatar (Cloudinary)
 

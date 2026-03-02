@@ -27,7 +27,7 @@ async function captureDevice(userId, req) {
     try {
         await userDevicesDb.insertDevice({ userId, deviceId, ipAddress });
     } catch (e) {
-        console.error("[deviceCapture] insert failed:", e?.message);
+        // insert failed — silent
     }
 }
 

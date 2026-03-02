@@ -24,6 +24,7 @@ import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
 import { useAuthStore } from "../../store/auth.store";
 import { updateMe, uploadAvatarAndSave } from "../../api/user.api";
+import { ageFromDob } from "../../utils/age";
 
 const BIO_MAX_WORDS = 120;
 function countWords(text) {
@@ -206,7 +207,6 @@ export default function EditProfileScreen() {
       });
       if (!result.canceled && result.assets?.[0]?.uri) await applyAvatarFromUri(result.assets[0].uri);
     } catch (err) {
-      console.error("ImagePicker Error:", err);
       setError("Could not open gallery. Please try again.");
       setUploadingAvatar(false);
     }
@@ -227,7 +227,6 @@ export default function EditProfileScreen() {
       });
       if (!result.canceled && result.assets?.[0]?.uri) await applyAvatarFromUri(result.assets[0].uri);
     } catch (err) {
-      console.error("ImagePicker Error:", err);
       setError("Could not open camera. Please try again.");
       setUploadingAvatar(false);
     }
@@ -421,6 +420,9 @@ export default function EditProfileScreen() {
           placeholder="Select your date of birth"
           editable={!isLegalLocked}
         />
+        {dob.trim() && ageFromDob(dob) != null && (
+          <Text style={styles.ageHint}>Age: {ageFromDob(dob)} years old</Text>
+        )}
         <Input
           label="Email"
           value={email}
@@ -552,6 +554,12 @@ function createStyles(colors) {
       backgroundColor: colors.primary,
       justifyContent: "center",
       alignItems: "center",
+    },
+    ageHint: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      marginTop: -spacing.sm,
+      marginBottom: spacing.lg,
     },
     switchRow: {
       flexDirection: "row",

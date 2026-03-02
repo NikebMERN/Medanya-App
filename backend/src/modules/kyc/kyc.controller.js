@@ -49,7 +49,6 @@ async function startVeriffKyc(req, res) {
 async function getStatus(req, res) {
     try {
         const result = await service.getStatus(req.user);
-        console.log("[Veriff] getKycStatus user", req.user?.id ?? req.user?.userId, "-> kycStatus:", result?.kycStatus ?? result?.kyc_status, "full:", result);
         res.json({ success: true, ...result });
     } catch (e) {
         sendErr(res, e);
@@ -61,7 +60,6 @@ async function veriffSync(req, res) {
         const userId = String(req.user?.id ?? req.user?.userId ?? "");
         if (!userId) return sendErr(res, Object.assign(new Error("Unauthorized"), { code: "UNAUTHORIZED" }));
         const result = await providerService.veriffSyncDecision(userId);
-        console.log("[Veriff] veriffSync user", userId, "-> kycStatus:", result.kycStatus, "updated:", result.updated, "full:", result);
         res.json({ success: true, kycStatus: result.kycStatus, updated: result.updated });
     } catch (e) {
         sendErr(res, e);

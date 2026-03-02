@@ -1,4 +1,11 @@
 import client from "./client";
+import { env } from "../utils/env";
+
+/** Dev-only: simulate auth when API URL is missing (e.g. empty or localhost placeholder). */
+const isApiUrlMissing = () =>
+  typeof __DEV__ !== "undefined" &&
+  __DEV__ &&
+  (!env.apiUrl || env.apiUrl === "http://localhost:4001" || !env.apiUrl.trim());
 
 /**
  * @param {string} phone - E.164 phone (e.g. "+971521234567")
@@ -18,10 +25,23 @@ export async function verifyOtp(phone, code) {
 
 /**
  * Exchange Firebase idToken (from Google/Facebook sign-in) for backend JWT and user.
+ * In __DEV__ when API URL is missing, returns a simulated response (never in production).
  * @param {string} idToken - Firebase ID token from user.getIdToken()
  */
 export async function loginWithFirebaseToken(idToken) {
-  const { data } = await client.post("/auth/verify-otp", { idToken });
+  if (isApiUrlMissing()) {
+    return Promise.resolve({
+      token: "dev-token",
+      user: { id: 1, full_name: "Dev User", userId: 1 },
+    });
+  }
+  const { data } = await client.post("/auth/firebase", { idToken });
+  return data;
+}
+
+/** Link Google/Facebook to existing account (requires JWT). */
+export async function linkFirebase(idToken) {
+  const { data } = await client.post("/auth/link/firebase", { idToken });
   return data;
 }
 

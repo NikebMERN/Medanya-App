@@ -41,7 +41,6 @@ export default function VerifyIdentityScreen() {
       if (provider === "VERIFF" && trySyncFirst) {
         try {
           const syncRes = await kycApi.veriffSync();
-          console.log("[Veriff] veriffSync response:", syncRes, "kycStatus:", syncRes?.kycStatus);
           if (syncRes?.updated && syncRes?.kycStatus) {
             useAuthStore.getState().updateUser({ kyc_status: syncRes.kycStatus, kycStatus: syncRes.kycStatus });
             if (["verified", "verified_auto", "verified_manual"].includes(syncRes.kycStatus)) {
@@ -60,7 +59,6 @@ export default function VerifyIdentityScreen() {
         } catch (_) {}
       }
       const data = await kycApi.getKycStatus();
-      console.log("[Veriff] getKycStatus response:", data, "kycStatus:", data?.kycStatus ?? data?.kyc_status);
       setStatus(data);
       useAuthStore.getState().updateUser({ kyc_status: data?.kycStatus, kycStatus: data?.kycStatus });
       const kycStatus = data?.kycStatus || "none";

@@ -42,6 +42,26 @@ async function listTransactions(conn, { userId, page, limit }) {
     return { page: p, limit: l, total: countRows[0].total, transactions: rows };
 }
 
+async function countTaskClaimsToday(conn, userId, taskType) {
+    const [rows] = await conn.query(
+        `SELECT COUNT(*) AS cnt FROM transactions
+         WHERE user_id = ? AND type = 'credit' AND reference_type = 'task' AND reference_id = ?
+         AND DATE(created_at) = CURDATE()`,
+        [userId, String(taskType).toUpperCase()],
+    );
+    return rows[0]?.cnt ?? 0;
+}
+
+async function hasEverClaimedTask(conn, userId, taskType) {
+    const [rows] = await conn.query(
+        `SELECT 1 FROM transactions
+         WHERE user_id = ? AND type = 'credit' AND reference_type = 'task' AND reference_id = ?
+         LIMIT 1`,
+        [userId, String(taskType).toUpperCase()],
+    );
+    return (rows && rows.length) > 0;
+}
+
 async function latestTransactions(conn, userId, n = 10) {
     const lim = Math.min(Math.max(parseInt(n, 10) || 10, 1), 50);
     const [rows] = await conn.query(
@@ -59,4 +79,6 @@ module.exports = {
     insertTransaction,
     listTransactions,
     latestTransactions,
+    countTaskClaimsToday,
+    hasEverClaimedTask,
 };

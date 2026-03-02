@@ -26,6 +26,8 @@ import { canPostJobs, getDobFromUser } from "../../utils/age";
 import * as jobsApi from "../../services/jobs.api";
 import { JOB_CATEGORY_OPTIONS, CURRENCY_OPTIONS } from "../../store/jobs.store";
 import SubScreenHeader from "../../components/SubScreenHeader";
+import { normalizePlaceholder } from "../../components/ui/Input";
+import { inputStyleAndroid } from "../../theme/inputStyles";
 
 export default function CreateJobScreen() {
   const navigation = useNavigation();
@@ -308,12 +310,12 @@ export default function CreateJobScreen() {
           </TouchableOpacity>
 
           <Text style={styles.label}>Job title *</Text>
-          <TextInput style={styles.input} placeholder="e.g. Driver needed" placeholderTextColor={colors.textMuted} value={title} onChangeText={setTitle} />
+          <TextInput style={[styles.input, inputStyleAndroid]} placeholder={normalizePlaceholder("e.g. Driver needed")} placeholderTextColor={colors.textMuted} value={title} onChangeText={setTitle} />
 
           <Text style={styles.label}>Job description (optional)</Text>
           <TextInput
-            style={[styles.input, styles.textArea]}
-            placeholder="Describe the job, responsibilities, requirements..."
+            style={[styles.input, styles.textArea, inputStyleAndroid]}
+            placeholder={normalizePlaceholder("Describe the job, responsibilities, requirements...")}
             placeholderTextColor={colors.textMuted}
             value={description}
             onChangeText={setDescription}
@@ -330,8 +332,8 @@ export default function CreateJobScreen() {
           </TouchableOpacity>
           {category === "other" && (
             <TextInput
-              style={[styles.input, { marginTop: spacing.sm }]}
-              placeholder="Enter category (e.g. Carpenter, Teacher)"
+              style={[styles.input, inputStyleAndroid, { marginTop: spacing.sm }]}
+              placeholder={normalizePlaceholder("Enter category (e.g. Carpenter, Teacher)")}
               placeholderTextColor={colors.textMuted}
               value={customCategory}
               onChangeText={setCustomCategory}
@@ -362,13 +364,13 @@ export default function CreateJobScreen() {
           </Modal>
 
           <Text style={styles.label}>Location *</Text>
-          <TextInput style={styles.input} placeholder="Where is the job?" placeholderTextColor={colors.textMuted} value={location} onChangeText={setLocation} />
+          <TextInput style={[styles.input, inputStyleAndroid]} placeholder={normalizePlaceholder("Where is the job?")} placeholderTextColor={colors.textMuted} value={location} onChangeText={setLocation} />
 
           <Text style={styles.label}>Salary (optional)</Text>
           <View style={styles.salaryRow}>
             <TextInput
-              style={[styles.input, styles.salaryInput]}
-              placeholder="e.g. 2000"
+              style={[styles.input, styles.salaryInput, inputStyleAndroid]}
+              placeholder={normalizePlaceholder("e.g. 2000")}
               placeholderTextColor={colors.textMuted}
               value={salary}
               onChangeText={setSalary}
@@ -403,7 +405,7 @@ export default function CreateJobScreen() {
           </Modal>
 
           <Text style={styles.label}>Contact phone *</Text>
-          <TextInput style={styles.input} placeholder="+971..." placeholderTextColor={colors.textMuted} value={contactPhone} onChangeText={setContactPhone} keyboardType="phone-pad" />
+          <TextInput style={[styles.input, inputStyleAndroid]} placeholder={normalizePlaceholder("+971...")} placeholderTextColor={colors.textMuted} value={contactPhone} onChangeText={setContactPhone} keyboardType="phone-pad" />
 
           <TouchableOpacity style={[styles.submitBtn, submitting && styles.submitBtnDisabled]} onPress={handleSubmit} disabled={submitting}>
             {submitting ? <ActivityIndicator size="small" color={colors.white} /> : <Text style={styles.submitBtnText}>Post job</Text>}

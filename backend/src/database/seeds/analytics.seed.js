@@ -11,7 +11,6 @@ const TEST_USER_ID = "test-analytics-user-1";
 
 async function seed() {
     await mongoose.connect(process.env.MONGO_URI);
-    console.log("Connected to MongoDB");
 
     const today = new Date();
     const dates = [];
@@ -66,11 +65,9 @@ async function seed() {
         });
     }
 
-    console.log("Analytics seed complete. Test userId:", TEST_USER_ID);
     await mongoose.disconnect();
 }
 
-seed().catch((e) => {
-    console.error(e);
+seed().catch(() => {
     process.exit(1);
 });

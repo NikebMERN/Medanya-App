@@ -237,6 +237,12 @@ const softRemove = async (id) => {
     return result.affectedRows;
 };
 
+function toJsonSafeNumber(v) {
+    if (v == null) return v;
+    if (typeof v === "bigint") return Number(v);
+    return v;
+}
+
 function normalizeRow(row) {
     let image_urls = [];
     try {
@@ -244,8 +250,10 @@ function normalizeRow(row) {
     } catch {
         image_urls = [];
     }
-
-    return { ...row, image_urls };
+    const out = { ...row, image_urls };
+    if (out.id !== undefined) out.id = toJsonSafeNumber(out.id);
+    if (out.seller_id !== undefined) out.seller_id = toJsonSafeNumber(out.seller_id);
+    return out;
 }
 
 const addFavorite = async (userId, itemId) => {

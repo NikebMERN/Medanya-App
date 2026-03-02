@@ -2,7 +2,7 @@ import axios from "axios";
 
 const getToken = () => {
   try {
-    return window.__ADMIN_TOKEN__ || sessionStorage.getItem("medanya_admin_token") || null;
+    return window.__ADMIN_TOKEN__ || localStorage.getItem("medanya_admin_token") || null;
   } catch {
     return null;
   }
@@ -23,7 +23,7 @@ api.interceptors.response.use(
   (res) => res,
   (err) => {
     if (err.response?.status === 401) {
-      sessionStorage.removeItem("medanya_admin_token");
+      localStorage.removeItem("medanya_admin_token");
       window.__ADMIN_TOKEN__ = null;
       if (!window.location.pathname.startsWith("/login")) {
         window.location.href = "/login";

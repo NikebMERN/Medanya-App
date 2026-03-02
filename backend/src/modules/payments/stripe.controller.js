@@ -1,5 +1,6 @@
 // src/modules/payments/stripe.controller.js
 const service = require("./stripe.service");
+const connectService = require("./stripeConnect.service");
 
 function sendErr(res, err) {
     const code = err.code || "SERVER_ERROR";
@@ -8,7 +9,7 @@ function sendErr(res, err) {
             ? 401
             : code === "FORBIDDEN"
                 ? 403
-                : code === "VALIDATION_ERROR"
+                : code === "VALIDATION_ERROR" || code === "CONNECT_NOT_ENABLED" || code === "STRIPE_ERROR" || code === "INVALID_URL"
                     ? 400
                     : code === "CONFIG_ERROR"
                         ? 500
@@ -39,4 +40,36 @@ const createCheckout = async (req, res) => {
     }
 };
 
-module.exports = { packages, createCheckout };
+const verifySession = async (req, res) => {
+    try {
+        const sessionId = req.body?.sessionId ?? req.body?.session_id ?? req.query?.session_id;
+        const result = await service.verifyCheckoutSession(sessionId);
+        return res.json({ success: true, ...result });
+    } catch (e) {
+        return sendErr(res, e);
+    }
+};
+
+const connectOnboard = async (req, res) => {
+    try {
+        const userId = req.user?.id ?? req.user?.userId;
+        if (!userId) throw Object.assign(new Error("Auth required"), { code: "UNAUTHORIZED" });
+        const data = await connectService.createOnboardingLink(userId);
+        return res.json({ success: true, url: data.url });
+    } catch (e) {
+        return sendErr(res, e);
+    }
+};
+
+const connectStatus = async (req, res) => {
+    try {
+        const userId = req.user?.id ?? req.user?.userId;
+        if (!userId) throw Object.assign(new Error("Auth required"), { code: "UNAUTHORIZED" });
+        const status = await connectService.getConnectStatus(userId);
+        return res.json({ success: true, ...status });
+    } catch (e) {
+        return sendErr(res, e);
+    }
+};
+
+module.exports = { packages, createCheckout, verifySession, connectOnboard, connectStatus };

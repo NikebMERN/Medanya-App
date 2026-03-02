@@ -104,7 +104,7 @@ async function create(user, body) {
     const seller = await userDb.getById(seller_id);
     if (!seller) throw codeErr("UNAUTHORIZED", "User not found");
     if (seller.account_private) throw codeErr("FORBIDDEN", "Your account must be public to sell items. Change it in Profile → Edit Profile.");
-    const kycVerified = !!(seller.kyc_face_verified || (seller.kyc_status === "verified" && (seller.kyc_level || 0) >= 2));
+    const kycVerified = !!(seller.kyc_face_verified || (["verified", "verified_auto", "verified_manual"].includes(seller.kyc_status) && (seller.kyc_level || 0) >= 2));
     if (!kycVerified) throw codeErr("FORBIDDEN", "Identity verification required. Complete verification in Profile before listing items.");
     if (!seller.dob) throw codeErr("AGE_REQUIRED", "Date of birth required to list items. Add it in Edit Profile.");
     {

@@ -22,21 +22,17 @@ const runMigrations = async () => {
       const sql = fs.readFileSync(path.join(__dirname, "migrations", file), "utf8");
       const statements = getStatements(sql);
       if (statements.length === 0) {
-        console.log(`✅ Migration executed: ${file}`);
+        console.log(`✅ Migration executed (no statements): ${file}`);
         continue;
       }
-      {
-        for (const stmt of statements) {
-          try {
-            await pool.query(stmt);
-          } catch (err) {
-            if (err.errno === ER_DUP_FIELDNAME) {
-              console.log(`⏭️  Skipped (column exists): ${file}`);
-            } else if (err.errno === ER_DUP_KEYNAME) {
-              console.log(`⏭️  Skipped (index exists): ${file}`);
-            } else {
-              throw err;
-            }
+      for (const stmt of statements) {
+        try {
+          await pool.query(stmt);
+        } catch (err) {
+          if (err.errno === ER_DUP_FIELDNAME || err.errno === ER_DUP_KEYNAME) {
+            console.log(`⏭️  Skipped (already applied): ${file}`);
+          } else {
+            throw err;
           }
         }
       }

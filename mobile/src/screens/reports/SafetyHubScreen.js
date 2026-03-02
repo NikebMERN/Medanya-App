@@ -29,17 +29,21 @@ export default function SafetyHubScreen() {
 
       <TouchableOpacity onPress={() => navigation.navigate("ReportForm")} activeOpacity={0.9}>
         <NeoCard style={[styles.bigCard, styles.redCard]}>
-          <MaterialIcons name="report-problem" size={32} color={colors.white} />
-          <Text style={styles.bigCardTitle}>REPORT SCAMMER</Text>
-          <Text style={styles.bigCardSub}>Expose fraudulent activity</Text>
+          <MaterialIcons name="report-problem" size={32} color={colors.white} style={styles.bigCardIcon} />
+          <View style={styles.bigCardTextWrap}>
+            <Text style={styles.bigCardTitle} numberOfLines={1}>REPORT SCAMMER</Text>
+            <Text style={styles.bigCardSub} numberOfLines={2}>Expose fraudulent activity</Text>
+          </View>
         </NeoCard>
       </TouchableOpacity>
 
       <TouchableOpacity onPress={() => navigation.navigate("MissingCreate")} activeOpacity={0.9}>
         <NeoCard style={[styles.bigCard, styles.purpleCard]}>
-          <MaterialIcons name="person-search" size={32} color={colors.white} />
-          <Text style={styles.bigCardTitle}>REPORT MISSING</Text>
-          <Text style={styles.bigCardSub}>Create alert with photo and contact</Text>
+          <MaterialIcons name="person-search" size={32} color={colors.white} style={styles.bigCardIcon} />
+          <View style={styles.bigCardTextWrap}>
+            <Text style={styles.bigCardTitle} numberOfLines={1}>REPORT MISSING</Text>
+            <Text style={styles.bigCardSub} numberOfLines={2}>Create alert with photo and contact</Text>
+          </View>
         </NeoCard>
       </TouchableOpacity>
 
@@ -50,10 +54,10 @@ export default function SafetyHubScreen() {
             <MaterialIcons name="search" size={28} color={colors.primary} />
           </View>
           <View style={styles.cardBody}>
-            <Text style={styles.cardTitle}>Search Blacklist</Text>
-            <Text style={styles.cardDesc}>Check phone or employer name</Text>
+            <Text style={styles.cardTitle} numberOfLines={1}>Search Blacklist</Text>
+            <Text style={styles.cardDesc} numberOfLines={1}>Check phone or employer name</Text>
           </View>
-          <MaterialIcons name="chevron-right" size={24} color={colors.textMuted} />
+          <MaterialIcons name="chevron-right" size={24} color={colors.textMuted} style={styles.cardChevron} />
         </NeoCard>
       </TouchableOpacity>
 
@@ -63,10 +67,10 @@ export default function SafetyHubScreen() {
             <MaterialIcons name="list" size={28} color={colors.primary} />
           </View>
           <View style={styles.cardBody}>
-            <Text style={styles.cardTitle}>View Missing Alerts</Text>
-            <Text style={styles.cardDesc}>Browse active missing person alerts</Text>
+            <Text style={styles.cardTitle} numberOfLines={1}>View Missing Alerts</Text>
+            <Text style={styles.cardDesc} numberOfLines={1}>Browse active missing person alerts</Text>
           </View>
-          <MaterialIcons name="chevron-right" size={24} color={colors.textMuted} />
+          <MaterialIcons name="chevron-right" size={24} color={colors.textMuted} style={styles.cardChevron} />
         </NeoCard>
       </TouchableOpacity>
     </ScrollView>
@@ -101,8 +105,10 @@ function createStyles(colors) {
     },
     redCard: { backgroundColor: (colors.error || "#ef4444") + "dd" },
     purpleCard: { backgroundColor: "#6B4EAA" },
-    bigCardTitle: { fontSize: 16, fontWeight: "800", color: colors.white, marginLeft: spacing.md, letterSpacing: 0.5 },
-    bigCardSub: { fontSize: 13, color: "rgba(255,255,255,0.85)", marginLeft: spacing.md, marginTop: 2 },
+    bigCardIcon: { marginRight: spacing.md },
+    bigCardTextWrap: { flex: 1, minWidth: 0 },
+    bigCardTitle: { fontSize: 16, fontWeight: "800", color: colors.white, letterSpacing: 0.5 },
+    bigCardSub: { fontSize: 13, color: "rgba(255,255,255,0.85)", marginTop: 2 },
     card: {
       flexDirection: "row",
       alignItems: "center",
@@ -117,8 +123,9 @@ function createStyles(colors) {
       alignItems: "center",
       marginRight: spacing.md,
     },
-    cardBody: { flex: 1 },
+    cardBody: { flex: 1, minWidth: 0, marginRight: spacing.sm },
     cardTitle: { fontSize: 16, fontWeight: "600", color: colors.text },
     cardDesc: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
+    cardChevron: { flexShrink: 0 },
   });
 }

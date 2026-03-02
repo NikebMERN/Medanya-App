@@ -42,3 +42,69 @@ export async function confirmDeliveryByQr(orderId, qrToken) {
   const { data } = await client.post(`/orders/${orderId}/confirm-delivery-qr`, { token: qrToken });
   return data?.order ?? data;
 }
+
+/** Buyer or seller: cancel/decline a COD order. Seller must send reason + reasonOther when reason is "other". */
+export async function cancelCodOrder(orderId, body = {}) {
+  const { data } = await client.post(`/orders/${orderId}/cancel-cod`, body);
+  return data?.order ?? data;
+}
+
+/** Seller: propose a delivery fee (cents) for a COD order. */
+export async function proposeDeliveryFee(orderId, deliveryFeeCents) {
+  const { data } = await client.post(`/orders/${orderId}/propose-delivery-fee`, { deliveryFeeCents });
+  return data?.order ?? data;
+}
+
+/** Buyer: accept the proposed delivery fee; order total is updated, seller can start delivery. */
+export async function acceptDeliveryFee(orderId) {
+  const { data } = await client.post(`/orders/${orderId}/accept-delivery-fee`);
+  return data?.order ?? data;
+}
+
+/** Buyer: decline the proposed delivery fee; order is cancelled. */
+export async function declineDeliveryFee(orderId) {
+  const { data } = await client.post(`/orders/${orderId}/decline-delivery-fee`);
+  return data?.order ?? data;
+}
+
+/** Buyer: confirm or decline proposed delivery fee (COD, status ACCEPTED_PENDING_FEE_CONFIRM). */
+export async function confirmDeliveryFee(orderId, action) {
+  const { data } = await client.patch(`/orders/${orderId}/confirm-delivery-fee`, { action });
+  return data?.order ?? data;
+}
+
+/** Buyer: get confirmation state (canReveal, maskedCode, revealHint; if canReveal then code + qrPayload). */
+export async function getOrderConfirmation(orderId) {
+  const { data } = await client.get(`/orders/${orderId}/confirmation`);
+  return data;
+}
+
+/** Buyer: notify seller that Stripe payment was received (creates in-app notification; fallback if webhook didn't fire). */
+export async function notifyPaymentReceived(orderId) {
+  const { data } = await client.post(`/orders/${orderId}/notify-payment-received`);
+  return data;
+}
+
+/** Seller: accept order (PLACED -> ACCEPTED or, for COD, ACCEPTED_PENDING_FEE_CONFIRM with optional deliveryFeeCents). */
+export async function sellerAcceptOrder(orderId, body = {}) {
+  const { data } = await client.patch(`/seller/orders/${orderId}/accept`, body);
+  return data?.order ?? data;
+}
+
+/** Seller: reject order (PLACED -> CANCELLED; Stripe refunded). */
+export async function sellerRejectOrder(orderId) {
+  const { data } = await client.patch(`/seller/orders/${orderId}/reject`);
+  return data?.order ?? data;
+}
+
+/** Seller: update status to PACKED or OUT_FOR_DELIVERY. */
+export async function sellerUpdateOrderStatus(orderId, status) {
+  const { data } = await client.patch(`/seller/orders/${orderId}/status`, { status });
+  return data?.order ?? data;
+}
+
+/** Seller: mark COD order as delivered (no code). Allowed when OUT_FOR_DELIVERY or DELIVERED. */
+export async function sellerMarkDelivered(orderId) {
+  const { data } = await client.patch(`/seller/orders/${orderId}/mark-delivered`);
+  return data?.order ?? data;
+}

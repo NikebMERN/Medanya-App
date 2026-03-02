@@ -19,11 +19,12 @@ import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
 import { useMarketplaceStore, MARKETPLACE_CATEGORIES } from "../../store/marketplace.store";
 import { useAuthStore } from "../../store/auth.store";
-import { canUseMarketplace, getDobFromUser } from "../../utils/age";
 import StatusChip from "../../components/StatusChip";
 import RiskBadge from "../../components/RiskBadge";
 import SkeletonCard from "../../components/SkeletonCard";
 import EmptyState from "../../components/EmptyState";
+import { normalizePlaceholder } from "../../components/ui/Input";
+import { inputStyleAndroid } from "../../theme/inputStyles";
 
 const SORT_OPTIONS = [
   { value: "newest", label: "Newest" },
@@ -38,8 +39,6 @@ export default function MarketplaceListScreen() {
 
   const userId = useAuthStore((s) => s.user?.id ?? s.user?.userId ?? "");
   const otpVerified = !!(useAuthStore((s) => s.user?.otp_verified ?? s.user?.otpVerified));
-  const kycFaceVerified = !!(useAuthStore((s) => s.user?.kyc_face_verified ?? s.user?.kycFaceVerified));
-  const canSell = canUseMarketplace(getDobFromUser(useAuthStore((s) => s.user)));
   const isLoggedIn = !!useAuthStore((s) => s.token);
 
   const items = useMarketplaceStore((s) => s.items);
@@ -261,8 +260,8 @@ export default function MarketplaceListScreen() {
         <View style={styles.searchWrap}>
           <MaterialIcons name="search" size={20} color={colors.textMuted} />
           <TextInput
-            style={styles.searchInput}
-            placeholder="Search or location"
+            style={[styles.searchInput, inputStyleAndroid]}
+            placeholder={normalizePlaceholder("Search or location")}
             placeholderTextColor={colors.textMuted}
             value={searchInput}
             onChangeText={setSearchInput}
@@ -394,8 +393,8 @@ export default function MarketplaceListScreen() {
           <Pressable style={[styles.modalContent, { backgroundColor: colors.surface }]} onPress={(e) => e.stopPropagation?.()}>
             <Text style={[styles.modalTitle, { color: colors.text }]}>Filter by location</Text>
             <TextInput
-              style={[styles.locationInput, { color: colors.text, borderColor: colors.border }]}
-              placeholder="Enter city or area"
+              style={[styles.locationInput, inputStyleAndroid, { color: colors.text, borderColor: colors.border }]}
+              placeholder={normalizePlaceholder("Enter city or area")}
               placeholderTextColor={colors.textMuted}
               value={locationInput}
               onChangeText={setLocationInput}
@@ -418,7 +417,7 @@ export default function MarketplaceListScreen() {
           </Pressable>
         </Pressable>
       </Modal>
-      {isLoggedIn && otpVerified && kycFaceVerified && canSell && (
+      {isLoggedIn && otpVerified && (
         <TouchableOpacity
           style={styles.fab}
           onPress={() => navigation.navigate("CreateItem")}

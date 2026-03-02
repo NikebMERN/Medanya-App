@@ -485,6 +485,16 @@ export default function ProfileScreen() {
         <Text style={styles.actionLabel}>WALLET</Text>
       </TouchableOpacity>
 
+      {/* Earnings / Payouts (seller bank setup) */}
+      <TouchableOpacity
+        style={[styles.actionCard, styles.actionCardKyc]}
+        onPress={() => navigation.navigate("PayoutSetup")}
+        activeOpacity={0.8}
+      >
+        <MaterialIcons name="account-balance" size={28} color={colors.primary} style={styles.actionIcon} />
+        <Text style={styles.actionLabel}>EARNINGS / PAYOUTS</Text>
+      </TouchableOpacity>
+
       {/* Light mode + Logout */}
       <View style={styles.actionRow}>
         <TouchableOpacity style={styles.actionCard} onPress={toggleTheme} activeOpacity={0.8}>

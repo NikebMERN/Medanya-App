@@ -1,17 +1,11 @@
 /**
- * Wallet API stubs — console.log responses for integration validation.
+ * Wallet API — balance, transactions.
  */
 import client from "../../api/client";
 
 export async function getWalletMe() {
-  try {
-    const { data } = await client.get("/wallet/me");
-    console.log("[wallet.api] getWalletMe:", data);
-    return data;
-  } catch (e) {
-    console.log("[wallet.api] getWalletMe error:", e?.response?.data ?? e?.message);
-    throw e;
-  }
+  const { data } = await client.get("/wallet/me");
+  return data;
 }
 
 export async function getWalletHistory(params = {}) {
@@ -26,6 +20,26 @@ export async function getWalletHistory(params = {}) {
 export async function createRechargeIntent(packageId) {
   try {
     const { data } = await client.post("/wallet/recharge/create-intent", { packageId });
+    return data;
+  } catch (e) {
+    throw e;
+  }
+}
+
+/** Web checkout fallback when native Stripe is unavailable. Returns { checkoutUrl } */
+export async function createCheckoutSession(packageId) {
+  try {
+    const { data } = await client.post("/payments/stripe/checkout", { packageId });
+    return data;
+  } catch (e) {
+    throw e;
+  }
+}
+
+/** Verify checkout session after returning from web payment. Credits coins if valid. */
+export async function verifyCheckoutSession(sessionId) {
+  try {
+    const { data } = await client.post("/payments/stripe/verify-session", { sessionId });
     return data;
   } catch (e) {
     throw e;

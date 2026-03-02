@@ -24,6 +24,8 @@ import StatusChip from "../../components/StatusChip";
 import RiskBadge from "../../components/RiskBadge";
 import SkeletonCard from "../../components/SkeletonCard";
 import EmptyState from "../../components/EmptyState";
+import { normalizePlaceholder } from "../../components/ui/Input";
+import { inputStyleAndroid } from "../../theme/inputStyles";
 
 const SORT_OPTIONS = [
   { value: "newest", label: "Newest" },
@@ -238,8 +240,8 @@ export default function JobsListScreen() {
         <View style={styles.searchWrap}>
           <MaterialIcons name="search" size={20} color={colors.textMuted} />
           <TextInput
-            style={styles.searchInput}
-            placeholder="Search roles or locations"
+            style={[styles.searchInput, inputStyleAndroid]}
+            placeholder={normalizePlaceholder("Search roles or locations")}
             placeholderTextColor={colors.textMuted}
             value={searchInput}
             onChangeText={setSearchInput}

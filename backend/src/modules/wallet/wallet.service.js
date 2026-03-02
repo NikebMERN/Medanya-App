@@ -1,6 +1,7 @@
 // src/modules/wallet/wallet.service.js
 const walletDb = require("./wallet.mysql");
 const txDb = require("./transaction.mysql");
+const userDb = require("../users/user.mysql");
 const payments = require("../../config/payments");
 
 function err(code, message) {
@@ -230,6 +231,71 @@ async function listMyTransactions(userId, { page, limit }) {
     }
 }
 
+// Task config: reward (MC), dailyCap (per day), oneTime (claim once ever)
+const TASK_CONFIG = {
+    WATCH_AD: { reward: 12, dailyCap: 15 },
+    DAILY_CHECKIN: { reward: 10, dailyCap: 1 },
+    KYC: { reward: 100, oneTime: true },
+};
+
+async function claimTask(userId, taskType) {
+    const type = String(taskType || "").toUpperCase().replace(/-/g, "_");
+    const config = TASK_CONFIG[type];
+    if (!config) throw err("VALIDATION_ERROR", `Unknown task type: ${taskType}`);
+
+    const conn = await walletDb.pool.getConnection();
+    try {
+        if (config.oneTime) {
+            const alreadyClaimed = await txDb.hasEverClaimedTask(conn, userId, type);
+            if (alreadyClaimed) throw err("VALIDATION_ERROR", "You have already claimed this reward.");
+            if (type === "KYC") {
+                const user = await userDb.getById(userId);
+                const kycVerified = ["verified_auto", "verified_manual", "verified"].includes(user?.kyc_status || "")
+                    || !!(user?.kyc_face_verified);
+                if (!kycVerified) throw err("VALIDATION_ERROR", "Complete identity verification (KYC) first to claim this reward.");
+            }
+        } else {
+            const count = await txDb.countTaskClaimsToday(conn, userId, type);
+            const cap = config.dailyCap ?? 1;
+            if (count >= cap) {
+                throw err("VALIDATION_ERROR", `Daily limit reached for ${type} (${cap} per day)`);
+            }
+        }
+
+        const result = await credit(userId, config.reward, {
+            type: "task",
+            id: type,
+            meta: { taskType: type, reward: config.reward },
+        });
+
+        return { reward: config.reward, balance: result.balance };
+    } finally {
+        conn.release();
+    }
+}
+
+async function getTasks(userId) {
+    const conn = await walletDb.pool.getConnection();
+    try {
+        const watchAdCount = await txDb.countTaskClaimsToday(conn, userId, "WATCH_AD");
+        const dailyCheckinCount = await txDb.countTaskClaimsToday(conn, userId, "DAILY_CHECKIN");
+        const kycClaimed = await txDb.hasEverClaimedTask(conn, userId, "KYC");
+
+        const tasks = [
+            { id: "watch_ad", title: "Watch Ads", reward: 12, dailyCap: 15, progress: watchAdCount, done: watchAdCount >= 15, icon: "play-circle" },
+            { id: "invite", title: "Invite Friends", reward: 50, dailyCap: 500, progress: 0, icon: "people" },
+            { id: "daily_checkin", title: "Daily Check-in", reward: 10, streak: 0, dailyCap: 1, progress: dailyCheckinCount, done: dailyCheckinCount >= 1, icon: "calendar-today" },
+            { id: "kyc", title: "Complete Profile/KYC", reward: 100, oneTime: true, done: kycClaimed, icon: "badge" },
+            { id: "post_video", title: "Post a Video", reward: 25, done: false, icon: "videocam" },
+            { id: "go_live", title: "Go Live", reward: 50, done: false, icon: "live-tv" },
+        ];
+
+        return { tasks, dailyProgress: { streak: 0 } };
+    } finally {
+        conn.release();
+    }
+}
+
 module.exports = {
     getMyWallet,
     listMyTransactions,
@@ -237,4 +303,6 @@ module.exports = {
     debit,
     splitGift,
     supportCreator,
+    claimTask,
+    getTasks,
 };

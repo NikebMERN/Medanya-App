@@ -9,6 +9,8 @@ const controller = require("./wallet.controller");
 // user
 router.get("/wallet/me", auth, controller.me);
 router.get("/wallet/transactions", auth, controller.myTransactions);
+router.get("/wallet/tasks", auth, controller.getTasks);
+router.post("/wallet/tasks/claim", auth, controller.claimTask);
 router.post("/wallet/recharge/create-intent", auth, controller.createRechargeIntent);
 router.post("/wallet/support", auth, controller.support);
 

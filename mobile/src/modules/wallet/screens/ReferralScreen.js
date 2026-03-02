@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Share, Alert, Platform } from "react-native";
-import Clipboard from "@react-native-clipboard/clipboard";
+import * as Clipboard from "expo-clipboard";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { MaterialIcons } from "@expo/vector-icons";
@@ -31,9 +31,13 @@ export default function ReferralScreen() {
     }
   };
 
-  const copyLink = () => {
-    Clipboard.setString(link);
-    Alert.alert("Copied", "Invite link copied to clipboard.");
+  const copyLink = async () => {
+    try {
+      await Clipboard.setStringAsync(link);
+      Alert.alert("Copied", "Invite link copied to clipboard.");
+    } catch (e) {
+      Share.share({ message: link, title: "Invite link" }).catch(() => {});
+    }
   };
 
   if (loading) return <View style={styles.center}><ActivityIndicator size="large" color={colors.primary} /></View>;

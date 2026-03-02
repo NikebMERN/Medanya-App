@@ -19,6 +19,7 @@ const stripeWebhook = require("./webhooks/stripe.webhook");
 const veriffWebhook = require("./webhooks/veriff.webhook");
 const sumsubWebhook = require("./webhooks/sumsub.webhook");
 const notificationRoutes = require("./modules/notifications/notification.routes");
+const inAppNotificationsRoutes = require("./modules/inAppNotifications/inAppNotifications.routes");
 const severeAbuseRoutes = require("./modules/severeAbuse/abuse.routes");
 const userRoutes = require("./modules/users/user.routes");
 const roomRoutes = require("./modules/communityRooms/room.routes");
@@ -87,6 +88,7 @@ router.use("/", sumsubWebhook);
 
 // ✅ NOTIFICATIONS
 router.use("/", notificationRoutes);
+router.use("/", inAppNotificationsRoutes);
 
 // ✅ SEVERE ABUSE
 router.use("/", severeAbuseRoutes);

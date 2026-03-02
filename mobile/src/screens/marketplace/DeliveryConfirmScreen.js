@@ -16,6 +16,8 @@ import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
 import SubScreenHeader from "../../components/SubScreenHeader";
 import * as ordersApi from "../../services/orders.api";
+import { normalizePlaceholder } from "../../components/ui/Input";
+import { inputStyleAndroid } from "../../theme/inputStyles";
 
 export default function DeliveryConfirmScreen() {
   const route = useRoute();
@@ -94,10 +96,10 @@ export default function DeliveryConfirmScreen() {
             Ask the buyer for their 7-digit delivery code. Enter it below to complete the order.
           </Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, inputStyleAndroid]}
             value={code}
             onChangeText={(t) => setCode(t.replace(/\D/g, "").slice(0, 7))}
-            placeholder="0000000"
+            placeholder={normalizePlaceholder("0000000")}
             placeholderTextColor={colors.textMuted}
             keyboardType="number-pad"
             maxLength={7}

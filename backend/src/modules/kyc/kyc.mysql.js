@@ -56,6 +56,24 @@ async function countByDocHash(docHash, excludeUserId = null) {
     return row?.c ?? 0;
 }
 
+function normalizeLegalName(s) {
+    if (!s || typeof s !== "string") return "";
+    return s.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+async function countByLegalName(fullNameNormalized, excludeUserId = null) {
+    if (!fullNameNormalized || fullNameNormalized.length < 3) return 0;
+    const colNorm = "LOWER(TRIM(REPLACE(REPLACE(REPLACE(full_name, '  ', ' '), '  ', ' '), '  ', ' ')))";
+    let sql = `SELECT COUNT(*) AS c FROM kyc_submissions WHERE full_name IS NOT NULL AND full_name != '' AND ${colNorm} = ?`;
+    const params = [fullNameNormalized];
+    if (excludeUserId != null) {
+        sql += ` AND user_id != ?`;
+        params.push(excludeUserId);
+    }
+    const [[row]] = await pool.query(sql, params);
+    return row?.c ?? 0;
+}
+
 async function updateById(id, fields) {
     const allowed = [
         "status",
@@ -140,4 +158,6 @@ module.exports = {
     updateById,
     listByStatus,
     countByDocHash,
+    countByLegalName,
+    normalizeLegalName,
 };

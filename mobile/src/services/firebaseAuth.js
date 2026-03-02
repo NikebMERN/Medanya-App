@@ -6,24 +6,36 @@ import {
   GoogleAuthProvider,
   FacebookAuthProvider,
 } from "firebase/auth";
-import { auth, isFirebaseConfigured } from "../config/firebase";
+import { auth, firebaseReady } from "../config/firebase";
 import { env } from "../utils/env";
 
 WebBrowser.maybeCompleteAuthSession();
 
 /**
+ * Expo Go vs Dev Build detection.
+ * Use proxy (auth.expo.io) when in Expo Go; custom scheme when in dev/prod builds.
+ */
+export const isExpoGo = Constants.appOwnership === "expo";
+
+/**
  * Redirect URI for OAuth (expo-auth-session + native token flow).
  *
- * Uses EXPO_PUBLIC_OAUTH_REDIRECT_URI when set (e.g. medanya://redirect).
- * Fallback: app scheme via makeRedirectUri.
+ * - Expo Go: uses proxy → https://auth.expo.io/@username/slug (add to Google/Facebook consoles)
+ * - Dev/Prod build: uses scheme medanya://redirect
  *
- * For mobile: use a scheme-based URI (medanya://redirect) so the browser returns to the app.
- * Add the same URI in Google Cloud Console and Facebook → Valid OAuth Redirect URIs.
+ * Uses EXPO_PUBLIC_OAUTH_REDIRECT_URI when set to override.
  */
-export function getAppRedirectUri() {
+export function getAppRedirectUri(useProxy = isExpoGo) {
   const fromEnv = env.oauthRedirectUri;
   if (fromEnv) {
     return fromEnv.trim().replace(/\/+$/, "");
+  }
+  if (useProxy) {
+    try {
+      return AuthSession.getRedirectUrl();
+    } catch (e) {
+      // fall through to scheme
+    }
   }
   const scheme = Constants.expoConfig?.scheme ?? "medanya";
   return AuthSession.makeRedirectUri({
@@ -33,17 +45,14 @@ export function getAppRedirectUri() {
 }
 
 /**
- * Log the redirect URI (add this exact URL in Google & Facebook consoles).
+ * Log the redirect URI and mode (add the URI to Google & Facebook consoles).
  */
 export function logExpoAuthProxyUrl() {
-  if (typeof __DEV__ !== "undefined" && __DEV__) {
-    const uri = getAppRedirectUri();
-    console.log("OAuth redirect URI (add in Google & Facebook consoles):", uri);
-  }
+  // no-op: no terminal output
 }
 
 export async function signInWithGoogleCredential(idToken) {
-  if (!isFirebaseConfigured) throw new Error("Firebase not configured.");
+  if (!firebaseReady || !auth) throw new Error("Firebase not configured.");
   if (!idToken) throw new Error("Google ID token is required.");
 
   const credential = GoogleAuthProvider.credential(idToken);
@@ -53,7 +62,7 @@ export async function signInWithGoogleCredential(idToken) {
 }
 
 export async function signInWithFacebookCredential(accessToken) {
-  if (!isFirebaseConfigured) throw new Error("Firebase not configured.");
+  if (!firebaseReady || !auth) throw new Error("Firebase not configured.");
   if (!accessToken) throw new Error("Facebook access token is required.");
 
   const credential = FacebookAuthProvider.credential(accessToken);

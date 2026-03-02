@@ -2,7 +2,7 @@
  * WalletHistoryScreen — Transaction history list.
  */
 import React, { useEffect, useState, useCallback } from "react";
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { MaterialIcons } from "@expo/vector-icons";
@@ -11,7 +11,25 @@ import { radii, layout } from "../../../theme/designSystem";
 import { spacing } from "../../../theme/spacing";
 import { useWalletStore } from "../wallet.store";
 
-const TX_LABELS = { credit: "Recharged", debit: "Spent", earn: "Earned", commission: "Commission", support: "Boost" };
+const TASK_LABELS = {
+  DAILY_CHECKIN: "Earned (Daily Check-in)",
+  WATCH_AD: "Earned (Watch Ads)",
+  KYC: "Earned (KYC Verification)",
+  INVITE: "Earned (Referral)",
+};
+function getTransactionLabel(item) {
+  if (item.type === "credit" && item.reference_type === "stripe_topup") return "Purchased (Recharged)";
+  if (item.type === "credit" && item.reference_type === "task")
+    return TASK_LABELS[item.reference_id] ?? `Earned (${item.reference_id || "Task"})`;
+  if (item.type === "earn") return "Earned (Gifts/Support)";
+  if (item.type === "commission") return "Earned (Commission)";
+  if (item.type === "credit") return "Credit";
+  if (item.type === "debit") return "Spent";
+  if (item.type === "gift_spend") return "Gift sent";
+  if (item.type === "gift_earn") return "Gift received";
+  if (item.type === "support") return "Boost sent";
+  return item.type ?? "Transaction";
+}
 
 export default function WalletHistoryScreen() {
   const navigation = useNavigation();
@@ -60,7 +78,7 @@ export default function WalletHistoryScreen() {
           renderItem={({ item }) => (
             <View style={styles.txRow}>
               <View style={styles.txLeft}>
-                <Text style={styles.txType}>{TX_LABELS[item.type] ?? item.type}</Text>
+                <Text style={styles.txType}>{getTransactionLabel(item)}</Text>
                 <Text style={styles.txDate}>
                   {item.created_at ? new Date(item.created_at).toLocaleDateString() : ""}
                 </Text>

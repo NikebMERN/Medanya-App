@@ -14,14 +14,16 @@ import {
   Alert,
   Platform,
 } from "react-native";
-import Clipboard from "@react-native-clipboard/clipboard";
+import * as Clipboard from "expo-clipboard";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useThemeColors } from "../../theme/useThemeColors";
 import { radii } from "../../theme/designSystem";
 import { spacing } from "../../theme/spacing";
 import * as ordersApi from "../../services/orders.api";
 
-export default function DeliveryCodeSection({ orderId, orderStatus }) {
+const REVEAL_STATUSES = ["ACCEPTED", "PACKED", "OUT_FOR_DELIVERY"];
+
+export default function DeliveryCodeSection({ orderId, orderStatus, confirmation }) {
   const colors = useThemeColors();
   const styles = createStyles(colors);
   const [code, setCode] = useState(null);
@@ -31,7 +33,9 @@ export default function DeliveryCodeSection({ orderId, orderStatus }) {
   const [warningModalVisible, setWarningModalVisible] = useState(false);
   const [pendingAction, setPendingAction] = useState(null); // "reveal" | "qr"
 
-  const canReveal = ["SHIPPED", "AUTHORIZED", "COD_SELECTED", "DELIVERED_PENDING_CODE"].includes(orderStatus);
+  const canReveal = REVEAL_STATUSES.includes(orderStatus);
+  const revealHint = confirmation?.revealHint ?? (canReveal ? "Only reveal when you are receiving the item in person." : "Locked. Code will appear when seller accepts the order.");
+  const maskedCode = confirmation?.maskedCode ?? "****••••";
 
   const tryBiometric = async () => {
     try {
@@ -64,8 +68,9 @@ export default function DeliveryCodeSection({ orderId, orderStatus }) {
       try {
         const ok = await tryBiometric();
         if (ok) {
-          const c = await ordersApi.getDeliveryCode(orderId);
-          setCode(c ?? "------");
+          const data = await ordersApi.getOrderConfirmation(orderId);
+          if (data?.canReveal && data?.code) setCode(data.code);
+          else setCode(await ordersApi.getDeliveryCode(orderId).catch(() => null) ?? "------");
         }
       } catch (e) {
         Alert.alert("Error", e?.response?.data?.error?.message ?? e?.message ?? "Failed to load code");
@@ -75,8 +80,14 @@ export default function DeliveryCodeSection({ orderId, orderStatus }) {
     } else if (pendingAction === "qr") {
       setQrLoading(true);
       try {
-        const token = await ordersApi.getDeliveryQrToken(orderId);
-        setQrToken(token ?? "NO_TOKEN");
+        const data = await ordersApi.getOrderConfirmation(orderId);
+        if (data?.canReveal && data?.qrPayload) {
+          const token = typeof data.qrPayload === "string" ? data.qrPayload : data.qrPayload?.qrToken;
+          setQrToken(token ?? "NO_TOKEN");
+        } else {
+          const token = await ordersApi.getDeliveryQrToken(orderId);
+          setQrToken(token ?? "NO_TOKEN");
+        }
       } catch (e) {
         Alert.alert("Error", e?.response?.data?.error?.message ?? e?.message ?? "Failed to load QR");
       } finally {
@@ -86,23 +97,22 @@ export default function DeliveryCodeSection({ orderId, orderStatus }) {
     setPendingAction(null);
   };
 
-  const copyCode = () => {
-    if (code) Clipboard.setString(code);
+  const copyCode = async () => {
+    if (code) await Clipboard.setStringAsync(code);
   };
 
-  const copyToken = () => {
-    if (qrToken) Clipboard.setString(qrToken);
+  const copyToken = async () => {
+    if (qrToken) await Clipboard.setStringAsync(qrToken);
   };
-
-  if (!canReveal) return null;
 
   return (
     <>
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>Delivery code</Text>
-        <Text style={styles.hint}>Only reveal when you are receiving the item in person.</Text>
+        <Text style={styles.hint}>{revealHint}</Text>
         <View style={styles.codeRow}>
-          <Text style={styles.codeValue}>{code ?? "•••••••"}</Text>
+          <Text style={styles.codeValue}>{code ?? maskedCode}</Text>
+          {canReveal ? (
           <TouchableOpacity
             style={[styles.revealBtn, code && styles.revealBtnDisabled]}
             onPress={handleRevealPress}
@@ -114,6 +124,9 @@ export default function DeliveryCodeSection({ orderId, orderStatus }) {
               <Text style={styles.revealBtnText}>{code ? "Revealed" : "Reveal"}</Text>
             )}
           </TouchableOpacity>
+          ) : (
+            <Text style={styles.lockedText}>Locked</Text>
+          )}
         </View>
         {code ? (
           <TouchableOpacity style={styles.copyBtn} onPress={copyCode}>
@@ -125,7 +138,8 @@ export default function DeliveryCodeSection({ orderId, orderStatus }) {
 
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>QR handover</Text>
-        <Text style={styles.hint}>Seller can scan this to confirm delivery (no need to read code aloud).</Text>
+        <Text style={styles.hint}>{canReveal ? "Seller can scan this to confirm delivery (no need to read code aloud)." : revealHint}</Text>
+        {canReveal ? (
         <TouchableOpacity
           style={[styles.qrBtn, qrToken && styles.qrBtnDisabled]}
           onPress={handleQrPress}
@@ -145,6 +159,9 @@ export default function DeliveryCodeSection({ orderId, orderStatus }) {
             <Text style={styles.qrBtnText}>Show QR</Text>
           )}
         </TouchableOpacity>
+        ) : (
+          <Text style={styles.lockedText}>Locked. Code will appear when seller accepts.</Text>
+        )}
       </View>
 
       <Modal visible={warningModalVisible} transparent animationType="fade">
@@ -203,5 +220,6 @@ function createStyles(colors) {
     modalCancelText: { fontSize: 16, fontWeight: "600", color: colors.text },
     modalConfirm: { flex: 1, paddingVertical: spacing.md, borderRadius: radii.button, backgroundColor: colors.primary, alignItems: "center" },
     modalConfirmText: { fontSize: 16, fontWeight: "700", color: colors.white },
+    lockedText: { fontSize: 14, color: colors.textMuted, fontWeight: "600" },
   });
 }

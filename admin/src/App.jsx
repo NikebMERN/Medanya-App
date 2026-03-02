@@ -1,4 +1,4 @@
-import { Admin, Resource } from "react-admin";
+import { Admin, Resource, CustomRoutes } from "react-admin";
 import { Route } from "react-router-dom";
 import { dataProvider } from "./dataProvider";
 import { authProvider } from "./authProvider";
@@ -18,10 +18,6 @@ import { AuditList } from "./resources/auditLog";
 function App() {
   return (
     <Admin
-      customRoutes={[
-        <Route key="analytics" path="/analytics" element={<AnalyticsDashboard />} />,
-        <Route key="user-analytics" path="/analytics/users/:userId" element={<UserAnalytics />} />,
-      ]}
       dataProvider={dataProvider}
       authProvider={authProvider}
       theme={darkTheme}
@@ -54,6 +50,10 @@ function App() {
         list={AuditList}
         options={{ label: "Audit Log" }}
       />
+      <CustomRoutes>
+        <Route path="/analytics" element={<AnalyticsDashboard />} />
+        <Route path="/analytics/users/:userId" element={<UserAnalytics />} />
+      </CustomRoutes>
     </Admin>
   );
 }

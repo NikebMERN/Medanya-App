@@ -1,19 +1,16 @@
 /**
  * Compute user risk/safety score 0-5 bars.
- * Uses: OTP, KYC, Behavior Trust Score, Device Fingerprint, Account Age, Reports.
- * Replaces face matched safe score with trust_score + device_risk.
+ * Uses: OTP, KYC, Device Fingerprint, Account Age, Reports.
  */
 async function computeUserRiskScore(user, options = {}) {
     const opts = typeof options === "number" ? { reportsCount: options } : options;
     const reportsCount = opts.reportsCount ?? 0;
-    const trustScore = opts.trustScore ?? (user?.trust_score != null ? user.trust_score : 50);
     const deviceRisk = opts.deviceRisk ?? 0;
     if (!user) return 0;
     let score = 0;
     if (user.otp_verified) score += 1;
     const kycVerified = ["verified_auto", "verified_manual", "verified"].includes(user.kyc_status || "");
     if (kycVerified) score += 1;
-    if (Number(trustScore) >= 60) score += 1;
     if (deviceRisk <= 1) score += 1;
     const createdAt = user.created_at ? new Date(user.created_at) : null;
     const daysSinceCreated = createdAt
@@ -31,12 +28,11 @@ function getRiskLabel(bars) {
 }
 
 /**
- * Get detailed breakdown. Replaces face matched with Behavior Trust Score + Device Fingerprint.
+ * Get detailed breakdown for safety score (OTP, KYC, Device, Account Age, Reports).
  */
 function getRiskBreakdown(user, options = {}) {
     const opts = typeof options === "number" ? { reportsCount: options } : options;
     const reportsCount = opts.reportsCount ?? 0;
-    const trustScore = opts.trustScore ?? (user?.trust_score ?? 50);
     const deviceRisk = opts.deviceRisk ?? 0;
     if (!user) return { score: 0, label: "risky", items: [], daysToFullVerify: 0 };
     const createdAt = user.created_at ? new Date(user.created_at) : null;
@@ -61,14 +57,6 @@ function getRiskBreakdown(user, options = {}) {
             label: "Identity verified",
             tip: "Complete KYC identity verification (document upload).",
             action: "Go to Identity Verification and submit your document.",
-            daysLeft: 0,
-        },
-        {
-            id: "trust",
-            met: Number(trustScore) >= 60,
-            label: "Behavior Trust Score",
-            tip: "Build trust through successful interactions, fast replies, and clean record.",
-            action: "Maintain positive behavior. Reports and scam keywords lower your score.",
             daysLeft: 0,
         },
         {

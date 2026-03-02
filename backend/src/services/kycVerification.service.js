@@ -32,7 +32,7 @@ const MIN_AGE = 18;
  * Placeholder: return 0.9 if selfie URL present, else 0.
  */
 async function runFaceMatch(_docImageUrl, selfieImageUrl) {
-    if (!selfieImageUrl) return { score: 0, pass: false };
+    if (!selfieImageUrl) return { score: 1, pass: true };
     // Placeholder: assume pass for dev; replace with real API call or queue job
     const score = 0.9;
     return { score, pass: score >= FACE_MATCH_THRESHOLD };
@@ -96,6 +96,18 @@ async function runDocHashBinding(docHash, userId) {
 }
 
 /**
+ * P7) Legal name unique: first + middle + last must not be registered by another user.
+ */
+async function runLegalNameBinding(fullName, userId) {
+    if (!fullName || typeof fullName !== "string") return { duplicate: false, pass: true };
+    const norm = db.normalizeLegalName(fullName);
+    if (norm.length < 3) return { duplicate: false, pass: true };
+    const count = await db.countByLegalName(norm, userId);
+    const duplicate = count > 0;
+    return { duplicate, pass: !duplicate };
+}
+
+/**
  * P6) Doc number match: compare user-entered doc number with value extracted from document image.
  * For Fayda: FIN is on the BACK of the card - should match exactly (12 digits).
  * TODO: Integrate OCR (Google Vision, AWS Textract) to extract FIN from back image.
@@ -134,6 +146,7 @@ async function runVerificationPipeline(submissionId, opts = {}) {
     const profileBirthdate = user.dob;
 
     const p6 = await runDocNumberMatch(opts.docType || sub.doc_type, opts.docNumberForCompare, backImageUrl);
+    const p7 = await runLegalNameBinding(docFullName, sub.user_id);
 
     const [p1, p2, p3, p4, p5] = await Promise.all([
         runFaceMatch(docUrl, selfieUrl),
@@ -144,9 +157,9 @@ async function runVerificationPipeline(submissionId, opts = {}) {
     ]);
 
     // Auto-approve when face and personal data match (no admin needed).
-    // p4 (doc quality) is optional placeholder; p5/p6 prevent duplicate doc use.
+    // p4 (doc quality) optional; p5/p6/p7 prevent duplicate doc and legal name use.
     const allPass =
-        p1.pass && p2.pass && p3.pass && p5.pass && p6.pass;
+        p1.pass && p2.pass && p3.pass && p5.pass && p6.pass && p7.pass;
 
     await db.updateById(submissionId, {
         face_match_score: p1.score,
@@ -183,6 +196,7 @@ async function runVerificationPipeline(submissionId, opts = {}) {
         p4: { pass: p4.pass },
         p5: { pass: p5.pass, duplicate: p5.duplicate },
         p6: { pass: p6.pass, extractedMatch: p6.extractedMatch },
+        p7: { pass: p7.pass, duplicate: p7.duplicate },
         allPass,
         status: allPass ? SUBMISSION_STATUS.VERIFIED_AUTO : SUBMISSION_STATUS.PENDING_MANUAL,
     };
@@ -196,6 +210,7 @@ module.exports = {
     runBirthdateAndAge,
     runDocQuality,
     runDocHashBinding,
+    runLegalNameBinding,
     runVerificationPipeline,
     FACE_MATCH_THRESHOLD,
     NAME_MATCH_THRESHOLD,

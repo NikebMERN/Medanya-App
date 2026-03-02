@@ -28,8 +28,6 @@ router.post(
         let payload = null;
         let sessionId = null;
 
-        console.log("WEBHOOK HIT DECISION");
-
         try {
             // 1) Verify X-AUTH-CLIENT
             const apiKey = process.env.VERIFF_API_KEY;
@@ -44,7 +42,6 @@ router.post(
                     signatureValid: false,
                     errorText: errText,
                 }).catch(() => {});
-                console.log("VERIFF DECISION WEBHOOK INVALID SIGNATURE (auth mismatch)");
                 return sendErr(res, 401, "INVALID_AUTH", errText);
             }
 
@@ -60,11 +57,8 @@ router.post(
                     signatureValid: false,
                     errorText: "Signature verification failed",
                 }).catch(() => {});
-                console.log("VERIFF DECISION WEBHOOK INVALID SIGNATURE");
                 return sendErr(res, 401, "INVALID_SIGNATURE", "Webhook signature verification failed");
             }
-
-            console.log("SIGNATURE VALID");
 
             // 3) Parse JSON after verification
             try {
@@ -85,8 +79,6 @@ router.post(
 
             sessionId = payload?.verification?.id || payload?.id || payload?.sessionId || payload?.verification?.sessionId;
 
-            console.log("VERIFF DECISION WEBHOOK RECEIVED:", rawBodyStr);
-
             await webhookEventDb.insertEvent({
                 kind: "DECISION",
                 sessionId: sessionId ? String(sessionId) : null,
@@ -95,13 +87,9 @@ router.post(
                 payloadJson: payload,
                 signatureValid: true,
                 errorText: null,
-            }).catch((e) => console.error("[Veriff] Failed to store event:", e));
+            }).catch(() => {});
 
             const result = await providerService.handleVeriffDecision(payload);
-
-            if (result.ok && result.userId && result.status === "VERIFIED") {
-                console.log("UPDATED USER kyc_status -> VERIFIED");
-            }
 
             return res.status(200).json({ success: true, ...result });
         } catch (e) {
@@ -115,7 +103,6 @@ router.post(
                 signatureValid: false,
                 errorText: errText,
             }).catch(() => {});
-            console.error("[Veriff decision webhook] error:", errText);
             const statusCode = e.code === "SESSION_NOT_FOUND" ? 404 : e.code === "INVALID_SIGNATURE" ? 401 : 400;
             return sendErr(res, statusCode, e.code || "WEBHOOK_ERROR", errText);
         }

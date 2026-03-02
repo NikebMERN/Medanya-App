@@ -383,7 +383,7 @@ async function getAdminOverview(range = "28") {
     const totals = series.reduce(
         (acc, r) => ({
             totalViews: acc.totalViews + r.views,
-            activeUsers: new Set([...acc.activeUserSet, ...(r.activeUsers ? [r.date] : [])]).size,
+            activeUserSet: new Set([...acc.activeUserSet, ...(r.activeUsers ? [r.date] : [])]),
             totalUploads: acc.totalUploads + r.uploads,
             totalPurchases: acc.totalPurchases + r.purchases,
             totalReports: acc.totalReports + r.reports,

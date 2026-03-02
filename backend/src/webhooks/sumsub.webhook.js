@@ -29,7 +29,6 @@ router.post(
             const result = await providerService.handleSumsubApplicantReviewed(payload);
             return res.json({ success: true, ...result });
         } catch (e) {
-            console.error("Sumsub webhook error:", e);
             return sendErr(res, e.code || "WEBHOOK_ERROR", e.message);
         }
     }

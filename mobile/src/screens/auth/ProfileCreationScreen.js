@@ -163,7 +163,6 @@ export default function ProfileCreationScreen() {
       });
       if (!result.canceled && result.assets?.[0]?.uri) await applyAvatarFromUri(result.assets[0].uri);
     } catch (err) {
-      console.error("ImagePicker Error:", err);
       setError("Could not open gallery. Please try again.");
       setUploadingAvatar(false);
     }
@@ -184,7 +183,6 @@ export default function ProfileCreationScreen() {
       });
       if (!result.canceled && result.assets?.[0]?.uri) await applyAvatarFromUri(result.assets[0].uri);
     } catch (err) {
-      console.error("ImagePicker Error:", err);
       setError("Could not open camera. Please try again.");
       setUploadingAvatar(false);
     }

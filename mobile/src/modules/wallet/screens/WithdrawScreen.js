@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
@@ -15,11 +15,18 @@ export default function WithdrawScreen() {
   const navigation = useNavigation();
   const colors = useThemeColors();
   const styles = createStyles(colors);
-  const { earningsBalance } = useWalletStore();
+  const { earningsBalance, fetchWallet, fetchHistory } = useWalletStore();
   const [amount, setAmount] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const load = useCallback(async () => {
+    await Promise.all([fetchWallet(), fetchHistory({ page: 1, limit: 50 })]);
+  }, [fetchWallet, fetchHistory]);
+
+  useEffect(() => { load(); }, [load]);
+
   const available = earningsBalance ?? 0;
+  const canWithdraw = available >= MIN;
   const num = parseInt(String(amount).replace(/\D/g, ""), 10) || 0;
   const valid = num >= MIN && num <= available;
 
@@ -48,8 +55,14 @@ export default function WithdrawScreen() {
       </View>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.card}>
-          <Text style={styles.label}>Available</Text>
-          <Text style={styles.availableValue}>{available} MC</Text>
+          <Text style={styles.label}>Available to withdraw</Text>
+          <Text style={styles.availableValue}>{available.toLocaleString()} MC</Text>
+          {!canWithdraw && available > 0 && (
+            <Text style={styles.hint}>Need {MIN - available} more MC to reach min withdrawal</Text>
+          )}
+          {available === 0 && (
+            <Text style={styles.hint}>Earn from tasks and gifts to withdraw</Text>
+          )}
         </View>
         <Text style={styles.label}>Amount (MC)</Text>
         <TextInput
@@ -81,6 +94,7 @@ function createStyles(colors) {
     card: { backgroundColor: colors.surface, borderRadius: radii.card, padding: layout.cardPadding, marginBottom: layout.sectionGap, borderWidth: 1, borderColor: colors.border },
     label: { fontSize: 14, fontWeight: "600", color: colors.textSecondary, marginBottom: spacing.sm },
     availableValue: { fontSize: 24, fontWeight: "800", color: colors.primary },
+    hint: { fontSize: 13, color: colors.textMuted, marginTop: spacing.sm },
     input: { backgroundColor: colors.inputBg, borderRadius: radii.input, padding: layout.cardPadding, fontSize: 18, color: colors.text, marginBottom: spacing.lg, borderWidth: 1, borderColor: colors.border },
     btn: { backgroundColor: colors.primary, paddingVertical: spacing.md, borderRadius: radii.button, alignItems: "center" },
     btnDisabled: { opacity: 0.6 },

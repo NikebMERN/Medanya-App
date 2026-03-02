@@ -3,14 +3,32 @@ const { pool } = require("../../config/mysql");
 
 async function getById(userId, options = {}) {
     const { forSelf = false } = options;
-    const [rows] = await pool.query(
-        `SELECT id, phone_number, email, display_name, full_name, dob, avatar_url, neighborhood, last_lat, last_lng, bio, preferred_theme, role, is_verified,
-            otp_verified, analytics_consent, kyc_status, kyc_level, kyc_provider, kyc_verified_at, kyc_last_reason, kyc_face_verified, safety_acknowledged_at,
-            privacy_hide_phone, account_private, hide_personal_data, notification_enabled, is_banned, banned_reason, is_active,
-            created_at, updated_at
-     FROM users WHERE id = ? LIMIT 1`,
-        [userId],
-    );
+    let rows;
+    try {
+        [rows] = await pool.query(
+            `SELECT id, phone_number, email, display_name, full_name, dob, avatar_url, neighborhood, last_lat, last_lng, bio, preferred_theme, role, is_verified,
+                otp_verified, analytics_consent, kyc_status, kyc_level, kyc_provider, kyc_verified_at, kyc_last_reason, kyc_face_verified, safety_acknowledged_at,
+                privacy_hide_phone, account_private, hide_personal_data, notification_enabled, is_banned, banned_reason, is_active,
+                created_at, updated_at,
+                stripe_account_id, stripe_onboarding_status, stripe_payouts_enabled, stripe_charges_enabled, stripe_details_submitted
+         FROM users WHERE id = ? LIMIT 1`,
+            [userId],
+        );
+    } catch (err) {
+        // Backwards-compat: if newer columns are missing in this DB, fall back to a minimal projection
+        if (err.code === "ER_BAD_FIELD_ERROR") {
+            [rows] = await pool.query(
+                `SELECT id, phone_number, email, display_name, full_name, dob, avatar_url, neighborhood, last_lat, last_lng, bio, preferred_theme, role, is_verified,
+                        otp_verified, analytics_consent, kyc_status, kyc_level, kyc_provider, kyc_verified_at, kyc_last_reason, kyc_face_verified, safety_acknowledged_at,
+                        privacy_hide_phone, account_private, hide_personal_data, notification_enabled, is_banned, banned_reason, is_active,
+                        created_at, updated_at
+                 FROM users WHERE id = ? LIMIT 1`,
+                [userId],
+            );
+        } else {
+            throw err;
+        }
+    }
     const row = rows[0] || null;
     if (row && row.account_private !== undefined) row.account_private = Boolean(row.account_private);
     if (row && row.hide_personal_data && !forSelf) {
@@ -135,6 +153,22 @@ async function updateKyc(userId, { kyc_status, kyc_level, kyc_face_verified }) {
     return getById(userId);
 }
 
+async function updateStripeConnect(userId, fields) {
+    const allowed = ["stripe_account_id", "stripe_onboarding_status", "stripe_payouts_enabled", "stripe_charges_enabled", "stripe_details_submitted"];
+    const set = [];
+    const params = [];
+    for (const k of allowed) {
+        if (fields[k] !== undefined) {
+            set.push(`${k} = ?`);
+            params.push(fields[k]);
+        }
+    }
+    if (set.length === 0) return getById(userId);
+    params.push(userId);
+    await pool.query(`UPDATE users SET ${set.join(", ")} WHERE id = ?`, params);
+    return getById(userId);
+}
+
 module.exports = {
     getById,
     updateById,
@@ -145,4 +179,5 @@ module.exports = {
     countAdmins,
     setVerified,
     updateKyc,
+    updateStripeConnect,
 };

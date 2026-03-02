@@ -71,4 +71,8 @@ router.post("/ml/request-retrain", adminController.requestRetrain);
 router.post("/ml/approve-retrain", adminController.approveRetrain);
 router.post("/ml/reject-retrain", adminController.rejectRetrain);
 
+router.get("/orders", adminController.listOrders);
+router.get("/disputes", adminController.listDisputes);
+router.post("/disputes/:id/resolve", adminController.resolveDispute);
+
 module.exports = router;

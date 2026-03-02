@@ -27,35 +27,43 @@ const normalizeIdToken = (raw) => {
 const verifyFirebaseToken = async (idToken) => {
     const normalized = normalizeIdToken(idToken);
     const decoded = await admin.auth().verifyIdToken(normalized);
-
+    const providerRaw = decoded.firebase?.sign_in_provider || "";
+    const authProvider = providerRaw.includes("google") ? "google" : providerRaw.includes("facebook") ? "facebook" : "otp";
     return {
         phone: decoded.phone_number || null,
         email: decoded.email || null,
         firebaseUid: decoded.uid,
-        provider: decoded.firebase?.sign_in_provider,
+        provider: authProvider,
+        name: decoded.name || null,
+        picture: decoded.picture || null,
     };
 };
 
-const findOrCreateUser = async ({ phone, email, firebaseUid }) => {
-    const [rows] = await pool.query(
-        "SELECT * FROM users WHERE firebase_uid = ?",
-        [firebaseUid]
-    );
+const findOrCreateUser = async ({ phone, email, firebaseUid, provider, name, picture }) => {
+    const [byUid] = await pool.query("SELECT * FROM users WHERE firebase_uid = ?", [firebaseUid]);
+    if (byUid.length) return byUid[0];
 
-    if (rows.length) return rows[0];
+    if (email) {
+        const [byEmail] = await pool.query("SELECT * FROM users WHERE email = ? AND firebase_uid IS NULL", [email]);
+        if (byEmail.length) {
+            await pool.query("UPDATE users SET firebase_uid = ?, auth_provider = ? WHERE id = ?", [firebaseUid, provider || "otp", byEmail[0].id]);
+            const [updated] = await pool.query("SELECT * FROM users WHERE id = ?", [byEmail[0].id]);
+            return updated[0];
+        }
+    }
+
+    const phoneNumber = phone || `fb_${String(firebaseUid).slice(0, 17)}`;
+    const displayName = name ? String(name).trim().slice(0, 100) : null;
+    const fullName = name ? String(name).trim().slice(0, 120) : null;
+    const avatarUrl = picture ? String(picture).trim().slice(0, 500) : null;
 
     const [result] = await pool.query(
-        `
-    INSERT INTO users (phone_number, email, firebase_uid, is_verified)
-    VALUES (?, ?, ?, ?)
-    `,
-        [phone, email, firebaseUid, 1]
+        `INSERT INTO users (phone_number, email, firebase_uid, auth_provider, display_name, full_name, avatar_url, is_verified)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 1)`,
+        [phoneNumber, email || null, firebaseUid, provider || "otp", displayName, fullName, avatarUrl]
     );
 
-    const [user] = await pool.query("SELECT * FROM users WHERE id = ?", [
-        result.insertId,
-    ]);
-
+    const [user] = await pool.query("SELECT * FROM users WHERE id = ?", [result.insertId]);
     return user[0];
 };
 
@@ -308,11 +316,33 @@ async function verifyOtp(phone, code) {
     return user;
 }
 
+const linkFirebaseToUser = async (userId, idToken) => {
+    const firebaseUser = await verifyFirebaseToken(idToken);
+    const firebaseUid = firebaseUser.firebaseUid;
+    const provider = firebaseUser.provider;
+
+    const [existing] = await pool.query("SELECT id FROM users WHERE firebase_uid = ? AND id != ?", [firebaseUid, userId]);
+    if (existing.length) {
+        const err = new Error("This Google/Facebook account is already linked to another user.");
+        err.code = "ALREADY_LINKED";
+        throw err;
+    }
+
+    await pool.query(
+        "UPDATE users SET firebase_uid = ?, auth_provider = ?, email = COALESCE(?, email), full_name = COALESCE(?, full_name), display_name = COALESCE(display_name, ?), avatar_url = COALESCE(?, avatar_url) WHERE id = ?",
+        [firebaseUid, provider, firebaseUser.email || null, firebaseUser.name || null, firebaseUser.name || null, firebaseUser.picture || null, userId]
+    );
+
+    const [user] = await pool.query("SELECT * FROM users WHERE id = ?", [userId]);
+    return user[0];
+};
+
 module.exports = {
     verifyFirebaseToken,
     findOrCreateUser,
     findOrCreateUserByPhone,
     findOrCreateGuestUser,
+    linkFirebaseToUser,
     issueJWT,
     sendOtp,
     verifyOtp,

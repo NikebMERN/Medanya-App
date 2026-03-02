@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useThemeColors } from "../theme/useThemeColors";
 import { useAuthStore } from "../store/auth.store";
 import { useThemeStore } from "../store/theme.store";
+import { useWalletStore } from "../modules/wallet/wallet.store";
 import { spacing } from "../theme/spacing";
 import { typography } from "../theme/typography";
 import { canUseMarketplace, canPostJobs, getDobFromUser } from "../utils/age";
@@ -39,6 +40,12 @@ export default function SubScreenHeader({
   const displayName = user?.display_name ?? user?.displayName ?? "";
   const accountPrivate = user?.account_private ?? user?.accountPrivate;
   const kycFaceVerified = user?.kyc_face_verified ?? user?.kycFaceVerified ?? false;
+  const coinBalance = useWalletStore((s) => s.coinBalance ?? 0);
+  const fetchWallet = useWalletStore((s) => s.fetchWallet);
+
+  useEffect(() => {
+    if (menuVisible) fetchWallet?.();
+  }, [menuVisible, fetchWallet]);
 
   const closeMenu = () => setMenuVisible(false);
 
@@ -91,6 +98,15 @@ export default function SubScreenHeader({
         <Pressable style={styles.menuOverlay} onPress={closeMenu}>
           <Pressable style={[styles.menuSheet, { paddingBottom: insets.bottom + spacing.md }]} onPress={(e) => e.stopPropagation()}>
             <View style={styles.menuHandle} />
+            <TouchableOpacity
+              style={[styles.menuItem, styles.menuItemCoins]}
+              onPress={() => nav("Profile", "Wallet")}
+              activeOpacity={0.7}
+            >
+              <MaterialIcons name="account-balance-wallet" size={22} color={colors.primary} />
+              <Text style={styles.menuItemText}>MedCoins</Text>
+              <Text style={[styles.menuItemCoinsValue, { color: colors.primary }]}>{coinBalance?.toLocaleString?.() ?? coinBalance ?? 0} MC</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={styles.menuItem} onPress={() => nav("Profile", "EditProfile", { user })} activeOpacity={0.7}>
               <MaterialIcons name="edit" size={22} color={colors.text} />
               <Text style={styles.menuItemText}>Edit profile</Text>
@@ -101,10 +117,10 @@ export default function SubScreenHeader({
               <Text style={styles.menuItemText}>Favorite items</Text>
               <MaterialIcons name="chevron-right" size={20} color={colors.textSecondary} />
             </TouchableOpacity>
-            {!!(kycFaceVerified && canUseMarketplace(getDobFromUser(user))) && (
+            {!!user && (
               <TouchableOpacity style={styles.menuItem} onPress={() => nav("Marketplace", "CreateItem")} activeOpacity={0.7}>
                 <MaterialIcons name="storefront" size={22} color={colors.text} />
-                <Text style={styles.menuItemText}>Trade</Text>
+                <Text style={styles.menuItemText}>Sell</Text>
                 <MaterialIcons name="chevron-right" size={20} color={colors.textSecondary} />
               </TouchableOpacity>
             )}
@@ -250,6 +266,8 @@ function createStyles(colors, paddingTop) {
       color: colors.text,
       fontStyle: typography.fontStyle,
     },
+    menuItemCoins: { backgroundColor: colors.surface },
+    menuItemCoinsValue: { fontSize: 15, fontWeight: "700", fontStyle: typography.fontStyle },
     menuItemDanger: { borderBottomWidth: 0, marginTop: spacing.sm },
     menuItemTextDanger: { color: colors.error || "#e53935" },
   });

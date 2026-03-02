@@ -27,6 +27,8 @@ import * as marketplaceApi from "../../services/marketplace.api";
 import { CURRENCY_OPTIONS } from "../../store/jobs.store";
 import { MARKETPLACE_CATEGORY_OPTIONS } from "../../store/marketplace.store";
 import SubScreenHeader from "../../components/SubScreenHeader";
+import { normalizePlaceholder } from "../../components/ui/Input";
+import { inputStyleAndroid } from "../../theme/inputStyles";
 
 export default function CreateItemScreen() {
   const navigation = useNavigation();
@@ -34,7 +36,10 @@ export default function CreateItemScreen() {
   const styles = useMemo(() => createStyles(colors), [colors]);
   const user = useAuthStore((s) => s.user);
   const isLoggedIn = !!useAuthStore((s) => s.token);
+  const kycStatus = user?.kyc_status ?? user?.kycStatus ?? "none";
+  const kycLevel = user?.kyc_level ?? user?.kycLevel ?? 0;
   const kycFaceVerified = user?.kyc_face_verified ?? user?.kycFaceVerified ?? false;
+  const kycVerified = kycFaceVerified || (["verified", "verified_auto", "verified_manual"].includes(kycStatus) && kycLevel >= 2);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -134,10 +139,10 @@ export default function CreateItemScreen() {
       Alert.alert("Age requirement", "You must be 16 or older to list items. Add your date of birth in Edit Profile.");
       return;
     }
-    if (!kycFaceVerified) {
+    if (!kycVerified) {
       Alert.alert(
-        "Face verification required",
-        "Complete identity verification and have your face matched to your document before listing items. Go to Profile → Identity Verification.",
+        "Identity verification required",
+        "Complete identity verification before listing items. Go to Profile → Identity Verification.",
         [{ text: "OK" }, { text: "Go to verification", onPress: () => navigation.navigate("Profile", { screen: "Kyc" }) }]
       );
       return;
@@ -211,8 +216,8 @@ export default function CreateItemScreen() {
     } catch (err) {
       const code = err?.response?.data?.error?.code;
       const msg = err?.response?.data?.error?.message || err?.message || "Failed to post.";
-      if (code === "FORBIDDEN" && (msg || "").toLowerCase().includes("face")) {
-        Alert.alert("Face verification required", msg || "Complete identity verification and have your face matched before listing items.", [{ text: "OK" }, { text: "Go to verification", onPress: () => navigation.navigate("Profile", { screen: "Kyc" }) }]);
+      if (code === "FORBIDDEN" && ((msg || "").toLowerCase().includes("face") || (msg || "").toLowerCase().includes("verif"))) {
+        Alert.alert("Identity verification required", msg || "Complete identity verification before listing items.", [{ text: "OK" }, { text: "Go to verification", onPress: () => navigation.navigate("Profile", { screen: "Kyc" }) }]);
       } else if (code === "OTP_REQUIRED") {
         Alert.alert("Verification required", "Please verify your phone number with OTP before posting.");
       } else if (code === "RATE_LIMIT") {
@@ -223,7 +228,7 @@ export default function CreateItemScreen() {
     } finally {
       setSubmitting(false);
     }
-  }, [isLoggedIn, accountPrivate, kycFaceVerified, title, description, category, customCategory, location, price, priceCurrency, imageUrls, navigation, user]);
+  }, [isLoggedIn, accountPrivate, kycVerified, title, description, category, customCategory, location, price, priceCurrency, imageUrls, navigation, user]);
 
   const tabNav = navigation.getParent?.() ?? navigation;
   const subHeader = (
@@ -249,14 +254,14 @@ export default function CreateItemScreen() {
     );
   }
 
-  if (!kycFaceVerified) {
+  if (!kycVerified) {
     return (
       <SafeAreaView style={styles.wrapper} edges={["top"]}>
         {subHeader}
         <View style={[styles.container, styles.center]}>
           <MaterialIcons name="verified-user" size={48} color={colors.textMuted} style={{ marginBottom: spacing.md }} />
-          <Text style={styles.placeholderText}>Face verification required to list items.</Text>
-          <Text style={[styles.placeholderText, { marginTop: 0, fontSize: 14 }]}>Complete Identity Verification in Profile and have your face matched to your document.</Text>
+          <Text style={styles.placeholderText}>Identity verification required to list items.</Text>
+          <Text style={[styles.placeholderText, { marginTop: 0, fontSize: 14 }]}>Complete Identity Verification in Profile to list items.</Text>
           <TouchableOpacity onPress={() => navigation.navigate("Profile", { screen: "Kyc" })} style={styles.backBtn}>
             <Text style={styles.backBtnText}>Go to Identity Verification</Text>
           </TouchableOpacity>
@@ -292,7 +297,7 @@ export default function CreateItemScreen() {
         <View style={[styles.safetyHint, { backgroundColor: colors.primary + "15", borderColor: colors.primary + "40" }]}>
           <MaterialIcons name="shield" size={20} color={colors.primary} />
           <Text style={[styles.safetyHintText, { color: colors.text }]}>
-            Safety tips: Meet in public. Don't pay upfront. Use in-app chat.
+            Use in-app payment — it's safer and more reliable. If you pay in cash, meet in public for safety.
           </Text>
         </View>
         <Text style={styles.label}>Photos (optional, max 8)</Text>
@@ -313,10 +318,10 @@ export default function CreateItemScreen() {
         </View>
 
         <Text style={styles.label}>Title *</Text>
-        <TextInput style={styles.input} placeholder="Item title" placeholderTextColor={colors.textMuted} value={title} onChangeText={setTitle} />
+        <TextInput style={[styles.input, inputStyleAndroid]} placeholder={normalizePlaceholder("Item title")} placeholderTextColor={colors.textMuted} value={title} onChangeText={setTitle} />
 
         <Text style={styles.label}>Description *</Text>
-        <TextInput style={[styles.input, styles.textArea]} placeholder="Describe your item" placeholderTextColor={colors.textMuted} value={description} onChangeText={setDescription} multiline numberOfLines={4} />
+        <TextInput style={[styles.input, styles.textArea, inputStyleAndroid]} placeholder={normalizePlaceholder("Describe your item")} placeholderTextColor={colors.textMuted} value={description} onChangeText={setDescription} multiline numberOfLines={4} />
 
         <Text style={styles.label}>Category *</Text>
         <TouchableOpacity style={styles.dropdown} onPress={() => setCategoryModalVisible(true)}>
@@ -327,8 +332,8 @@ export default function CreateItemScreen() {
         </TouchableOpacity>
         {category === "other" && (
           <TextInput
-            style={[styles.input, { marginTop: spacing.sm }]}
-            placeholder="Enter category (e.g. Books, Crafts, Art)"
+            style={[styles.input, inputStyleAndroid, { marginTop: spacing.sm }]}
+            placeholder={normalizePlaceholder("Enter category (e.g. Books, Crafts, Art)")}
             placeholderTextColor={colors.textMuted}
             value={customCategory}
             onChangeText={setCustomCategory}
@@ -362,13 +367,13 @@ export default function CreateItemScreen() {
         </Modal>
 
         <Text style={styles.label}>Location *</Text>
-        <TextInput style={styles.input} placeholder="Where is the item?" placeholderTextColor={colors.textMuted} value={location} onChangeText={setLocation} />
+        <TextInput style={[styles.input, inputStyleAndroid]} placeholder={normalizePlaceholder("Where is the item?")} placeholderTextColor={colors.textMuted} value={location} onChangeText={setLocation} />
 
         <Text style={styles.label}>Price *</Text>
         <View style={styles.salaryRow}>
           <TextInput
-            style={[styles.input, styles.salaryInput]}
-            placeholder="0"
+            style={[styles.input, styles.salaryInput, inputStyleAndroid]}
+            placeholder={normalizePlaceholder("0")}
             placeholderTextColor={colors.textMuted}
             value={price}
             onChangeText={setPrice}

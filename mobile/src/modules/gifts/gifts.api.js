@@ -1,16 +1,13 @@
 /**
  * Gifts API — catalog, send gift, live boost.
- * Console.log responses for integration validation.
  */
 import client from "../../api/client";
 
 export async function getGiftCatalog() {
   try {
     const { data } = await client.get("/gifts/catalog");
-    console.log("[gifts.api] getGiftCatalog:", data);
     return data?.gifts ?? data ?? getDefaultCatalog();
   } catch (e) {
-    console.log("[gifts.api] getGiftCatalog error:", e?.response?.data ?? e?.message);
     return getDefaultCatalog();
   }
 }
@@ -27,34 +24,20 @@ function getDefaultCatalog() {
 }
 
 export async function sendGift(streamId, giftId, quantity) {
-  try {
-    const { data } = await client.post("/gifts/send", { streamId, giftId, quantity });
-    console.log("[gifts.api] sendGift:", data);
-    return data;
-  } catch (e) {
-    console.log("[gifts.api] sendGift error:", e?.response?.data ?? e?.message);
-    throw e;
-  }
+  const { data } = await client.post("/gifts/send", { streamId, giftId, quantity });
+  return data;
 }
 
 export async function boostLive(streamId, amount) {
-  try {
-    const { data } = await client.post("/boost/live", { streamId, amount });
-    console.log("[gifts.api] boostLive:", data);
-    return data;
-  } catch (e) {
-    console.log("[gifts.api] boostLive error:", e?.response?.data ?? e?.message);
-    throw e;
-  }
+  const { data } = await client.post("/boost/live", { streamId, amount });
+  return data;
 }
 
 export async function getLiveSupporters(streamId) {
   try {
     const { data } = await client.get(`/livestream/${streamId}/supporters`);
-    console.log("[gifts.api] getLiveSupporters:", data);
     return data?.supporters ?? data ?? [];
   } catch (e) {
-    console.log("[gifts.api] getLiveSupporters error:", e?.response?.data ?? e?.message);
     return [];
   }
 }

@@ -1,6 +1,7 @@
 /**
  * Sets EXPO_PUBLIC_API_URL and EXPO_PUBLIC_SOCKET_URL to your machine's local IP
  * so the app can reach the backend when running on a device or emulator.
+ * Also updates backend .env with API_BASE_URL for OAuth callbacks.
  * Run before `expo start` or use `npm start` which runs this automatically.
  */
 const fs = require("fs");
@@ -8,6 +9,7 @@ const path = require("path");
 const os = require("os");
 
 const ENV_PATH = path.join(__dirname, "..", ".env");
+const BACKEND_ENV_PATH = path.join(__dirname, "..", "..", "backend", ".env");
 const DEFAULT_PORT = 4001;
 
 function getLocalIP() {
@@ -67,6 +69,18 @@ function updateEnv(ip) {
   return base;
 }
 
+function updateBackendEnv(base) {
+  if (!fs.existsSync(BACKEND_ENV_PATH)) return;
+  let content = fs.readFileSync(BACKEND_ENV_PATH, "utf8");
+  const line = `API_BASE_URL=${base}`;
+  if (/^\s*API_BASE_URL\s*=/.test(content)) {
+    content = content.replace(/^\s*API_BASE_URL\s*=.*/m, line);
+  } else {
+    content = content.trimEnd() + (content.endsWith("\n") ? "" : "\n") + `\n# Auto-set by mobile npm start (OAuth callbacks)\n${line}\n`;
+  }
+  fs.writeFileSync(BACKEND_ENV_PATH, content, "utf8");
+}
+
 function main() {
   const ip = getLocalIP();
   if (!ip) {
@@ -76,6 +90,7 @@ function main() {
   }
 
   const base = updateEnv(ip);
+  updateBackendEnv(base);
   console.log("API URL set to your local IP:", base);
 }
 

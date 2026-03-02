@@ -20,7 +20,14 @@ export const useWalletStore = create((set, get) => ({
     try {
       const data = await walletApi.getWalletMe();
       const w = data?.wallet ?? data;
-      set({ coinBalance: w?.balance ?? w?.coinBalance ?? 0, earningsBalance: w?.earnings ?? 0, pendingBalance: w?.pending ?? 0, withdrawnBalance: w?.withdrawn ?? 0, loading: false, error: null });
+      set((s) => ({
+        coinBalance: w?.balance ?? w?.coinBalance ?? 0,
+        earningsBalance: w?.earnings != null ? w.earnings : s.earningsBalance,
+        pendingBalance: w?.pending ?? 0,
+        withdrawnBalance: w?.withdrawn ?? 0,
+        loading: false,
+        error: null,
+      }));
     } catch (e) {
       set({ loading: false, error: e?.message ?? "Failed" });
     }
@@ -29,7 +36,17 @@ export const useWalletStore = create((set, get) => ({
   fetchHistory: async (params = {}) => {
     try {
       const res = await walletApi.getWalletHistory(params);
-      set({ history: res?.transactions ?? [] });
+      const history = res?.transactions ?? [];
+      // Earnings = only tasks + gifts/donations (NOT purchased/recharged)
+      const earnedFromHistory = history
+        .filter((t) => {
+          if (t.type === "earn" || t.type === "commission") return true;
+          if (t.type === "credit" && t.reference_type === "task") return true;
+          if (t.type === "gift_earn") return true;
+          return false;
+        })
+        .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+      set({ history, earningsBalance: earnedFromHistory });
       return res;
     } catch (e) {
       set({ history: [] });

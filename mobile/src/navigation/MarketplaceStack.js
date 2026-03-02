@@ -9,6 +9,7 @@ const MarketplaceDetailScreen = React.lazy(() => import("../screens/marketplace/
 const CreateItemScreen = React.lazy(() => import("../screens/marketplace/CreateItemScreen"));
 const CheckoutScreen = React.lazy(() => import("../screens/marketplace/CheckoutScreen"));
 const OrderStatusScreen = React.lazy(() => import("../screens/marketplace/OrderStatusScreen"));
+const OrdersScreen = React.lazy(() => import("../screens/marketplace/OrdersScreen"));
 const DeliveryConfirmScreen = React.lazy(() => import("../screens/marketplace/DeliveryConfirmScreen"));
 
 const Stack = createNativeStackNavigator();
@@ -38,7 +39,12 @@ export default function MarketplaceStack() {
         <Stack.Screen name="MarketplaceDetail" component={MarketplaceDetailScreen} options={{ headerShown: false }} />
         <Stack.Screen name="CreateItem" component={CreateItemScreen} options={{ headerShown: false }} />
         <Stack.Screen name="Checkout" component={CheckoutScreen} />
-        <Stack.Screen name="OrderStatus" component={OrderStatusScreen} />
+        <Stack.Screen
+          name="OrderStatus"
+          component={OrderStatusScreen}
+          options={{ animation: "fade", animationDuration: 200 }}
+        />
+        <Stack.Screen name="OrdersList" component={OrdersScreen} />
         <Stack.Screen name="DeliveryConfirm" component={DeliveryConfirmScreen} />
       </Stack.Navigator>
     </Suspense>

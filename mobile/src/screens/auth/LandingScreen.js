@@ -1,10 +1,4 @@
-import React, {
-  useState,
-  useMemo,
-  useEffect,
-  useCallback,
-  useRef,
-} from "react";
+import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -12,122 +6,214 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
+
+import * as WebBrowser from "expo-web-browser";
 import * as Google from "expo-auth-session/providers/google";
 import * as Facebook from "expo-auth-session/providers/facebook";
+
 import Logo from "../../components/ui/Logo";
 import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
 import { useAuthStore } from "../../store/auth.store";
 import { useThemeStore } from "../../store/theme.store";
 import {
-  signInWithGoogleCredential,
-  signInWithFacebookCredential,
   getAppRedirectUri,
   logExpoAuthProxyUrl,
+  isExpoGo,
 } from "../../services/firebaseAuth";
+import { validateConfig } from "../../config/validateConfig";
 import { env } from "../../utils/env";
+
+// ✅ CRITICAL: completes auth sessions correctly (fixes "missing initial state")
+WebBrowser.maybeCompleteAuthSession();
 
 export default function LandingScreen() {
   const navigation = useNavigation();
   const colors = useThemeColors();
+
   const theme = useThemeStore((s) => s.theme);
   const setTheme = useThemeStore((s) => s.setTheme);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
   const setAuth = useAuthStore((s) => s.setAuth);
+  const authProvidersAvailable = useAuthStore((s) => s.authProvidersAvailable);
+  const loginWithGoogle = useAuthStore((s) => s.loginWithGoogle);
+  const loginWithFacebook = useAuthStore((s) => s.loginWithFacebook);
+  const refreshConfigFlags = useAuthStore((s) => s.refreshConfigFlags);
+
+  const { flags, missing } = useMemo(() => validateConfig(), []);
+  const googleEnabled =
+    authProvidersAvailable?.google ?? flags?.googleEnabled ?? false;
+  const facebookEnabled =
+    authProvidersAvailable?.facebook ?? flags?.facebookEnabled ?? false;
 
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   const googleWebClientId = env.googleWebClientId || "";
+  const googleExpoClientId = env.googleExpoClientId || googleWebClientId;
   const googleIosClientId = env.googleIosClientId || googleWebClientId;
   const googleAndroidClientId = env.googleAndroidClientId || googleWebClientId;
+
   const facebookAppId = env.facebookAppId || "";
-  const redirectUri = getAppRedirectUri();
+  const redirectUri = useMemo(() => getAppRedirectUri(isExpoGo), []);
 
   useEffect(() => {
     logExpoAuthProxyUrl();
-  }, []);
+    refreshConfigFlags();
+  }, [refreshConfigFlags]);
 
+  // Google: Expo Go uses proxy + expoClientId (or webClientId); Dev Build uses iosClientId/androidClientId
+  const googleClientIdForExpoGo = googleExpoClientId || googleWebClientId;
   const [googleRequest, googleResponse, googlePromptAsync] =
-    Google.useIdTokenAuthRequest({
-      webClientId: googleWebClientId,
-      iosClientId: googleIosClientId,
-      androidClientId: googleAndroidClientId,
-      redirectUri,
-      scopes: ["openid", "profile", "email"],
-    });
+    Google.useIdTokenAuthRequest(
+      {
+        webClientId: googleWebClientId,
+        iosClientId: isExpoGo ? googleClientIdForExpoGo : (googleIosClientId || googleWebClientId),
+        androidClientId: isExpoGo ? googleClientIdForExpoGo : (googleAndroidClientId || googleWebClientId),
+        redirectUri,
+        scopes: ["openid", "profile", "email"],
+      },
+      { scheme: "medanya", path: "redirect" }
+    );
 
+  // ✅ FACEBOOK: Use Auth request
   const [fbRequest, fbResponse, fbPromptAsync] = Facebook.useAuthRequest({
     clientId: facebookAppId,
     scopes: ["public_profile", "email"],
     redirectUri,
   });
 
-  const loginWithBackend = useCallback(
-    async (idToken) => {
-      try {
-        const { loginWithFirebaseToken } = await import("../../api/auth.api");
-        const res = await loginWithFirebaseToken(idToken);
-        if (res.token && res.user) {
-          setAuth(res.token, res.user);
-        } else {
-          setError("Login failed. Please try again.");
-        }
-      } catch (e) {
-        setError("Backend communication failed.");
-      }
-    },
-    [setAuth]
-  );
+  const onToast = useCallback((msg) => setError(msg || ""), []);
 
   const lastGoogleSuccessRef = useRef(null);
   const lastFbSuccessRef = useRef(null);
 
+  // =========================
+  // GOOGLE RESPONSE HANDLER
+  // =========================
   useEffect(() => {
-    if (googleResponse?.type === "success") {
+    if (!googleResponse) return;
+
+    if (googleResponse.type === "success") {
+      // token may live in params or authentication
       const idToken =
-        googleResponse.params?.id_token || googleResponse.authentication?.idToken;
+        googleResponse.params?.id_token ||
+        googleResponse.authentication?.idToken;
+
+      // prevent double-handling
       if (!idToken || lastGoogleSuccessRef.current === googleResponse) return;
       lastGoogleSuccessRef.current = googleResponse;
 
       setError("");
       setLoading(true);
-      signInWithGoogleCredential(idToken)
-        .then(({ token }) => loginWithBackend(token))
-        .catch((err) => setError(err.message || "Google sign-in failed."))
-        .finally(() => setLoading(false));
-    } else if (googleResponse?.type === "error") {
-      setError("Google Login Error: " + googleResponse.error?.message);
-    }
-  }, [googleResponse, loginWithBackend]);
 
+      loginWithGoogle(idToken, { onToast })
+        .then((res) => {
+          if (res?.cancelled) setError("");
+        })
+        .catch(() => {
+          setError("Google sign-in failed. Please try again.");
+        })
+        .finally(() => setLoading(false));
+    }
+
+    if (googleResponse.type === "error") {
+      const msg =
+        googleResponse.error?.message ||
+        googleResponse.error?.code ||
+        "Google sign-in failed.";
+      if (String(msg).toLowerCase().includes("cancel")) {
+        setError("");
+      } else {
+        setError("Google sign-in failed. Check your Google settings or try again.");
+      }
+    }
+  }, [googleResponse, loginWithGoogle, onToast]);
+
+  // =========================
+  // FACEBOOK RESPONSE HANDLER
+  // =========================
   useEffect(() => {
-    if (fbResponse?.type === "success") {
+    if (!fbResponse) return;
+
+    if (fbResponse.type === "success") {
       const accessToken =
         fbResponse.authentication?.accessToken || fbResponse.params?.access_token;
+
       if (!accessToken || lastFbSuccessRef.current === fbResponse) return;
       lastFbSuccessRef.current = fbResponse;
 
       setError("");
       setLoading(true);
-      signInWithFacebookCredential(accessToken)
-        .then(({ token }) => loginWithBackend(token))
-        .catch((err) => setError(err.message || "Facebook sign-in failed."))
+
+      loginWithFacebook(accessToken, { onToast })
+        .then((res) => {
+          if (res?.cancelled) setError("");
+        })
+        .catch(() => {
+          setError("Facebook sign-in failed. Please try again.");
+        })
         .finally(() => setLoading(false));
     }
-  }, [fbResponse, loginWithBackend]);
 
-  const handleGoogleLogin = () => {
+    if (fbResponse.type === "error") {
+      const msg =
+        fbResponse.error?.message ||
+        fbResponse.error?.code ||
+        "Facebook sign-in failed.";
+      if (String(msg).toLowerCase().includes("cancel")) {
+        setError("");
+      } else {
+        setError("Facebook sign-in failed. Try again.");
+      }
+    }
+  }, [fbResponse, loginWithFacebook, onToast]);
+
+  const handleGoogleLogin = async () => {
     setError("");
-    googlePromptAsync({ useProxy: false });
+    if (!googleEnabled) {
+      const keys = missing?.google || ["EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID"];
+      Alert.alert(
+        "Setup required",
+        `Missing: ${keys.join(", ")}\n\nAdd these to your .env file and restart the app.`
+      );
+      return;
+    }
+    if (!googleRequest) {
+      setError("Google sign-in is not ready yet. Wait a moment and try again.");
+      return;
+    }
+
+    try {
+      await googlePromptAsync({ useProxy: isExpoGo, showInRecents: true });
+    } catch (e) {
+      const msg = e?.message || "Google sign-in could not start.";
+      setError(__DEV__ ? msg : "Google sign-in could not start. Try again.");
+    }
   };
 
-  const handleFacebookLogin = () => {
+  const handleFacebookLogin = async () => {
     setError("");
-    fbPromptAsync({ useProxy: false });
+    if (!facebookEnabled) {
+      const keys = missing?.facebook || ["EXPO_PUBLIC_FACEBOOK_APP_ID"];
+      Alert.alert(
+        "Setup required",
+        `Missing: ${keys.join(", ")}\n\nAdd these to your .env file and restart the app.`
+      );
+      return;
+    }
+
+    try {
+      await fbPromptAsync({ useProxy: isExpoGo, showInRecents: true });
+    } catch (e) {
+      setError("Facebook sign-in could not start. Try again.");
+    }
   };
 
   const handleGuestLogin = async () => {
@@ -165,64 +251,90 @@ export default function LandingScreen() {
         <View style={styles.content}>
           <Logo />
 
-        <TouchableOpacity
-          style={styles.primaryBtn}
-          onPress={() => navigation.navigate("Phone")}
-          activeOpacity={0.9}
-        >
-          <Text style={styles.primaryBtnIcon}>📱</Text>
-          <Text style={styles.primaryBtnText}>GET STARTED WITH PHONE</Text>
-        </TouchableOpacity>
-
-        <View style={styles.divider}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>OR CONNECT VIA</Text>
-          <View style={styles.dividerLine} />
-        </View>
-
-        <View style={styles.socialRow}>
           <TouchableOpacity
-            style={[styles.socialBtn, styles.googleBtn]}
-            onPress={handleGoogleLogin}
-            disabled={loading || !googleRequest}
-            activeOpacity={0.8}
+            style={styles.primaryBtn}
+            onPress={() => navigation.navigate("Phone")}
+            activeOpacity={0.9}
           >
-            <Text style={styles.socialIcon}>G</Text>
-            <Text style={styles.socialLabel}>GOOGLE</Text>
+            <Text style={styles.primaryBtnIcon}>📱</Text>
+            <Text style={styles.primaryBtnText}>GET STARTED WITH PHONE</Text>
           </TouchableOpacity>
 
+          <View style={styles.divider}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>OR CONNECT VIA</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          <View style={styles.socialRow}>
+            <TouchableOpacity
+              style={[
+                styles.socialBtn,
+                styles.googleBtn,
+                !googleEnabled && styles.socialBtnDisabled,
+              ]}
+              onPress={handleGoogleLogin}
+              disabled={loading || (googleEnabled && !googleRequest)}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.socialIcon, !googleEnabled && styles.socialLabelDisabled]}>
+                G
+              </Text>
+              <Text style={[styles.socialLabel, !googleEnabled && styles.socialLabelDisabled]}>
+                {googleEnabled ? "GOOGLE" : "Google Sign-in (Setup required)"}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.socialBtn,
+                styles.facebookBtn,
+                !facebookEnabled && styles.socialBtnDisabled,
+              ]}
+              onPress={handleFacebookLogin}
+              disabled={loading}
+              activeOpacity={0.8}
+            >
+              <Text
+                style={[
+                  styles.socialIcon,
+                  styles.facebookIcon,
+                  !facebookEnabled && styles.socialLabelDisabled,
+                ]}
+              >
+                f
+              </Text>
+              <Text
+                style={[
+                  styles.socialLabel,
+                  styles.facebookLabel,
+                  !facebookEnabled && styles.socialLabelDisabled,
+                ]}
+              >
+                {facebookEnabled ? "FACEBOOK" : "Facebook Sign-in (Setup required)"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
           <TouchableOpacity
-            style={[styles.socialBtn, styles.facebookBtn]}
-            onPress={handleFacebookLogin}
-            disabled={loading || !fbRequest}
+            style={styles.guestBtn}
+            onPress={handleGuestLogin}
+            disabled={loading}
             activeOpacity={0.8}
           >
-            <Text style={[styles.socialIcon, styles.facebookIcon]}>f</Text>
-            <Text style={[styles.socialLabel, styles.facebookLabel]}>
-              FACEBOOK
+            <Text style={styles.guestBtnText}>Continue as guest</Text>
+            <Text style={styles.guestBtnSubtext}>Watch videos without signing in</Text>
+          </TouchableOpacity>
+
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+
+          <View style={styles.footer}>
+            <Text style={styles.footerText}>
+              By joining, you agree to our Community Terms and Safety Guidelines.
             </Text>
-          </TouchableOpacity>
+          </View>
         </View>
-
-        <TouchableOpacity
-          style={styles.guestBtn}
-          onPress={handleGuestLogin}
-          disabled={loading}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.guestBtnText}>Continue as guest</Text>
-          <Text style={styles.guestBtnSubtext}>Watch videos without signing in</Text>
-        </TouchableOpacity>
-
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>
-            By joining, you agree to our Community Terms and Safety Guidelines.
-          </Text>
-        </View>
-      </View>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -309,6 +421,12 @@ function createStyles(colors) {
     },
     googleBtn: { backgroundColor: colors.surface },
     facebookBtn: { backgroundColor: "#1877f2", borderColor: "#1877f2" },
+    socialBtnDisabled: {
+      backgroundColor: colors.border,
+      borderColor: colors.border,
+      opacity: 0.8,
+    },
+    socialLabelDisabled: { color: colors.textMuted },
     socialIcon: { fontSize: 18, fontWeight: "700", color: colors.text },
     socialLabel: {
       fontSize: 14,
@@ -341,6 +459,5 @@ function createStyles(colors) {
     error: { color: colors.error, fontSize: 13, marginBottom: spacing.sm },
     footer: { marginTop: "auto", paddingTop: spacing.xl },
     footerText: { color: colors.textMuted, fontSize: 12, textAlign: "center" },
-    link: { color: colors.primary, fontWeight: "600" },
   });
 }

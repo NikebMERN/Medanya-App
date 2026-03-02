@@ -8,8 +8,11 @@ import { AnalyticsAreaChart } from "../components/AnalyticsAreaChart";
 const apiBase = () => import.meta.env?.VITE_API_URL || "";
 const api = (path) => `${apiBase()}/api${path}`;
 const fetchWithAuth = (path) => {
+  const base = apiBase();
+  const url = path.startsWith("/") ? `${base}${path}` : `${base}/api${path}`;
   const token = localStorage.getItem("medanya_admin_token") || sessionStorage.getItem("medanya_admin_token");
-  return fetch(path, { headers: token ? { Authorization: `Bearer ${token}` } : {} }).then((r) => r.json());
+  const headers = token ? { Authorization: `Bearer ${token}` } : {};
+  return fetch(url, { headers }).then((r) => r.json());
 };
 
 const CardWithLink = ({ title, value, to }) => {

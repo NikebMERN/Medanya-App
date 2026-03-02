@@ -19,6 +19,7 @@ import { useThemeColors } from "../../../theme/useThemeColors";
 import { radii, layout } from "../../../theme/designSystem";
 import { spacing } from "../../../theme/spacing";
 import { useWalletStore } from "../wallet.store";
+import { useAuthStore } from "../../../store/auth.store";
 import * as walletApi from "../wallet.api";
 import { useWatchAdEarn } from "../../gifts/hooks/useWatchAdEarn";
 
@@ -30,6 +31,9 @@ export default function EarnCoinsScreen() {
   const styles = createStyles(colors);
 
   const { coinBalance, tasksProgress, fetchTasks, fetchWallet } = useWalletStore();
+  const user = useAuthStore((s) => s.user);
+  const kycVerified = ["verified_auto", "verified_manual", "verified"].includes(user?.kyc_status ?? user?.kycStatus ?? "")
+    || !!(user?.kyc_face_verified ?? user?.kycFaceVerified);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [claiming, setClaiming] = useState(null);
@@ -71,7 +75,21 @@ export default function EarnCoinsScreen() {
         return;
       }
       if (task.id === "kyc") {
-        navigation.getParent?.()?.navigate?.("Profile", { screen: "ProfileMain" });
+        if (kycVerified) {
+          setClaiming("kyc");
+          try {
+            const res = await walletApi.claimTask("kyc");
+            if (res?.reward) Alert.alert("Earned!", `+${res.reward} MC`);
+            await fetchWallet();
+            await fetchTasks();
+          } catch (e) {
+            Alert.alert("Error", e?.response?.data?.error?.message ?? e?.message ?? "Failed");
+          } finally {
+            setClaiming(null);
+          }
+        } else {
+          navigation.getParent?.()?.navigate?.("Profile", { screen: "ProfileMain" });
+        }
         return;
       }
       if (task.id === "post_video" || task.id === "go_live") {
@@ -90,7 +108,7 @@ export default function EarnCoinsScreen() {
         setClaiming(null);
       }
     },
-    [watchAd, navigation, fetchWallet, fetchTasks]
+    [watchAd, navigation, fetchWallet, fetchTasks, kycVerified]
   );
 
   const streak = 0;

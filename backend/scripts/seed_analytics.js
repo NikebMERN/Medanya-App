@@ -37,7 +37,6 @@ async function seed() {
     }
 
     await mongoose.connect(mongoUri);
-    console.log("Connected to MongoDB. Seeding:", { days, users, creators });
 
     const today = new Date();
     const dates = [];

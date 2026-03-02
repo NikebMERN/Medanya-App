@@ -18,12 +18,16 @@ import SubScreenHeader from "../../components/SubScreenHeader";
 import * as ordersApi from "../../services/orders.api";
 import { trackEvent } from "../../utils/trackEvent";
 import * as marketplaceApi from "../../services/marketplace.api";
+import { useStripe } from "@stripe/stripe-react-native";
+import { normalizePlaceholder } from "../../components/ui/Input";
+import { inputStyleAndroid } from "../../theme/inputStyles";
 
 export default function CheckoutScreen() {
   const route = useRoute();
   const navigation = useNavigation();
   const colors = useThemeColors();
   const styles = createStyles(colors);
+  const { initPaymentSheet, presentPaymentSheet } = useStripe();
 
   const itemId = route.params?.itemId;
   const [item, setItem] = useState(route.params?.item ?? null);
@@ -73,17 +77,32 @@ export default function CheckoutScreen() {
 
       const order = data?.order ?? data;
       if (order?.id) {
-        if (paymentMethod === "STRIPE" && data?.clientSecret) {
+        if (data?.clientSecret) {
+          if (!initPaymentSheet || !presentPaymentSheet) {
+            Alert.alert("Payment unavailable", "Stripe is not configured. Add EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY to your .env (pk_... from Stripe Dashboard).", [
+              { text: "OK", onPress: () => navigation.replace("OrderStatus", { orderId: order.id }) },
+            ]);
+            return;
+          }
           try {
-            const { initPaymentSheet, presentPaymentSheet } = require("@stripe/stripe-react-native");
-            await initPaymentSheet({ paymentIntentClientSecret: data.clientSecret, merchantDisplayName: "Medanya" });
+            const { error: initErr } = await initPaymentSheet({
+              paymentIntentClientSecret: data.clientSecret,
+              merchantDisplayName: "Medanya",
+            });
+            if (initErr) {
+              Alert.alert("Payment setup failed", initErr.message);
+              return;
+            }
             const { error } = await presentPaymentSheet();
             if (error) {
               Alert.alert("Payment failed", error.message);
               return;
             }
+            try {
+              await ordersApi.notifyPaymentReceived(order.id);
+            } catch (_) {}
           } catch (stripeErr) {
-            Alert.alert("Order created", "Install @stripe/stripe-react-native for in-app card payment. Your order is pending payment.", [
+            Alert.alert("Payment error", stripeErr?.message || "Could not complete payment. Your order is pending.", [
               { text: "OK", onPress: () => navigation.replace("OrderStatus", { orderId: order.id }) },
             ]);
             return;
@@ -123,7 +142,8 @@ export default function CheckoutScreen() {
   }
 
   const price = item.price != null ? item.price : 0;
-  const total = price * qty;
+  const subtotal = price * qty;
+  const total = subtotal;
   const currency = item.currency || "AED";
 
   return (
@@ -178,37 +198,43 @@ export default function CheckoutScreen() {
             />
             <Text style={styles.radioText}>Cash on Delivery</Text>
           </TouchableOpacity>
+          {paymentMethod === "STRIPE" && (
+            <Text style={styles.escrowNote}>Escrow: Payment held until delivery confirmed. Refunds: 2–3 business days.</Text>
+          )}
+          {paymentMethod === "COD" && (
+            <Text style={styles.escrowNote}>Pay on delivery. No code or QR; seller will confirm delivery.</Text>
+          )}
         </View>
 
         {paymentMethod === "STRIPE" && (
           <View style={styles.section}>
             <Text style={styles.label}>Delivery Address</Text>
             <TextInput
-              style={styles.input}
-              placeholder="Street address"
+              style={[styles.input, inputStyleAndroid]}
+              placeholder={normalizePlaceholder("Street address")}
               placeholderTextColor={colors.textMuted}
               value={address.line1}
               onChangeText={(t) => setAddress((a) => ({ ...a, line1: t }))}
             />
             <View style={styles.row2}>
               <TextInput
-                style={[styles.input, styles.inputHalf]}
-                placeholder="City"
+                style={[styles.input, styles.inputHalf, inputStyleAndroid]}
+                placeholder={normalizePlaceholder("City")}
                 placeholderTextColor={colors.textMuted}
                 value={address.city}
                 onChangeText={(t) => setAddress((a) => ({ ...a, city: t }))}
               />
               <TextInput
-                style={[styles.input, styles.inputHalf]}
-                placeholder="State"
+                style={[styles.input, styles.inputHalf, inputStyleAndroid]}
+                placeholder={normalizePlaceholder("State")}
                 placeholderTextColor={colors.textMuted}
                 value={address.state}
                 onChangeText={(t) => setAddress((a) => ({ ...a, state: t }))}
               />
             </View>
             <TextInput
-              style={styles.input}
-              placeholder="Postal code"
+              style={[styles.input, inputStyleAndroid]}
+              placeholder={normalizePlaceholder("Postal code")}
               placeholderTextColor={colors.textMuted}
               value={address.postalCode}
               onChangeText={(t) => setAddress((a) => ({ ...a, postalCode: t }))}
@@ -269,6 +295,7 @@ function createStyles(colors) {
     },
     radioRowActive: { backgroundColor: colors.primary + "15" },
     radioText: { fontSize: 16, fontWeight: "600", color: colors.text },
+    escrowNote: { fontSize: 13, color: colors.textMuted, marginTop: spacing.xs, fontStyle: "italic" },
     input: {
       backgroundColor: colors.inputBg,
       borderRadius: 12,

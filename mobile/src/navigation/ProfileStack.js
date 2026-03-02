@@ -20,9 +20,11 @@ const FavoriteItemsScreen = React.lazy(() => import("../screens/marketplace/Favo
 const WalletHomeScreen = React.lazy(() => import("../modules/wallet/screens/WalletHomeScreen"));
 const WalletHistoryScreen = React.lazy(() => import("../modules/wallet/screens/WalletHistoryScreen"));
 const EarnCoinsScreen = React.lazy(() => import("../modules/wallet/screens/EarnCoinsScreen"));
-const ReferralScreen = React.lazy(() => import("../modules/wallet/screens/ReferralScreen"));
+import ReferralScreen from "../modules/wallet/screens/ReferralScreen";
 const WithdrawScreen = React.lazy(() => import("../modules/wallet/screens/WithdrawScreen"));
 const RechargeScreen = React.lazy(() => import("../screens/wallet/RechargeScreen"));
+const NotificationsScreen = React.lazy(() => import("../screens/profile/NotificationsScreen"));
+const PayoutSetupScreen = React.lazy(() => import("../screens/profile/PayoutSetupScreen"));
 
 const Stack = createNativeStackNavigator();
 
@@ -62,9 +64,11 @@ export default function ProfileStack() {
         <Stack.Screen name="Wallet" component={WalletHomeScreen} />
         <Stack.Screen name="WalletHistory" component={WalletHistoryScreen} />
         <Stack.Screen name="EarnCoins" component={EarnCoinsScreen} />
-        <Stack.Screen name="Referral" component={ReferralScreen} />
+        <Stack.Screen name="Referral" component={ReferralScreen} options={{ animation: "none" }} />
         <Stack.Screen name="Withdraw" component={WithdrawScreen} />
         <Stack.Screen name="Recharge" component={RechargeScreen} />
+        <Stack.Screen name="Notifications" component={NotificationsScreen} />
+        <Stack.Screen name="PayoutSetup" component={PayoutSetupScreen} />
       </Stack.Navigator>
     </Suspense>
   );

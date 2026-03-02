@@ -11,6 +11,7 @@
         "dev": "firebase login",
         "token": "npx firebase emulators:start --only auth",
         "test": "node --test tests/kyc.veriff.test.js",
+        "test:auth": "node --test tests/auth.firebase.test.js",
         "test:analytics": "node --test tests/analytics.integration.test.js"
     },
     "keywords": [],
