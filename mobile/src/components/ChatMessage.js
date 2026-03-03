@@ -117,7 +117,7 @@ export default function ChatMessage({
         <MaterialIcons
           name={seen ? "done-all" : "done"}
           size={14}
-          color="rgba(255,255,255,0.9)"
+          color={seen ? "#64b5f6" : "rgba(255,255,255,0.9)"}
           style={styles.checkIcon}
         />
       )}
@@ -347,7 +347,7 @@ export default function ChatMessage({
               <MaterialIcons
                 name={seen ? "done-all" : "done"}
                 size={14}
-                color="rgba(255,255,255,0.9)"
+                color={seen ? "#64b5f6" : "rgba(255,255,255,0.9)"}
                 style={styles.checkIcon}
               />
             </View>

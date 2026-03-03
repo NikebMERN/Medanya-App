@@ -46,6 +46,18 @@ export const darkTheme = {
         },
       },
     },
+    RaMenuItemLink: {
+      styleOverrides: {
+        root: {
+          borderLeft: "3px solid transparent",
+          "&.RaMenuItemLink-active": {
+            borderLeft: "3px solid",
+            borderLeftColor: "primary.main",
+            backgroundColor: "action.selected",
+          },
+        },
+      },
+    },
     MuiChip: {
       styleOverrides: {
         root: {

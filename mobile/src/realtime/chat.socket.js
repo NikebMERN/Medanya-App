@@ -88,6 +88,20 @@ export function offChatMessageReadReceipt(handler) {
 }
 
 /**
+ * Subscribe to unread count updates (from server when new message arrives or user marks read).
+ * Handler receives ({ chatId, unreadCount }).
+ */
+export function onChatUnreadCountUpdated(handler) {
+  const socket = getSocket();
+  if (socket) socket.on("chat:unreadCountUpdated", handler);
+}
+
+export function offChatUnreadCountUpdated(handler) {
+  const socket = getSocket();
+  if (socket) socket.off("chat:unreadCountUpdated", handler);
+}
+
+/**
  * Ensure socket is connected with current token. Call when entering chat flow.
  */
 export function ensureChatSocket(token) {

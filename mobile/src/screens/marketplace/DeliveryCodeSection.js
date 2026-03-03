@@ -21,9 +21,7 @@ import { radii } from "../../theme/designSystem";
 import { spacing } from "../../theme/spacing";
 import * as ordersApi from "../../services/orders.api";
 
-const REVEAL_STATUSES = ["ACCEPTED", "PACKED", "OUT_FOR_DELIVERY"];
-
-export default function DeliveryCodeSection({ orderId, orderStatus, confirmation }) {
+export default function DeliveryCodeSection({ orderId, orderStatus, confirmation, confirmationLabel }) {
   const colors = useThemeColors();
   const styles = createStyles(colors);
   const [code, setCode] = useState(null);
@@ -33,7 +31,7 @@ export default function DeliveryCodeSection({ orderId, orderStatus, confirmation
   const [warningModalVisible, setWarningModalVisible] = useState(false);
   const [pendingAction, setPendingAction] = useState(null); // "reveal" | "qr"
 
-  const canReveal = REVEAL_STATUSES.includes(orderStatus);
+  const canReveal = confirmation?.canReveal ?? false;
   const revealHint = confirmation?.revealHint ?? (canReveal ? "Only reveal when you are receiving the item in person." : "Locked. Code will appear when seller accepts the order.");
   const maskedCode = confirmation?.maskedCode ?? "****••••";
 
@@ -105,10 +103,12 @@ export default function DeliveryCodeSection({ orderId, orderStatus, confirmation
     if (qrToken) await Clipboard.setStringAsync(qrToken);
   };
 
+  if (confirmation?.notApplicable) return null;
+
   return (
     <>
       <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Delivery code</Text>
+        <Text style={styles.sectionTitle}>{confirmationLabel || "Delivery confirmation"}</Text>
         <Text style={styles.hint}>{revealHint}</Text>
         <View style={styles.codeRow}>
           <Text style={styles.codeValue}>{code ?? maskedCode}</Text>

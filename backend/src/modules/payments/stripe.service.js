@@ -83,6 +83,12 @@ async function handleWebhook(rawBody, signatureHeader) {
     if (event.type === "payment_intent.succeeded") {
         const pi = event.data.object;
         const meta = pi.metadata || {};
+        const isPenalty = meta && meta.type === "penalty";
+        if (isPenalty && meta.penaltyId) {
+            const penaltiesService = require("../penalties/penalties.service");
+            await penaltiesService.onPenaltyPaymentSucceeded(meta.penaltyId);
+            return { received: true, handled: "penalty", penaltyId: meta.penaltyId };
+        }
         const isOrder = meta && meta.type === "order";
         const isCodDeposit = meta && meta.type === "order_cod_deposit";
         if (isOrder || isCodDeposit) {

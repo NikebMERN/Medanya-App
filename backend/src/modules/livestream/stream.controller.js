@@ -61,9 +61,31 @@ const detail = async (req, res) => {
     }
 };
 
+const myActive = async (req, res) => {
+    try {
+        const stream = await service.getMyActiveStream(req.user);
+        return res.json({ success: true, stream: stream || null });
+    } catch (e) {
+        return sendErr(res, e);
+    }
+};
+
 const end = async (req, res) => {
     try {
         const stream = await service.endStream(req.user, req.params.id);
+        const io = req.app.get("io");
+        io?.emit("livestream_stop", { streamId: req.params.id, reason: "Host ended stream" });
+        return res.json({ success: true, stream });
+    } catch (e) {
+        return sendErr(res, e);
+    }
+};
+
+const adminEnd = async (req, res) => {
+    try {
+        const stream = await service.adminEndStream(req.user, req.params.id);
+        const io = req.app.get("io");
+        io?.emit("livestream_stop", { streamId: req.params.id, reason: "Admin ended stream" });
         return res.json({ success: true, stream });
     } catch (e) {
         return sendErr(res, e);
@@ -82,6 +104,8 @@ const ban = async (req, res) => {
 const pinListing = async (req, res) => {
     try {
         const data = await service.pinListing(req.user, req.params.id, req.body?.listingId);
+        const io = req.app.get("io");
+        io?.to(`stream:${req.params.id}`).emit("live:pinUpdated", { streamId: req.params.id, pins: data?.pins ?? [], items: data?.items ?? [] });
         return res.status(201).json({ success: true, ...data });
     } catch (e) {
         return sendErr(res, e);
@@ -97,4 +121,4 @@ const getPins = async (req, res) => {
     }
 };
 
-module.exports = { create, token, list, detail, end, ban, pinListing, getPins };
+module.exports = { create, token, list, detail, myActive, end, adminEnd, ban, pinListing, getPins };

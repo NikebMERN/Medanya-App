@@ -85,20 +85,25 @@ function registerStreamSocket(io, socket) {
                 return badAck(ack, "STREAM_NOT_LIVE", "Stream not live");
 
             const room = `stream:${streamId}`;
+            const isHost = stream.hostId === userId;
+
             if (!joined.has(streamId)) {
                 joined.add(streamId);
                 socket.join(room);
 
-                // best effort viewerCount increment (in-memory)
-                io.to(room).emit("stream:viewerCount", {
-                    streamId,
-                    viewerCount: (stream.viewerCount || 0) + 1,
-                });
+                // host does not count as viewer
+                if (!isHost) {
+                    io.to(room).emit("stream:viewerCount", {
+                        streamId,
+                        viewerCount: (stream.viewerCount || 0) + 1,
+                    });
+                    Stream.updateOne({ _id: streamId }, { $inc: { viewerCount: 1 } }).catch(() => { });
+                }
 
-                // update mongo best effort
-                Stream.updateOne({ _id: streamId }, { $inc: { viewerCount: 1 } }).catch(
-                    () => { },
-                );
+                // when host joins, notify viewers that host is back
+                if (isHost) {
+                    io.to(room).emit("stream:hostBack", { streamId });
+                }
             }
 
             return okAck(ack, { stream });
@@ -115,20 +120,22 @@ function registerStreamSocket(io, socket) {
 
             const room = `stream:${streamId}`;
             if (joined.has(streamId)) {
+                const stream = await Stream.findById(streamId).lean().catch(() => null);
+                const isHost = stream?.hostId === userId;
+
                 joined.delete(streamId);
                 socket.leave(room);
 
-                Stream.updateOne(
-                    { _id: streamId },
-                    { $inc: { viewerCount: -1 } },
-                ).catch(() => { });
-                const doc = await Stream.findById(streamId)
-                    .lean()
-                    .catch(() => null);
-                io.to(room).emit("stream:viewerCount", {
-                    streamId,
-                    viewerCount: Math.max(doc?.viewerCount || 0, 0),
-                });
+                if (!isHost) {
+                    Stream.updateOne({ _id: streamId }, { $inc: { viewerCount: -1 } }).catch(() => { });
+                    const doc = await Stream.findById(streamId).lean().catch(() => null);
+                    io.to(room).emit("stream:viewerCount", {
+                        streamId,
+                        viewerCount: Math.max(doc?.viewerCount || 0, 0),
+                    });
+                } else {
+                    io.to(room).emit("stream:hostAway", { streamId });
+                }
             }
 
             return okAck(ack);
@@ -261,16 +268,19 @@ function registerStreamSocket(io, socket) {
             try {
                 const room = `stream:${streamId}`;
                 socket.leave(room);
-                await Stream.updateOne(
-                    { _id: streamId },
-                    { $inc: { viewerCount: -1 } },
-                ).catch(() => {});
                 const doc = await Stream.findById(streamId).lean().catch(() => null);
-                if (doc) {
-                    io.to(room).emit("stream:viewerCount", {
-                        streamId,
-                        viewerCount: Math.max(doc.viewerCount ?? 0, 0),
-                    });
+                const isHost = doc && doc.hostId === userId;
+                if (isHost) {
+                    io.to(room).emit("stream:hostAway", { streamId });
+                } else {
+                    await Stream.updateOne({ _id: streamId }, { $inc: { viewerCount: -1 } }).catch(() => {});
+                    const updated = await Stream.findById(streamId).lean().catch(() => null);
+                    if (updated) {
+                        io.to(room).emit("stream:viewerCount", {
+                            streamId,
+                            viewerCount: Math.max(updated.viewerCount ?? 0, 0),
+                        });
+                    }
                 }
             } catch (e) {
                 logger.error("stream disconnect cleanup error", e);

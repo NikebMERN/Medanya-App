@@ -55,3 +55,25 @@ npx expo start
 ### 6. “Use my location” (Profile Creation)
 
 - In `mobile`, run: `npx expo install expo-location`. If you see “Cannot find module” for location, install this package and restart the app.
+
+### 7. AdMob (Watch Ads / Earn Coins)
+
+AdMob does **not** work in Expo Go — it requires a development or production build with native code.
+
+#### Testing ads (development build)
+
+1. Build a development client: `eas build --profile development --platform ios` (or `android`)
+2. Install the built app on your device/simulator
+3. Run: `npx expo start --dev-client`
+4. In `__DEV__`, Google test ad IDs are used automatically (AdMob policy)
+5. Set `EXPO_PUBLIC_ADMOB_REWARDED_AD_UNIT_ID` in `.env` for production
+
+#### Production deployment
+
+- Add real ad unit IDs to `mobile/.env`; ads use real IDs only when `!__DEV__`
+- Build: `eas build --profile production --platform all`
+
+#### Consent & ATT
+
+- **iOS**: ATT prompt before loading ads (via `expo-tracking-transparency`)
+- **GDPR/EEA**: Consent form shown when required via `AdsConsent`

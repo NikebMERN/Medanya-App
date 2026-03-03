@@ -23,7 +23,7 @@ export default function CreateScreen() {
     if (!canVideo) {
       Alert.alert(
         "Age requirement",
-        "You must be 16+ to post videos. Add your date of birth in Edit Profile or complete Identity Verification."
+        "You must be 16+ to post videos. Add your date of birth in Edit Profile."
       );
       return;
     }

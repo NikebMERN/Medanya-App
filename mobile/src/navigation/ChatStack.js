@@ -5,7 +5,7 @@ import ChatsScreen from "../screens/chat/ChatsScreen";
 import { useThemeColors } from "../theme/useThemeColors";
 import { useChatStore } from "../store/chat.store";
 import { useAuthStore } from "../store/auth.store";
-import { onChatMessageNew, offChatMessageNew, ensureChatSocket } from "../realtime/chat.socket";
+import { onChatMessageNew, offChatMessageNew, onChatUnreadCountUpdated, offChatUnreadCountUpdated, ensureChatSocket } from "../realtime/chat.socket";
 
 const ChatRoomScreen = React.lazy(() => import("../screens/chat/ChatRoomScreen"));
 const CreateGroupScreen = React.lazy(() => import("../screens/chat/CreateGroupScreen"));
@@ -41,6 +41,7 @@ export default function ChatStack() {
   const appendMessage = useChatStore((s) => s.appendMessage);
   const updateChatInList = useChatStore((s) => s.updateChatInList);
   const incrementUnread = useChatStore((s) => s.incrementUnread);
+  const setUnreadCount = useChatStore((s) => s.setUnreadCount);
   const handlerRef = useRef(null);
 
   useEffect(() => {
@@ -76,6 +77,14 @@ export default function ChatStack() {
     onChatMessageNew(handler);
     return () => offChatMessageNew(handler);
   }, [userId, appendMessage, updateChatInList, incrementUnread]);
+
+  useEffect(() => {
+    const handler = ({ chatId, unreadCount }) => {
+      if (chatId != null) setUnreadCount(chatId, unreadCount);
+    };
+    onChatUnreadCountUpdated(handler);
+    return () => offChatUnreadCountUpdated(handler);
+  }, [setUnreadCount]);
 
   return (
     <Suspense fallback={<LazyFallback />}>

@@ -1,9 +1,7 @@
 /**
- * LiveHostScreen — Broadcast: fullscreen preview, LIVE badge, viewer count, end, flip, mute, chat overlay.
- * Join Socket.IO room stream:<streamId>; listen viewer_count_update, stream_chat_receive.
- * End stream -> POST /streams/end.
+ * LiveHostScreen — Broadcast: Agora video (or expo-camera fallback when Agora not installed), LIVE badge, viewer count, end, flip, mute, chat overlay.
  */
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo, useEffect } from "react";
 import {
   View,
   Text,
@@ -13,13 +11,20 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute } from "@react-navigation/native";
+import { CameraView, useCameraPermissions } from "expo-camera";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
 import { useLivestreamStore } from "../../store/livestream.store";
+import { useAuthStore } from "../../store/auth.store";
+import { ensureChatSocket } from "../../realtime/chat.socket";
+import { joinStream, leaveStream, onStreamViewerCount, offStreamViewerCount } from "../../realtime/livestream.socket";
+import * as livestreamApi from "../../api/livestream.api";
+import { isAgoraAvailable, useAgoraHost, AgoraLocalView } from "../../modules/livestream/AgoraVideoView";
 
 export default function LiveHostScreen() {
   const navigation = useNavigation();
@@ -34,8 +39,45 @@ export default function LiveHostScreen() {
   const [chatInput, setChatInput] = useState("");
   const [muted, setMuted] = useState(false);
   const [ending, setEnding] = useState(false);
+  const [facing, setFacing] = useState("front");
 
+  const [permission, requestPermission] = useCameraPermissions();
   const endStream = useLivestreamStore((s) => s.endStream);
+  const token = useAuthStore((s) => s.token);
+  const [agoraToken, setAgoraToken] = useState(null);
+  const useAgora = isAgoraAvailable();
+
+  useEffect(() => {
+    if (!useAgora || !streamId) return;
+    livestreamApi.getStreamToken(streamId).then((t) => setAgoraToken(t)).catch(() => {});
+  }, [useAgora, streamId]);
+
+  const { ready: agoraReady, switchCamera: agoraSwitchCamera, setMute: agoraSetMute } = useAgoraHost({
+    streamId: useAgora ? streamId : null,
+    channelName: agoraToken?.providerRoom,
+    token: agoraToken?.token,
+    uid: agoraToken?.uid,
+  });
+
+  useEffect(() => {
+    if (useAgora && agoraReady) agoraSetMute(muted);
+  }, [muted, useAgora, agoraReady, agoraSetMute]);
+
+  useEffect(() => {
+    if (!streamId || !token) return;
+    ensureChatSocket(token);
+    const handleViewerCount = (data) => {
+      if (data?.streamId === streamId) setViewerCount((c) => data?.viewerCount ?? c);
+    };
+    onStreamViewerCount(handleViewerCount);
+    joinStream(streamId, (ack) => {
+      if (ack?.ok && ack?.stream?.viewerCount != null) setViewerCount(ack.stream.viewerCount);
+    });
+    return () => {
+      offStreamViewerCount(handleViewerCount);
+      leaveStream(streamId);
+    };
+  }, [streamId, token]);
 
   const handleEndStream = useCallback(async () => {
     if (!streamId) {
@@ -60,14 +102,35 @@ export default function LiveHostScreen() {
     setChatInput("");
   }, [chatInput]);
 
+  if (!permission?.granted) {
+    return (
+      <View style={[styles.container, styles.placeholderCenter]}>
+        <Text style={styles.previewText}>Camera permission required for live</Text>
+        <TouchableOpacity style={styles.permBtn} onPress={requestPermission}>
+          <Text style={styles.permBtnText}>Grant permission</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  const renderVideo = () => {
+    if (useAgora && agoraToken && agoraReady) {
+      return <AgoraLocalView channelId={agoraToken.providerRoom} style={StyleSheet.absoluteFill} />;
+    }
+    if (useAgora && agoraToken && !agoraReady) {
+      return (
+        <View style={[styles.container, styles.placeholderCenter]}>
+          <ActivityIndicator size="large" color="#fff" />
+          <Text style={styles.previewText}>Connecting to stream…</Text>
+        </View>
+      );
+    }
+    return <CameraView style={StyleSheet.absoluteFill} facing={facing} mode="video" />;
+  };
+
   return (
     <View style={styles.container}>
-      <View style={styles.preview}>
-        <View style={styles.previewPlaceholder}>
-          <MaterialIcons name="videocam" size={64} color={colors.textMuted} />
-          <Text style={styles.previewText}>Live camera preview</Text>
-        </View>
-      </View>
+      {renderVideo()}
 
       <View style={[styles.topBar, { paddingTop: insets.top + spacing.sm }]}>
         <View style={styles.liveBadge}>
@@ -89,14 +152,17 @@ export default function LiveHostScreen() {
       </View>
 
       <View style={[styles.rightToolbar, { top: insets.top + 56 }]}>
-        <TouchableOpacity style={styles.toolBtn}>
-          <MaterialIcons name="flip-camera-ios" size={26} color={colors.text} />
+        <TouchableOpacity
+          style={styles.toolBtn}
+          onPress={() => (useAgora && agoraReady ? agoraSwitchCamera() : setFacing((f) => (f === "back" ? "front" : "back")))}
+        >
+          <MaterialIcons name="flip-camera-ios" size={26} color="#fff" />
         </TouchableOpacity>
         <TouchableOpacity style={styles.toolBtn} onPress={() => setMuted((m) => !m)}>
-          <MaterialIcons name={muted ? "mic-off" : "mic"} size={26} color={colors.text} />
+          <MaterialIcons name={muted ? "mic-off" : "mic"} size={26} color="#fff" />
         </TouchableOpacity>
         <TouchableOpacity style={styles.toolBtn}>
-          <MaterialIcons name="settings" size={26} color={colors.text} />
+          <MaterialIcons name="settings" size={26} color="#fff" />
         </TouchableOpacity>
       </View>
 
@@ -152,14 +218,19 @@ export default function LiveHostScreen() {
 function createStyles(colors, insets) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: "#000" },
-    preview: { ...StyleSheet.absoluteFillObject },
-    previewPlaceholder: {
-      flex: 1,
+    placeholderCenter: {
       justifyContent: "center",
       alignItems: "center",
-      backgroundColor: colors.surface,
+      padding: spacing.xl,
     },
-    previewText: { fontSize: 16, color: colors.textMuted, marginTop: spacing.sm },
+    previewText: { fontSize: 16, color: "#fff", marginBottom: spacing.md },
+    permBtn: {
+      paddingVertical: 12,
+      paddingHorizontal: 24,
+      backgroundColor: colors.primary || "#3b82f6",
+      borderRadius: 12,
+    },
+    permBtnText: { color: "#fff", fontWeight: "700" },
     topBar: {
       position: "absolute",
       left: 0,

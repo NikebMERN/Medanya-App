@@ -9,6 +9,7 @@ const payments = require("../../config/payments");
 
 // Public
 router.get("/streams", controller.list);
+router.get("/streams/my-active", auth, controller.myActive); // must be before :id
 router.get("/streams/:id", controller.detail);
 
 // Gifts catalog (public)
@@ -27,11 +28,7 @@ router.post("/streams/:id/pin", auth, controller.pinListing);
 router.get("/streams/:id/pins", controller.getPins);
 
 // Admin
-router.patch(
-    "/admin/streams/:id/ban",
-    auth,
-    requireRole("admin"),
-    controller.ban,
-);
+router.post("/admin/streams/:id/end", auth, requireRole("admin"), controller.adminEnd);
+router.patch("/admin/streams/:id/ban", auth, requireRole("admin"), controller.ban);
 
 module.exports = router;

@@ -1,5 +1,6 @@
 // src/modules/videos/video.controller.js
 const service = require("./video.service");
+const uploadService = require("./video.upload.service");
 
 function sendErr(res, err) {
     const code = err.code || "SERVER_ERROR";
@@ -30,6 +31,26 @@ function emitRoom(io, room, event, payload) {
     if (!io) return;
     io.to(room).emit(event, payload);
 }
+
+// User - upload sign (must be before /videos/:id)
+const uploadSign = async (req, res) => {
+    try {
+        const resourceType = req.body?.resourceType || "video";
+        const folder = req.body?.folder || "videos";
+        const params = uploadService.getSignedUploadParams(resourceType, folder);
+        if (!params) {
+            return res.status(503).json({
+                error: {
+                    code: "UPLOAD_NOT_CONFIGURED",
+                    message: "Signed upload not available. Use unsigned preset from client.",
+                },
+            });
+        }
+        return res.json({ success: true, ...params });
+    } catch (err) {
+        return sendErr(res, err);
+    }
+};
 
 // User
 const create = async (req, res) => {
@@ -273,6 +294,7 @@ const getPins = async (req, res) => {
 };
 
 module.exports = {
+    uploadSign,
     create,
     list,
     detail,

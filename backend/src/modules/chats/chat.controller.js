@@ -92,6 +92,18 @@ const getChat = async (req, res) => {
     }
 };
 
+const markRead = async (req, res) => {
+    try {
+        const me = req.user.id ?? req.user.userId;
+        const { chatId } = req.params;
+        const { messageId } = req.body || {};
+        await chatService.markReadUpTo(me, chatId, messageId);
+        return res.json({ success: true });
+    } catch (err) {
+        return mapError(res, err);
+    }
+};
+
 const listMessages = async (req, res) => {
     try {
         const me = req.user.id ?? req.user.userId;
@@ -228,6 +240,7 @@ module.exports = {
     startDirect,
     createGroup,
     listChats,
+    markRead,
     searchGroups,
     joinGroup,
     getChat,

@@ -115,14 +115,15 @@ async function createForOrder(conn, orderId) {
 
 /**
  * Get confirmation record for buyer (masked); if canReveal, return full code and qrPayload.
- * Stripe only: reveal as soon as seller accepts (ACCEPTED or later). Never show code/QR for COD.
+ * BOTH COD and Stripe: reveal when OUT_FOR_DELIVERY (buyer shows code/QR to seller).
  */
-async function getConfirmationForBuyer(orderId, orderStatus) {
-  const ACCEPTED = "ACCEPTED";
-  const PACKED = "PACKED";
+async function getConfirmationForBuyer(orderId, orderStatus, paymentMethod = "") {
   const OUT_FOR_DELIVERY = "OUT_FOR_DELIVERY";
-  const canReveal = [ACCEPTED, PACKED, OUT_FOR_DELIVERY].includes(orderStatus);
-  const lockedHint = "Locked. Code will appear when seller accepts the order.";
+  const DELIVERED = "DELIVERED";
+  const COMPLETED = "COMPLETED";
+  // Reveal code/QR only after OUT_FOR_DELIVERY to prevent early leaks (both methods)
+  const canReveal = [OUT_FOR_DELIVERY, DELIVERED, COMPLETED].includes(orderStatus);
+  const lockedHint = "Code will appear when order is out for delivery.";
 
   const conf = await orderConfirmationsDb.findByOrderId(pool, orderId);
   if (!conf) {

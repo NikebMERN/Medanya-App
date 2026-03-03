@@ -13,7 +13,7 @@ import {
   Pressable,
   Alert,
 } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useThemeColors } from "../../theme/useThemeColors";
@@ -28,6 +28,7 @@ import MarketCard from "../../components/feed/MarketCard";
 import VideoPreviewCard from "../../components/feed/VideoPreviewCard";
 import * as chatApi from "../../services/chat.api";
 import { ensureChatSocket, sendChatMessage } from "../../realtime/chat.socket";
+import * as livestreamApi from "../../api/livestream.api";
 
 function LiveHeroCard({ stream, onPress, colors }) {
   const styles = useMemo(() => heroStyles(colors), [colors]);
@@ -210,6 +211,19 @@ export default function HomeScreen() {
   const [shareItem, setShareItem] = useState(null);
   const [shareSelected, setShareSelected] = useState({});
   const [shareSending, setShareSending] = useState(false);
+  const [myActiveStream, setMyActiveStream] = useState(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      livestreamApi.getMyActiveStream().then((s) => {
+        if (!cancelled) setMyActiveStream(s || null);
+      }).catch(() => {
+        if (!cancelled) setMyActiveStream(null);
+      });
+      return () => { cancelled = true; };
+    }, [])
+  );
 
   useEffect(() => {
     refresh().finally(() => setInitialLoad(false));
@@ -228,10 +242,17 @@ export default function HomeScreen() {
 
   const handleLivePress = useCallback(
     (stream) => {
-      navigation.getParent()?.navigate?.("Live", { screen: "LivePlayer", params: { streamId: stream.streamId, stream } });
+      const sid = stream.streamId ?? stream._id;
+      navigation.getParent()?.navigate?.("Live", { screen: "LivePlayer", params: { streamId: sid, stream } });
     },
     [navigation]
   );
+
+  const handleReturnToLive = useCallback(() => {
+    if (!myActiveStream) return;
+    const sid = myActiveStream._id ?? myActiveStream.streamId;
+    navigation.getParent()?.navigate?.("Live", { screen: "LiveHost", params: { streamId: sid, stream: myActiveStream } });
+  }, [myActiveStream, navigation]);
 
   const handleCardPress = useCallback(
     (item) => {
@@ -334,12 +355,26 @@ export default function HomeScreen() {
   const listHeader = useMemo(
     () => (
       <>
+        {myActiveStream && (
+          <TouchableOpacity
+            style={[styles.returnToLiveBanner, { backgroundColor: colors.primary + "20", borderColor: colors.primary }]}
+            onPress={handleReturnToLive}
+            activeOpacity={0.8}
+          >
+            <View style={styles.returnToLiveRow}>
+              <View style={[styles.returnToLiveDot, { backgroundColor: colors.error || "#e53935" }]} />
+              <Text style={[styles.returnToLiveText, { color: colors.primary }]}>Your stream is still live</Text>
+            </View>
+            <Text style={[styles.returnToLiveSub, { color: colors.textMuted }]}>Tap to return to your live stream</Text>
+            <MaterialIcons name="videocam" size={20} color={colors.primary} style={styles.returnToLiveIcon} />
+          </TouchableOpacity>
+        )}
         <LiveHeroCard stream={liveStreams[0]} onPress={handleLivePress} colors={colors} />
         <CategoryChips selectedTab={selectedTab} onSelect={onSelectTab} colors={colors} />
-        <ActiveNowRow streams={liveStreams} onPress={handleLivePress} colors={colors} />
+        <ActiveNowRow streams={liveStreams?.filter((s) => String(s?.hostId) !== String(userId)) ?? []} onPress={handleLivePress} colors={colors} />
       </>
     ),
-    [liveStreams, selectedTab, onSelectTab, handleLivePress, colors]
+    [myActiveStream, liveStreams, userId, selectedTab, onSelectTab, handleLivePress, handleReturnToLive, colors]
   );
 
   const listEmpty =
@@ -446,6 +481,18 @@ export default function HomeScreen() {
 function createStyles(colors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
+    returnToLiveBanner: {
+      marginHorizontal: spacing.md,
+      marginBottom: spacing.sm,
+      padding: spacing.md,
+      borderRadius: 12,
+      borderWidth: 1,
+    },
+    returnToLiveRow: { flexDirection: "row", alignItems: "center", marginBottom: 4 },
+    returnToLiveDot: { width: 8, height: 8, borderRadius: 4, marginRight: 8 },
+    returnToLiveText: { fontSize: 15, fontWeight: "700" },
+    returnToLiveSub: { fontSize: 13 },
+    returnToLiveIcon: { position: "absolute", right: spacing.md, top: spacing.md },
     listContent: { paddingBottom: spacing.xxl },
     listEmpty: { flexGrow: 1, paddingBottom: spacing.xxl },
     center: { flex: 1, justifyContent: "center", alignItems: "center" },

@@ -23,7 +23,7 @@ import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
 import { useVideoCreateStore } from "../../store/videoCreate.store";
 import { useAuthStore } from "../../store/auth.store";
-import { uploadToCloudinary } from "../../utils/env";
+import { uploadToCloudinary, uploadToCloudinaryWithProgress } from "../../utils/env";
 import * as videosApi from "../../api/videos.api";
 import SubScreenHeader from "../../components/SubScreenHeader";
 
@@ -75,12 +75,19 @@ export default function VideoPublishScreen() {
     setUploadStatus("uploading");
     setUploadProgress(0);
     try {
-      setUploadProgress(0.2);
-      const videoUrl = await uploadToCloudinary(draftUri, "video");
-      setUploadProgress(0.6);
+      const videoUrl = await uploadToCloudinaryWithProgress(
+        draftUri,
+        "video",
+        (p) => setUploadProgress(0.05 + p * 0.6)
+      );
+      setUploadProgress(0.65);
       let thumbnailUrl = "";
       if (coverFrameUri) {
-        thumbnailUrl = await uploadToCloudinary(coverFrameUri, "image");
+        thumbnailUrl = await uploadToCloudinaryWithProgress(
+          coverFrameUri,
+          "image",
+          (p) => setUploadProgress(0.65 + p * 0.2)
+        );
       }
       if (!thumbnailUrl && videoUrl) thumbnailUrl = videoUrl;
       setUploadProgress(0.9);
@@ -89,6 +96,8 @@ export default function VideoPublishScreen() {
         thumbnailUrl,
         caption: captionInput.trim(),
         durationSec: Math.round((draftDurationMs || 0) / 1000),
+        hashtags,
+        language: "en",
       });
       setUploadStatus("done");
       clearDraft();
@@ -97,7 +106,13 @@ export default function VideoPublishScreen() {
       ]);
     } catch (e) {
       setUploadStatus("error", e?.message);
-      Alert.alert("Error", e?.response?.data?.error?.message || e?.message || "Upload failed.");
+      const msg = e?.response?.data?.error?.message || e?.message || "Upload failed.";
+      const code = e?.response?.data?.error?.code;
+      if (code === "AGE_REQUIRED" || (msg && /date of birth|dob|age/i.test(msg))) {
+        Alert.alert("Age requirement", "Add your date of birth in Edit Profile to post videos.");
+      } else {
+        Alert.alert("Error", msg);
+      }
     } finally {
       setPosting(false);
     }

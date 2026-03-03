@@ -73,7 +73,10 @@ export const useAuthStore = create((set, get) => ({
   token: null,
   user: null,
   isAuthenticated: false,
+  bannedRedirectToPenalties: false,
   authProvidersAvailable: getProvidersFromFlags(),
+
+  setBannedRedirect: (v) => set({ bannedRedirectToPenalties: !!v }),
 
   refreshConfigFlags: () => {
     set({ authProvidersAvailable: getProvidersFromFlags() });

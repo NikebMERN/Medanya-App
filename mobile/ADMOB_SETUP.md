@@ -1,72 +1,50 @@
-# AdMob Setup for Watch Ads (Earn Coins)
+# AdMob Setup for Medanya
 
-To enable the "Watch Ads" feature in Earn MedCoins, you need to configure Google AdMob.
+Real AdMob ads (no simulated/fake ads). Uses test IDs in `__DEV__`, real IDs in production.
 
-## What You Need to Provide
+## Requirements
 
-### 1. **AdMob App ID (Android)**
-- Format: `ca-app-pub-XXXXXXXXXXXXXXXX~YYYYYYYYYY`
-- From: [AdMob Console](https://admob.google.com) → Apps → Your app → App settings
+- **AdMob does NOT work in Expo Go.** Use EAS dev client or production build.
+- Build: `npm run build:dev` (or `build:dev:ios` / `build:dev:android`), then `npm run start:dev-client`
+- **keytool** (for local Android keystore): Comes with Java JDK. Install [OpenJDK](https://adoptium.net/) if you see "keytool not found". EAS can generate keystores in the cloud if keytool is unavailable.
 
-### 2. **AdMob App ID (iOS)**
-- Format: `ca-app-pub-XXXXXXXXXXXXXXXX~YYYYYYYYYY`
-- Same place in AdMob, create/link an iOS app if needed
+## Configuration
 
-### 3. **Rewarded Ad Unit ID** (one per platform or shared)
-- Format: `ca-app-pub-XXXXXXXXXXXXXXXX/ZZZZZZZZZZ`
-- From: AdMob → Apps → [Your app] → Ad units → Create ad unit → Rewarded
+### App IDs (app.json)
 
----
-
-## Setup Steps
-
-### Step 1: Create an AdMob account
-1. Go to https://admob.google.com
-2. Sign in with your Google account
-3. Create a new app (or link existing Firebase app)
-
-### Step 2: Create Ad Units
-1. In AdMob, select your app (or create one for Android and one for iOS)
-2. Click "Ad units" → "Add ad unit"
-3. Choose **Rewarded**
-4. Name it (e.g. "Earn Coins - Rewarded")
-5. Copy the Ad unit ID (e.g. `ca-app-pub-1234567890123456/9876543210`)
-
-### Step 3: Add to mobile app
-
-**Option A: app.json** (for App IDs – required for native build)
-Edit `mobile/app.json` and replace the test IDs in the plugin config:
+Already in `app.json` plugins:
 ```json
 ["react-native-google-mobile-ads", {
-  "androidAppId": "ca-app-pub-YOUR_ANDROID_APP_ID",
-  "iosAppId": "ca-app-pub-YOUR_IOS_APP_ID"
+  "androidAppId": "ca-app-pub-1717403054658770~9594579402",
+  "iosAppId": "ca-app-pub-1717403054658770~7234011500"
 }]
 ```
 
-**Option B: .env** (for Rewarded ad unit – used at runtime)
-Add to `mobile/.env`:
+### Ad Unit IDs (.env)
+
+- **`__DEV__`**: Google test IDs used automatically (AdMob policy)
+- **Production**: Set real IDs in `mobile/.env`:
+
 ```
 EXPO_PUBLIC_ADMOB_REWARDED_AD_UNIT_ID=ca-app-pub-XXXXXXXXXXXXXXXX/ZZZZZZZZZZ
+# Or platform-specific:
+# EXPO_PUBLIC_ADMOB_REWARDED_ID_IOS=
+# EXPO_PUBLIC_ADMOB_REWARDED_ID_ANDROID=
+
+# Optional: Banner, Interstitial
+# EXPO_PUBLIC_ADMOB_BANNER_ID=
+# EXPO_PUBLIC_ADMOB_INTERSTITIAL_ID=
 ```
 
-### Step 4: Rebuild the app
-AdMob requires a native build. Run:
-```bash
-cd mobile
-npx expo prebuild
-npx expo run:ios   # or run:android
-```
+## Consent & ATT
 
-For EAS Build:
-```bash
-eas build --platform all
-```
+- **iOS**: ATT prompt shown before loading ads (via `expo-tracking-transparency`)
+- **GDPR/EEA**: `AdsConsent.loadAndShowConsentFormIfRequired()` runs before init
 
----
+## Files
 
-## Test IDs (Development)
-The app uses Google's test ad unit IDs in development:
-- App IDs in app.json: `ca-app-pub-3940256099942544~...` (Google test)
-- Rewarded: `ca-app-pub-3940256099942544/5224354917`
-
-Replace these with your real IDs before publishing to production.
+- `src/config/ads.config.js` — Dev vs prod ad unit IDs
+- `src/services/ads.service.js` — Init, showRewardedAd, showInterstitialAd
+- `src/store/ads.store.js` — Zustand `adsReady` flag
+- `src/components/ads/` — AdBanner, useRewardedAd, useInterstitialAd
+- `src/modules/gifts/hooks/useWatchAdEarn.js` — Earn Coins integration

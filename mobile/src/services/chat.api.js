@@ -15,6 +15,12 @@ export async function listChats(params = {}) {
   };
 }
 
+/** Mark chat as read up to messageId. Call when user views chat. */
+export async function markChatRead(chatId, messageId) {
+  const { data } = await client.post(`/chats/${chatId}/read`, { messageId });
+  return data;
+}
+
 export async function getChat(chatId) {
   const { data } = await client.get(`/chats/${chatId}`);
   return data;

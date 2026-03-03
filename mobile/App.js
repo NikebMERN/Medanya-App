@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { View, InteractionManager } from "react-native";
+import { initializeAds } from "./src/services/ads.service";
 import { StatusBar } from "expo-status-bar";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -40,6 +41,7 @@ export default function App() {
         } catch (_) {}
         await rehydrateTheme();
         await rehydrate();
+        initializeAds().catch(() => {});
         if (!cancelled) setReady(true);
       })();
     });

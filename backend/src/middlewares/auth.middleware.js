@@ -35,9 +35,23 @@ const authMiddleware = async (req, res, next) => {
                 error: { code: "UNAUTHORIZED", message: "Invalid user" },
             });
         }
-        if (rows[0].is_banned) {
+        const isBanned = !!rows[0].is_banned;
+        const path = (req.originalUrl || req.url || "").split("?")[0];
+        const allowedWhenBanned = [
+            "/api/users/me",
+            "/api/penalties/my",
+            "/api/penalties/",
+            "/api/wallet/support",
+        ];
+        const canProceedWhenBanned = allowedWhenBanned.some((p) =>
+            p.endsWith("/") ? path.startsWith(p) : path === p || path.startsWith(p + "/")
+        );
+        if (isBanned && !canProceedWhenBanned) {
             return res.status(403).json({
-                error: { code: "BANNED", message: "User is banned" },
+                error: {
+                    code: "BANNED",
+                    message: "Your account is restricted. View penalties to restore access.",
+                },
             });
         }
 

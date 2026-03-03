@@ -25,6 +25,9 @@ router.post("/:chatId/join", chatController.joinGroup);
 // GET /chats/:chatId
 router.get("/:chatId", chatController.getChat);
 
+// POST /chats/:chatId/read — mark read up to messageId (body: { messageId })
+router.post("/:chatId/read", chatController.markRead);
+
 // GET /chats/:chatId/messages
 router.get("/:chatId/messages", chatController.listMessages);
 

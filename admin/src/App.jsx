@@ -1,6 +1,7 @@
 import { Admin, Resource, CustomRoutes } from "react-admin";
 import { Route } from "react-router-dom";
 import { dataProvider } from "./dataProvider";
+import { AppLayout } from "./components/AppLayout";
 import { authProvider } from "./authProvider";
 import { darkTheme } from "./theme";
 import Login from "./pages/Login";
@@ -21,6 +22,7 @@ function App() {
       dataProvider={dataProvider}
       authProvider={authProvider}
       theme={darkTheme}
+      layout={AppLayout}
       loginPage={Login}
       dashboard={Dashboard}
       darkMode

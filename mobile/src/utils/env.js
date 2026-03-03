@@ -26,7 +26,15 @@ export const env = {
   facebookAppId: extra.facebookAppId || process.env.EXPO_PUBLIC_FACEBOOK_APP_ID || "",
   cloudinaryCloudName: extra.cloudinaryCloudName || process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME || "",
   cloudinaryUploadPreset: extra.cloudinaryUploadPreset || process.env.EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET || "",
-  admobRewardedAdUnitId: extra.admobRewardedAdUnitId || process.env.EXPO_PUBLIC_ADMOB_REWARDED_AD_UNIT_ID || "",
+  admobRewardedAdUnitId: extra.admobRewardedAdUnitId || process.env.EXPO_PUBLIC_ADMOB_REWARDED_AD_UNIT_ID || process.env.EXPO_PUBLIC_ADMOB_REWARDED_ID || "",
+  admobBannerId: extra.admobBannerId || process.env.EXPO_PUBLIC_ADMOB_BANNER_ID || "",
+  admobBannerIdIos: extra.admobBannerIdIos || process.env.EXPO_PUBLIC_ADMOB_BANNER_ID_IOS || "",
+  admobBannerIdAndroid: extra.admobBannerIdAndroid || process.env.EXPO_PUBLIC_ADMOB_BANNER_ID_ANDROID || "",
+  admobInterstitialId: extra.admobInterstitialId || process.env.EXPO_PUBLIC_ADMOB_INTERSTITIAL_ID || "",
+  admobInterstitialIdIos: extra.admobInterstitialIdIos || process.env.EXPO_PUBLIC_ADMOB_INTERSTITIAL_ID_IOS || "",
+  admobInterstitialIdAndroid: extra.admobInterstitialIdAndroid || process.env.EXPO_PUBLIC_ADMOB_INTERSTITIAL_ID_ANDROID || "",
+  admobRewardedIdIos: extra.admobRewardedIdIos || process.env.EXPO_PUBLIC_ADMOB_REWARDED_ID_IOS || "",
+  admobRewardedIdAndroid: extra.admobRewardedIdAndroid || process.env.EXPO_PUBLIC_ADMOB_REWARDED_ID_ANDROID || "",
   oauthRedirectUri: (extra.oauthRedirectUri || process.env.EXPO_PUBLIC_OAUTH_REDIRECT_URI || "").trim().replace(/^["']|["']$/g, "") || null,
   stripePublishableKey: (extra.stripePublishableKey || process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || "").trim() || null,
 };
@@ -77,4 +85,84 @@ export async function uploadToCloudinary(uri, resourceType = "image", mimeType) 
     throw new Error(msg);
   }
   return data.secure_url || null;
+}
+
+const DEFAULT_RETRIES = 2;
+const RETRY_DELAY_MS = 1500;
+
+/**
+ * Upload to Cloudinary with progress and retry.
+ * Uses XMLHttpRequest for progress events.
+ * @param {string} uri - local file URI
+ * @param {"image"|"video"|"raw"} resourceType
+ * @param {function(number)} onProgress - 0..1
+ * @param {object} opts - { mimeType, signedParams }
+ * @returns {Promise<string>} secure_url
+ */
+export async function uploadToCloudinaryWithProgress(uri, resourceType = "image", onProgress, opts = {}) {
+  const cloudName = env.cloudinaryCloudName;
+  const preset = env.cloudinaryUploadPreset;
+  const signedParams = opts.signedParams;
+  if (!cloudName) {
+    throw new Error("Cloudinary not configured. Add EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME to .env");
+  }
+  const type = opts.mimeType || DEFAULT_MIME[resourceType] || "application/octet-stream";
+  const name = resourceType === "raw" ? "voice.m4a" : resourceType === "video" ? "video.mp4" : "upload.jpg";
+
+  const formData = new FormData();
+  formData.append("file", { uri, type, name });
+  if (signedParams) {
+    formData.append("api_key", signedParams.apiKey);
+    formData.append("timestamp", String(signedParams.timestamp));
+    formData.append("signature", signedParams.signature);
+    if (signedParams.folder) formData.append("folder", signedParams.folder);
+  } else if (preset) {
+    formData.append("upload_preset", preset);
+  } else {
+    throw new Error("Cloudinary: use signed upload or set EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET");
+  }
+
+  const url = `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`;
+  const maxRetries = opts.retries ?? DEFAULT_RETRIES;
+
+  const doUpload = () =>
+    new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", url);
+
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable && typeof onProgress === "function") {
+          onProgress(e.loaded / e.total);
+        }
+      };
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const data = JSON.parse(xhr.responseText);
+            if (data.error) reject(new Error(data.error.message || "Upload failed"));
+            else resolve(data.secure_url || null);
+          } catch {
+            reject(new Error("Invalid upload response"));
+          }
+        } else {
+          reject(new Error(`Upload failed: ${xhr.status}`));
+        }
+      };
+      xhr.onerror = () => reject(new Error("Network error during upload"));
+      xhr.send(formData);
+    });
+
+  let lastErr;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await doUpload();
+    } catch (e) {
+      lastErr = e;
+      if (attempt < maxRetries) {
+        await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
+      }
+    }
+  }
+  throw lastErr;
 }

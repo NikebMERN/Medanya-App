@@ -2,7 +2,8 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { adminApi } from "../lib/api";
 import { DataTable } from "../components/DataTable";
-import { Shield, AlertTriangle } from "lucide-react";
+import UserContentPreview, { isUserContent } from "../components/UserContentPreview";
+import { Shield } from "lucide-react";
 
 export default function Moderation() {
   const queryClient = useQueryClient();
@@ -171,6 +172,52 @@ export default function Moderation() {
   );
 }
 
+function ContentPreview({ content }) {
+  if (!content || typeof content !== "object") return null;
+  if (isUserContent(content)) {
+    return (
+      <div className="mb-4">
+        <UserContentPreview user={content} />
+      </div>
+    );
+  }
+  const rows = [];
+  const add = (label, val) => {
+    if (val != null && val !== "" && (typeof val !== "object" || Array.isArray(val))) {
+      rows.push({ label, value: Array.isArray(val) ? val.join(", ") : String(val) });
+    }
+  };
+  add("Title", content.title);
+  add("Display Name", content.displayName ?? content.display_name);
+  add("Full Name", content.fullName ?? content.full_name);
+  add("Caption", content.caption);
+  add("Description", content.description);
+  add("Bio", content.bio);
+  add("Neighborhood", content.neighborhood);
+  add("Phone", content.phone ?? content.phone_number);
+  add("Status", content.status);
+  add("Type", content.type);
+  add("Category", content.category);
+  if (rows.length === 0) {
+    const skip = new Set(["avatarUrl", "avatar_url", "avatar", "mediaUrls", "photos", "videos", "evidence"]);
+    Object.entries(content).forEach(([k, v]) => {
+      if (skip.has(k) || v == null || v === "" || typeof v === "object") return;
+      rows.push({ label: k.replace(/([A-Z])/g, " $1").replace(/^./, (s) => s.toUpperCase()), value: String(v) });
+    });
+  }
+  if (rows.length === 0) return null;
+  return (
+    <div className="mb-4 p-3 bg-slate-50 rounded-lg text-sm space-y-2">
+      {rows.map((r) => (
+        <div key={r.label} className="flex gap-2">
+          <span className="text-slate-500 font-medium min-w-[100px]">{r.label}:</span>
+          <span className="text-slate-800 break-words">{r.value}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function DetailModal({ item, onClose, onAction, loading }) {
   const [action, setAction] = useState("");
   const [reason, setReason] = useState("");
@@ -203,10 +250,20 @@ function DetailModal({ item, onClose, onAction, loading }) {
         <p className="text-xs text-slate-500 mb-4">{item.reasonSummary}</p>
 
         {item.content && (
-          <div className="mb-4 p-3 bg-slate-50 rounded-lg text-sm">
-            <pre className="whitespace-pre-wrap text-xs overflow-auto max-h-40">
-              {JSON.stringify(item.content, null, 2)}
-            </pre>
+          <div className="mb-4">
+            {item.targetType === "USER" && (item.content.avatarUrl ?? item.content.avatar_url) && (
+              <div className="flex items-center gap-3 mb-3">
+                <img
+                  src={item.content.avatarUrl ?? item.content.avatar_url}
+                  alt=""
+                  className="w-12 h-12 rounded-full object-cover border border-slate-200"
+                />
+                <span className="font-semibold text-slate-900">
+                  {item.content.displayName ?? item.content.display_name ?? item.content.fullName ?? item.content.full_name ?? item.content.title ?? "—"}
+                </span>
+              </div>
+            )}
+            <ContentPreview content={item.content} />
           </div>
         )}
 

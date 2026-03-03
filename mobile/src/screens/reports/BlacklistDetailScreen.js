@@ -6,6 +6,8 @@ import {
   ScrollView,
   ActivityIndicator,
   TouchableOpacity,
+  Image,
+  Linking,
 } from "react-native";
 import { useRoute, useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -145,6 +147,21 @@ export default function BlacklistDetailScreen() {
                 {r.description}
               </Text>
             ) : null}
+            {((r.evidence?.photos && r.evidence.photos.length) > 0) || ((r.evidence?.videos && r.evidence.videos.length) > 0) ? (
+              <View style={styles.evidenceSection}>
+                {Array.isArray(r.evidence?.photos) && r.evidence.photos.map((uri, j) => (
+                  <TouchableOpacity key={`p-${j}`} onPress={() => uri && Linking.openURL(uri)} style={styles.evidenceThumb}>
+                    <Image source={{ uri }} style={styles.evidenceImage} resizeMode="cover" />
+                  </TouchableOpacity>
+                ))}
+                {Array.isArray(r.evidence?.videos) && r.evidence.videos.map((uri, j) => (
+                  <TouchableOpacity key={`v-${j}`} onPress={() => uri && Linking.openURL(uri)} style={[styles.evidenceThumb, styles.videoThumb]}>
+                    <MaterialIcons name="videocam" size={24} color={colors.textMuted} />
+                    <Text style={styles.videoLabel}>Tap</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ) : null}
           </View>
         ))
       )}
@@ -178,6 +195,16 @@ function createStyles(colors) {
     },
     reportReason: { fontSize: 14, fontWeight: "600", color: colors.text, textTransform: "capitalize" },
     reportDesc: { fontSize: 13, color: colors.textSecondary, marginTop: 4 },
+    evidenceSection: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 },
+    evidenceThumb: { width: 72, height: 72, borderRadius: 8, overflow: "hidden" },
+    evidenceImage: { width: 72, height: 72 },
+    videoThumb: {
+      backgroundColor: colors.surfaceLight || "#1e293b",
+      justifyContent: "center",
+      alignItems: "center",
+      flexDirection: "column",
+    },
+    videoLabel: { fontSize: 10, color: colors.textMuted, marginTop: 2 },
     mutedText: { fontSize: 14, color: colors.textMuted },
     errorText: { fontSize: 15, color: colors.error, textAlign: "center", marginBottom: spacing.sm },
     notFoundText: { fontSize: 15, color: colors.text, marginTop: spacing.md, textAlign: "center" },

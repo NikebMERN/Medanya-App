@@ -37,19 +37,19 @@ export function ageFromDob(dob) {
 }
 
 /**
- * Get DOB from user object. Prefers Veriff/KYC-verified birth year when available
- * (backend syncs Veriff birthdate to user.dob on KYC approval for cross-check).
+ * Get DOB from user object. Prefers KYC/Veriff-verified birth when available.
+ * Also checks dob, date_of_birth, birthdate from Edit Profile (no face verification required).
  */
 export function getDobFromUser(user) {
   if (!user) return null;
   const val =
-    user.kyc_dob ??
-    user.veriff_dob ??
-    user.veriff_birth_year ??
     user.dob ??
     user.date_of_birth ??
     user.dateOfBirth ??
     user.birthdate ??
+    user.kyc_dob ??
+    user.veriff_dob ??
+    user.veriff_birth_year ??
     null;
   if (val == null || val === "") return null;
   if (val instanceof Date) return val;

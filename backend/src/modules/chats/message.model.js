@@ -31,6 +31,9 @@ const MessageSchema = new mongoose.Schema(
 
         deliveredAt: { type: Date },
 
+        // Per-recipient delivery tracking (optional; deliveredAt = sent timestamp)
+        deliveredTo: { type: [String], default: [] },
+
         // Keep spec field
         readBy: { type: [ReadBySchema], default: [] },
 

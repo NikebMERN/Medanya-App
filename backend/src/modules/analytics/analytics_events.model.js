@@ -6,11 +6,13 @@ const mongoose = require("mongoose");
 
 const EVENT_TYPES = [
     "video_view", "video_like", "video_comment", "video_upload",
+    "record_start", "record_stop", "upload_success", "upload_fail",
     "follow", "unfollow",
     "market_view", "market_purchase", "market_listing_create",
     "job_view", "job_apply", "job_post",
-    "livestream_start", "livestream_join", "livestream_gift",
+    "livestream_start", "livestream_join", "livestream_gift", "livestream_end",
     "boost_video", "boost_live",
+    "superlike_sent", "ad_reward_earned",
     "report_create", "report_resolved",
 ];
 

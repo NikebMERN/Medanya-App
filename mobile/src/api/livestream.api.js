@@ -22,6 +22,11 @@ export async function getStream(streamId) {
   return data?.stream ?? data;
 }
 
+export async function getMyActiveStream() {
+  const { data } = await client.get("/streams/my-active");
+  return data?.stream ?? null;
+}
+
 export async function createStream(body) {
   const payload = {
     title: body?.title ?? "",

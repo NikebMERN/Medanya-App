@@ -13,7 +13,7 @@ const StreamSchema = new mongoose.Schema(
 
         status: {
             type: String,
-            enum: ["live", "ended", "banned", "stopped_pending_review"],
+            enum: ["live", "ended", "banned", "stopped_pending_review", "flagged"],
             default: "live",
             index: true,
         },

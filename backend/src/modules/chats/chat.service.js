@@ -2,6 +2,7 @@
 const mongoose = require("mongoose");
 const Chat = require("./chat.model");
 const Message = require("./message.model");
+const ChatMember = require("./chatMember.model");
 const followDb = require("../users/follow.mysql");
 
 const MAX_GROUP_SIZE = 200;
@@ -196,7 +197,20 @@ async function listChats(currentUserId, { page = 1, limit = 20 } = {}) {
         return !other || !blockedSet.has(String(other));
     });
 
-    return { page: p, limit: l, total, chats: filtered };
+    // Fetch unread counts per chat for current user
+    const chatIds = filtered.map((c) => c._id);
+    const members = await ChatMember.find({ chatId: { $in: chatIds }, userId: me }).lean();
+    const unreadByChatId = {};
+    for (const m of members) {
+        unreadByChatId[String(m.chatId)] = Math.max(0, m.unreadCount || 0);
+    }
+
+    const chatsWithUnread = filtered.map((c) => ({
+        ...c,
+        unreadCount: unreadByChatId[String(c._id)] || 0,
+    }));
+
+    return { page: p, limit: l, total, chats: chatsWithUnread };
 }
 
 async function getChatMeta(currentUserId, chatId) {
@@ -497,9 +511,22 @@ async function sendMessage(
         text: ["text", "location", "poll", "contact", "profile"].includes(msgType) ? bodyText : "",
         mediaUrl: needsMedia ? bodyUrl : "",
         deliveredAt: createdAt,
+        deliveredTo: [me],
         readBy: [{ userId: me, readAt: createdAt }],
         readByUserIds: [me],
     });
+
+    // Increment unreadCount for all other participants; collect new counts for socket emit
+    const others = (chat.participants || []).filter((p) => String(p) !== me);
+    const recipientUnreadCounts = {};
+    for (const uid of others) {
+        const updated = await ChatMember.findOneAndUpdate(
+            { chatId: chat._id, userId: uid },
+            { $inc: { unreadCount: 1 } },
+            { upsert: true, new: true },
+        );
+        recipientUnreadCounts[uid] = updated?.unreadCount ?? 1;
+    }
 
     // Update chat metadata
     chat.lastMessageAt = createdAt;
@@ -525,7 +552,7 @@ async function sendMessage(
                                             : "Message";
     await chat.save();
 
-    return message.toObject();
+    return { message: message.toObject(), recipientUnreadCounts };
 }
 
 async function listMessages(currentUserId, { chatId, cursor, limit }) {
@@ -853,7 +880,6 @@ async function markMessagesRead(currentUserId, { chatId, messageIds = [] }) {
     );
 
     // 2) add readBy entry only where it doesn't already contain userId
-    //    This keeps readBy aligned with readByUserIds.
     await Message.updateMany(
         {
             chatId: chat._id,
@@ -864,7 +890,60 @@ async function markMessagesRead(currentUserId, { chatId, messageIds = [] }) {
         { $push: { readBy: { userId: me, readAt: now } } },
     );
 
+    // 3) Reset unreadCount for this user in ChatMember
+    const lastId = ids[ids.length - 1];
+    await ChatMember.findOneAndUpdate(
+        { chatId: chat._id, userId: me },
+        { lastReadMessageId: lastId, lastReadAt: now, unreadCount: 0 },
+        { upsert: true },
+    );
+
     return true;
+}
+
+/** Mark read up to (and including) messageId. Used when user views chat. */
+async function markReadUpTo(currentUserId, chatId, messageId) {
+    const me = toIdString(currentUserId);
+    if (!mongoose.isValidObjectId(messageId)) {
+        const err = new Error("VALIDATION_ERROR");
+        err.code = "VALIDATION_ERROR";
+        throw err;
+    }
+    const chat = await getChatLean(chatId);
+    if (!chat) {
+        const err = new Error("INVALID_CHAT");
+        err.code = "INVALID_CHAT";
+        throw err;
+    }
+    if (!isParticipant(chat, me)) {
+        const err = new Error("FORBIDDEN");
+        err.code = "FORBIDDEN";
+        throw err;
+    }
+    const msg = await Message.findOne({ _id: messageId, chatId: chat._id }).lean();
+    if (!msg) {
+        const err = new Error("INVALID_MESSAGE");
+        err.code = "INVALID_MESSAGE";
+        throw err;
+    }
+    const ids = await Message.find(
+        { chatId: chat._id, createdAt: { $lte: msg.createdAt }, senderId: { $ne: me } },
+        { _id: 1 },
+    )
+        .sort({ createdAt: 1 })
+        .limit(500)
+        .lean();
+    const idList = ids.map((m) => m._id);
+    if (idList.length > 0) {
+        await markMessagesRead(me, { chatId, messageIds: idList });
+    } else {
+        await ChatMember.findOneAndUpdate(
+            { chatId: chat._id, userId: me },
+            { lastReadMessageId: msg._id, lastReadAt: new Date(), unreadCount: 0 },
+            { upsert: true },
+        );
+    }
+    return { unreadCount: 0 };
 }
 
 async function getMessagesBetweenUsersForAdmin(userIdA, userIdB, limit = 100) {
@@ -895,6 +974,7 @@ module.exports = {
     getMessagesBetweenUsersForAdmin,
     createGroupChat,
     listChats,
+    markReadUpTo,
     getChatMeta,
     searchGroups,
     joinGroup,

@@ -62,8 +62,6 @@ async function createVideo(user, body) {
 
     const uploader = await userDb.getById(userId);
     if (!uploader) throw codeErr("UNAUTHORIZED", "User not found");
-    const kycVerified = !!(uploader.kyc_face_verified || (uploader.kyc_status === "verified" && (uploader.kyc_level || 0) >= 2));
-    if (!kycVerified) throw codeErr("FORBIDDEN", "Identity verification required. Complete verification in Profile before posting videos.");
     if (!uploader.dob) throw codeErr("AGE_REQUIRED", "Date of birth required to post videos. Add it in Edit Profile.");
     const age = ageFromDob(uploader.dob);
     if (age == null || age < 16) throw codeErr("AGE_REQUIRED", "You must be 16 or older to post videos.");
@@ -73,6 +71,9 @@ async function createVideo(user, body) {
     const caption = cleanStr(body.caption, 300);
     const locationText = cleanStr(body.locationText, 200);
     const durationSec = Number.isFinite(Number(body.durationSec)) ? Math.max(0, Number(body.durationSec)) : 0;
+    const tags = Array.isArray(body.tags) ? body.tags.slice(0, 20).map((t) => cleanStr(t, 50)).filter(Boolean) : [];
+    const hashtags = Array.isArray(body.hashtags) ? body.hashtags.slice(0, 20).map((t) => cleanStr(t, 50)).filter(Boolean) : tags;
+    const language = cleanStr(body.language, 10) || "en";
 
     if (!videoUrl) throw codeErr("VALIDATION_ERROR", "videoUrl is required");
 
@@ -88,6 +89,8 @@ async function createVideo(user, body) {
         caption,
         locationText,
         durationSec,
+        tags: hashtags.length ? hashtags : tags,
+        language,
         status,
     });
 

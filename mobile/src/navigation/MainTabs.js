@@ -1,4 +1,5 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useEffect } from "react";
+import { useNavigation } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { getFocusedRouteNameFromRoute } from "@react-navigation/native";
 import AppHeader from "../components/AppHeader";
@@ -10,6 +11,7 @@ import JobsStack from "./JobsStack";
 import MarketplaceStack from "./MarketplaceStack";
 import SafetyStack from "./SafetyStack";
 import ProfileStack from "./ProfileStack";
+import { useAuthStore } from "../store/auth.store";
 
 const Tab = createBottomTabNavigator();
 
@@ -68,6 +70,15 @@ const renderHeader = ({ navigation, route }) => {
 };
 
 export default function MainTabs() {
+  const navigation = useNavigation();
+  const bannedRedirect = useAuthStore((s) => s.bannedRedirectToPenalties);
+
+  useEffect(() => {
+    if (bannedRedirect) {
+      navigation.getParent()?.navigate("PenaltyCenter");
+    }
+  }, [bannedRedirect, navigation]);
+
   const screenOptions = useMemo(
     () => ({
       lazy: true,

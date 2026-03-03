@@ -97,7 +97,7 @@ export default function OrderStatusScreen() {
   const isSeller = userId && String(order.seller_id) === String(userId);
   const isBuyer = userId && String(order.buyer_id || order.user_id) === String(userId);
   const allowConfirmStatuses = ["OUT_FOR_DELIVERY", "SHIPPED", "DELIVERED_PENDING_CODE", "COD_SELECTED", "AUTHORIZED"];
-  const canConfirmDelivery = isSeller && order.payment_method === "STRIPE" && allowConfirmStatuses.includes(status);
+  const canConfirmDelivery = isSeller && allowConfirmStatuses.includes(status); // Both COD and Stripe use code/QR
   const canDeclineCod = isBuyer && order.payment_method === "COD" && (status === "COD_SELECTED" || status === "PLACED");
   const canSellerCancelCod = isSeller && order.payment_method === "COD" && (status === "COD_SELECTED" || status === "PLACED");
   const canSellerAccept = isSeller && status === "PLACED";
@@ -195,7 +195,7 @@ export default function OrderStatusScreen() {
         </View>
 
         {isBuyer && order.payment_method === "STRIPE" && (
-          <DeliveryCodeSection orderId={order.id} orderStatus={status} confirmation={order.confirmation} />
+          <DeliveryCodeSection orderId={order.id} orderStatus={status} confirmation={order.confirmation} confirmationLabel={order.confirmationLabel} />
         )}
 
         {hasProposedDeliveryFee && (

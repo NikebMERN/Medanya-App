@@ -25,7 +25,9 @@ const userRoutes = require("./modules/users/user.routes");
 const roomRoutes = require("./modules/communityRooms/room.routes");
 const kycRoutes = require("./modules/kyc/kyc.routes");
 const moderationRoutes = require("./modules/moderation/moderation.routes");
+const penaltiesRoutes = require("./modules/penalties/penalties.routes");
 const recommendationRoutes = require("./modules/recommendations/recommendation.routes");
+const superlikeRoutes = require("./modules/superlike/superlike.routes");
 const activityRoutes = require("./modules/activity/activity.routes");
 const unifiedReportRoutes = require("./modules/unifiedReports/report.routes");
 const analyticsRoutes = require("./modules/analytics/analytics.routes");
@@ -67,6 +69,7 @@ router.use("/", feedRoutes);
 
 // ✅ VIDEO RECOMMENDATIONS (mount before video routes so /videos/recommendations is matched first)
 router.use("/", recommendationRoutes);
+router.use("/", superlikeRoutes);
 
 // ✅ VIDEOS
 router.use("/", videoRoutes);
@@ -92,6 +95,9 @@ router.use("/", inAppNotificationsRoutes);
 
 // ✅ SEVERE ABUSE
 router.use("/", severeAbuseRoutes);
+
+// ✅ PENALTIES (pay-to-unban)
+router.use("/penalties", penaltiesRoutes);
 
 // ✅ USERS
 router.use("/", userRoutes);

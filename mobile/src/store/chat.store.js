@@ -31,6 +31,12 @@ export const useChatStore = create((set, get) => ({
   unreadByChatId: {},
 
   setCurrentChatId: (chatId) => set({ currentChatId: chatId ? String(chatId) : null }),
+  setUnreadCount: (chatId, count) => {
+    const id = String(chatId);
+    set((s) => ({
+      unreadByChatId: { ...s.unreadByChatId, [id]: Math.max(0, Number(count) || 0) },
+    }));
+  },
   markChatAsRead: (chatId) => {
     const id = String(chatId);
     set((s) => ({
@@ -59,7 +65,12 @@ export const useChatStore = create((set, get) => ({
     const list = chats || [];
     const hidden = new Set((get().hiddenChatIds || []).map(String));
     const filtered = list.filter((c) => !hidden.has(String(c._id || c.id)));
-    set({ chats: filtered, chatsError: null });
+    const unreadByChatId = { ...get().unreadByChatId };
+    for (const c of filtered) {
+      const id = String(c._id || c.id);
+      if (c.unreadCount != null) unreadByChatId[id] = Math.max(0, Number(c.unreadCount) || 0);
+    }
+    set({ chats: filtered, chatsError: null, unreadByChatId });
   },
   setHiddenChatIds: (ids) => {
     const next = ids || [];

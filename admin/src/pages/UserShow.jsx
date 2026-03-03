@@ -37,6 +37,31 @@ const fetchWithAuth = (path) => {
   return fetch(url, { headers }).then((r) => r.json());
 };
 
+function InfoRow({ label, value, mono }) {
+  const v = value != null && value !== "" ? String(value) : "—";
+  return (
+    <Box sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, gap: 0.5, py: 1, borderBottom: "1px solid", borderColor: "divider", "&:last-child": { borderBottom: 0 } }}>
+      <Typography variant="body2" color="text.secondary" sx={{ minWidth: 160, fontWeight: 500 }}>
+        {label}
+      </Typography>
+      <Typography variant="body2" sx={{ fontFamily: mono ? "monospace" : "inherit", wordBreak: "break-word" }}>
+        {v}
+      </Typography>
+    </Box>
+  );
+}
+
+function DetailSection({ title, children }) {
+  return (
+    <Box sx={{ mb: 2 }}>
+      <Typography variant="subtitle2" fontWeight={700} color="text.secondary" sx={{ mb: 1, textTransform: "uppercase", letterSpacing: 0.5 }}>
+        {title}
+      </Typography>
+      <Box sx={{ pl: 0 }}>{children}</Box>
+    </Box>
+  );
+}
+
 function StatCard({ label, value, color = "primary", onClick }) {
   return (
     <Card
@@ -93,6 +118,7 @@ export default function UserShow() {
   const byModule = activityData?.byModule ?? {};
 
   const formatDate = (d) => (d ? new Date(d).toLocaleString("en-US", { dateStyle: "short", timeStyle: "short" }) : "—");
+  const formatBool = (v) => (v === 1 || v === true ? "Yes" : v === 0 || v === false ? "No" : "—");
 
   const scrollToSection = (ref) => {
     ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -129,30 +155,44 @@ export default function UserShow() {
             </Button>
           </Box>
 
-          {/* Profile Card */}
+          {/* Profile Card — app-style avatar + name */}
           <Card variant="outlined" sx={{ overflow: "visible", borderRadius: 2 }}>
             <CardContent sx={{ "&:last-child": { pb: 3 } }}>
-              <Box display="flex" flexWrap="wrap" gap={3} alignItems="flex-start">
-                {user.avatar_url && (
-                  <Box
-                    component="img"
-                    src={user.avatar_url}
-                    alt=""
-                    sx={{
-                      width: 72,
-                      height: 72,
-                      borderRadius: "50%",
-                      objectFit: "cover",
-                      border: 1,
-                      borderColor: "divider",
-                    }}
-                  />
-                )}
+              <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
+                <Box
+                  sx={{
+                    width: 56,
+                    height: 56,
+                    borderRadius: "50%",
+                    overflow: "hidden",
+                    flexShrink: 0,
+                    bgcolor: "grey.200",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  {user.avatar_url ? (
+                    <Box
+                      component="img"
+                      src={user.avatar_url}
+                      alt=""
+                      sx={{ width: "100%", height: "100%", objectFit: "cover" }}
+                    />
+                  ) : (
+                    <Typography sx={{ fontSize: 24, fontWeight: 700, color: "grey.600" }}>
+                      {(user.display_name || user.full_name || "?")[0]?.toUpperCase()}
+                    </Typography>
+                  )}
+                </Box>
                 <Box flex={1} minWidth={0}>
-                  <Typography variant="h5" fontWeight={700} gutterBottom>
-                    {user.display_name || "—"}
+                  <Typography variant="h5" fontWeight={700}>
+                    {user.display_name || user.full_name || "—"}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
+                    {user.neighborhood || "—"}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
                     ID {user.id} · {user.phone_number || "—"}
                     {user.email ? ` · ${user.email}` : ""}
                   </Typography>
@@ -171,6 +211,72 @@ export default function UserShow() {
                       <Chip label="Active" size="small" color="success" variant="outlined" />
                     )}
                   </Stack>
+                </Box>
+              </Box>
+            </CardContent>
+          </Card>
+
+          {/* Account Details */}
+          <Card variant="outlined" sx={{ borderRadius: 2 }}>
+            <CardContent>
+              <Typography variant="h6" gutterBottom fontWeight={600}>
+                Account Details
+              </Typography>
+              <Box sx={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
+                <Box sx={{ flex: "1 1 300px", minWidth: 0 }}>
+                  <DetailSection title="Profile">
+                    <InfoRow label="Display Name" value={user?.display_name} />
+                    <InfoRow label="Full Name" value={user?.full_name} />
+                    <InfoRow label="Date of Birth" value={user?.dob ? formatDate(user.dob) : null} />
+                    <InfoRow label="Neighborhood" value={user?.neighborhood} />
+                    <InfoRow label="Bio" value={user?.bio} />
+                  </DetailSection>
+                  <DetailSection title="Contact">
+                    <InfoRow label="Phone" value={user?.phone_number} mono />
+                    <InfoRow label="Email" value={user?.email} mono />
+                  </DetailSection>
+                  <DetailSection title="Auth">
+                    <InfoRow label="Provider" value={user?.auth_provider} />
+                    <InfoRow label="Firebase UID" value={user?.firebase_uid} mono />
+                    <InfoRow label="OTP Verified" value={formatBool(user?.otp_verified)} />
+                  </DetailSection>
+                </Box>
+                <Box sx={{ flex: "1 1 300px", minWidth: 0 }}>
+                  <DetailSection title="KYC">
+                    <InfoRow label="Status" value={user?.kyc_status} />
+                    <InfoRow label="Level" value={user?.kyc_level} />
+                    <InfoRow label="Provider" value={user?.kyc_provider} />
+                    <InfoRow label="Verified At" value={user?.kyc_verified_at ? formatDate(user.kyc_verified_at) : null} />
+                  </DetailSection>
+                  <DetailSection title="Account Status">
+                    <InfoRow label="Role" value={user?.role} />
+                    <InfoRow label="Active" value={formatBool(user?.is_active)} />
+                    <InfoRow label="Banned" value={formatBool(user?.is_banned)} />
+                    {user?.is_banned ? <InfoRow label="Ban Reason" value={user?.banned_reason} /> : null}
+                    {user?.is_banned ? <InfoRow label="Ban Level" value={user?.ban_level} /> : null}
+                  </DetailSection>
+                  <DetailSection title="Preferences">
+                    <InfoRow label="Theme" value={user?.preferred_theme} />
+                    <InfoRow label="Private Account" value={formatBool(user?.account_private)} />
+                    <InfoRow label="Hide Phone" value={formatBool(user?.privacy_hide_phone)} />
+                    <InfoRow label="Hide Personal Data" value={formatBool(user?.hide_personal_data)} />
+                    <InfoRow label="Notifications" value={formatBool(user?.notification_enabled)} />
+                    <InfoRow label="Analytics Consent" value={formatBool(user?.analytics_consent)} />
+                  </DetailSection>
+                </Box>
+                <Box sx={{ width: "100%" }}>
+                  <DetailSection title="Stripe">
+                    <InfoRow label="Account ID" value={user?.stripe_account_id} mono />
+                    <InfoRow label="Onboarding" value={user?.stripe_onboarding_status} />
+                    <InfoRow label="Payouts Enabled" value={formatBool(user?.stripe_payouts_enabled)} />
+                    <InfoRow label="Charges Enabled" value={formatBool(user?.stripe_charges_enabled)} />
+                    <InfoRow label="Details Submitted" value={formatBool(user?.stripe_details_submitted)} />
+                  </DetailSection>
+                  <DetailSection title="Timestamps">
+                    <InfoRow label="Created" value={formatDate(user?.created_at)} />
+                    <InfoRow label="Updated" value={formatDate(user?.updated_at)} />
+                    <InfoRow label="Safety Acknowledged" value={user?.safety_acknowledged_at ? formatDate(user.safety_acknowledged_at) : null} />
+                  </DetailSection>
                 </Box>
               </Box>
             </CardContent>
@@ -363,15 +469,23 @@ export default function UserShow() {
             </CardContent>
           </Card>
 
-          {risk && (
+          {risk && typeof risk === "object" && (
             <Card variant="outlined">
               <CardContent>
                 <Typography variant="subtitle2" fontWeight={600} gutterBottom>
                   Risk
                 </Typography>
-                <Typography component="pre" variant="caption" sx={{ overflow: "auto", display: "block", maxHeight: 200 }}>
-                  {JSON.stringify(risk, null, 2)}
-                </Typography>
+                <Box>
+                  {Object.entries(risk)
+                    .filter(([, v]) => v != null && v !== "")
+                    .map(([k, v]) => (
+                      <InfoRow
+                        key={k}
+                        label={k.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+                        value={typeof v === "object" ? (Array.isArray(v) ? v.join(", ") : String(v)) : String(v)}
+                      />
+                    ))}
+                </Box>
               </CardContent>
             </Card>
           )}

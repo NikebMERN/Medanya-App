@@ -1,95 +1,43 @@
 /**
  * useWatchAdEarn — AdMob RewardedAd integration for Earn Coins task.
- * When ad completes => POST /wallet/tasks/claim {type:"WATCH_AD"}.
- * Anti-fraud: server validates; daily caps enforced by backend.
- * Set EXPO_PUBLIC_ADMOB_REWARDED_AD_UNIT_ID in .env for production.
+ * Shows real ads in dev client / production builds. No simulated ads.
+ * When user earns reward => POST /wallet/tasks/claim {type:"WATCH_AD"}.
  *
- * In Expo Go: AdMob native module is unavailable — uses dev fallback.
- * Run `npx expo run:ios` or `npx expo run:android` (dev build) to show real ads.
+ * AdMob does NOT work in Expo Go. In Expo Go, shows an informational alert
+ * that a development build is required — no fake earning.
  */
 import { useState, useCallback } from "react";
-import { Platform, Alert } from "react-native";
-import Constants from "expo-constants";
-import { env } from "../../../utils/env";
+import { Alert } from "react-native";
+import { showRewardedAd } from "../../../services/ads.service";
+import { isExpoGo } from "../../../store/ads.store";
 import * as walletApi from "../../wallet/wallet.api";
 import { useWalletStore } from "../../wallet/wallet.store";
-
-const TEST_REWARDED_ANDROID = "ca-app-pub-3940256099942544/5224354917";
-const TEST_REWARDED_IOS = "ca-app-pub-3940256099942544/1712485313";
-
-/** AdMob requires native build — not available in Expo Go */
-const isExpoGo = Constants.appOwnership === "expo";
-
-async function runDevFallback(onEarned, fetchWallet) {
-  return new Promise((resolve, reject) => {
-    Alert.alert(
-      isExpoGo ? "Development Build Required" : "Ad Unavailable",
-      isExpoGo
-        ? "Real ads require a development build. Run: npx expo run:ios (or run:android). Simulating for now — tap OK to earn coins."
-        : "Ad failed to load. Simulating — tap OK to earn coins.",
-      [{ text: "OK", onPress: async () => {
-        try {
-          const res = await walletApi.claimTask("WATCH_AD", {});
-          const reward = res?.reward ?? 12;
-          await fetchWallet?.();
-          onEarned?.(reward);
-          resolve(reward);
-        } catch (e) {
-          reject(e);
-        }
-      } }]
-    );
-  });
-}
 
 export function useWatchAdEarn({ onEarned }) {
   const [adLoading, setAdLoading] = useState(false);
   const fetchWallet = useWalletStore((s) => s.fetchWallet);
 
   const watchAd = useCallback(async () => {
+    if (isExpoGo) {
+      Alert.alert(
+        "Development Build Required",
+        "Ads require a development or production build. Run: eas build --profile development, then npx expo start --dev-client"
+      );
+      return;
+    }
+
     setAdLoading(true);
     try {
-      let adWatched = false;
-
-      if (isExpoGo) {
-        return await runDevFallback(onEarned, fetchWallet);
-      }
-
-      try {
-        const { RewardedAd, RewardedAdEventType, AdEventType, TestIds } = require("react-native-google-mobile-ads");
-        const testUnit = Platform.OS === "ios" ? TEST_REWARDED_IOS : TEST_REWARDED_ANDROID;
-        const adUnit = env.admobRewardedAdUnitId || TestIds?.REWARDED || testUnit;
-        const ad = RewardedAd.createForAdRequest(adUnit);
-        adWatched = await new Promise((resolve) => {
-          let settled = false;
-          const finish = (v) => { if (!settled) { settled = true; resolve(v); } };
-          const unloadLoaded = ad.addAdEventListener?.(RewardedAdEventType.LOADED, async () => {
-            try {
-              await ad.show();
-            } catch { finish(false); }
-          });
-          const unloadReward = ad.addAdEventListener?.(RewardedAdEventType.EARNED_REWARD, () => finish(true));
-          const unloadClosed = ad.addAdEventListener?.(AdEventType.CLOSED, () => finish(false));
-          ad.load();
-          setTimeout(() => {
-            unloadLoaded?.();
-            unloadReward?.();
-            unloadClosed?.();
-            if (!settled) finish(false);
-          }, 20000);
-        });
-      } catch (_) {
-        // Fallback when native module missing (e.g. dev client without AdMob)
-        return await runDevFallback(onEarned, fetchWallet);
-      }
-
-      if (adWatched) {
+      const earned = await showRewardedAd();
+      if (earned) {
         const res = await walletApi.claimTask("WATCH_AD", {});
         const reward = res?.reward ?? 12;
         await fetchWallet?.();
         onEarned?.(reward);
         return reward;
       }
+    } catch (e) {
+      Alert.alert("Error", e?.response?.data?.error?.message ?? e?.message ?? "Failed to claim reward");
     } finally {
       setAdLoading(false);
     }

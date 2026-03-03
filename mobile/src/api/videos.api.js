@@ -28,6 +28,9 @@ export async function createVideo(body) {
     caption: body.caption || "",
     locationText: body.locationText || "",
     durationSec: body.durationSec || 0,
+    tags: body.tags || body.hashtags || [],
+    hashtags: body.hashtags || body.tags || [],
+    language: body.language || "en",
   });
   return data?.video ?? data;
 }

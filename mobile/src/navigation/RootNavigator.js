@@ -8,11 +8,12 @@ import MainTabs from "./MainTabs";
 import ProfileCreationScreen from "../screens/auth/ProfileCreationScreen";
 import CreateScreen from "../screens/create/CreateScreen";
 import VideoUploadScreen from "../screens/videos/VideoUploadScreen";
-import VideoRecordScreen from "../screens/videos/VideoRecordScreen";
+import RecordingScreen from "../modules/recording/screens/RecordingScreen";
 import VideoEditScreen from "../screens/videos/VideoEditScreen";
 import VideoPublishScreen from "../screens/videos/VideoPublishScreen";
 import VideosStack from "./VideosStack";
 import LivestreamStack from "./LivestreamStack";
+import PenaltyCenterScreen from "../screens/penalties/PenaltyCenterScreen";
 import linking from "./linking";
 
 const Stack = createNativeStackNavigator();
@@ -52,7 +53,7 @@ export default function RootNavigator() {
             />
             <Stack.Screen
               name="VideoRecord"
-              component={VideoRecordScreen}
+              component={RecordingScreen}
               options={{ presentation: "fullScreenModal", headerShown: false, gestureEnabled: true }}
             />
             <Stack.Screen
@@ -67,6 +68,7 @@ export default function RootNavigator() {
             />
             <Stack.Screen name="VideoReels" component={VideosStack} options={{ animation: "fade" }} />
             <Stack.Screen name="Live" component={LivestreamStack} options={{ animation: "fade" }} />
+            <Stack.Screen name="PenaltyCenter" component={PenaltyCenterScreen} options={{ headerShown: false }} />
           </Stack.Navigator>
         </HeaderBackProvider>
       )}

@@ -1,16 +1,31 @@
 import React, { useEffect, useMemo, useState, useCallback } from "react";
-import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useAuthStore } from "../../store/auth.store";
+import { ensureChatSocket } from "../../realtime/chat.socket";
+import {
+  joinStream,
+  leaveStream,
+  onStreamHostAway,
+  offStreamHostAway,
+  onStreamHostBack,
+  offStreamHostBack,
+  onStreamViewerCount,
+  offStreamViewerCount,
+  onLivestreamStop,
+  offLivestreamStop,
+} from "../../realtime/livestream.socket";
 import * as activityApi from "../../services/activity.api";
 import { useLivestreamJoinTimer } from "../../hooks/useLivestreamJoinTimer";
 import PinItemSheet from "../../components/PinItemSheet";
 import GiftPanelBottomSheet from "../../modules/gifts/components/GiftPanelBottomSheet";
 import SupporterLeaderboardSheet from "../../modules/gifts/components/SupporterLeaderboardSheet";
 import BoostBottomSheet from "../../modules/support/components/BoostBottomSheet";
+import * as livestreamApi from "../../api/livestream.api";
+import { isAgoraAvailable, useAgoraViewer, AgoraRemoteView } from "../../modules/livestream/AgoraVideoView";
 
 export default function LivePlayerScreen({ route, navigation }) {
   const { streamId, stream: routeStream, isHost } = route?.params ?? {};
@@ -23,7 +38,11 @@ export default function LivePlayerScreen({ route, navigation }) {
   const [giftPanelVisible, setGiftPanelVisible] = useState(false);
   const [leaderboardVisible, setLeaderboardVisible] = useState(false);
   const [boostVisible, setBoostVisible] = useState(false);
+  const [hostAway, setHostAway] = useState(false);
+  const [agoraToken, setAgoraToken] = useState(null);
   const userId = useAuthStore((s) => s.user)?.id ?? useAuthStore((s) => s.user)?.userId;
+  const token = useAuthStore((s) => s.token);
+  const useAgora = isAgoraAvailable();
   const hostId = stream?.hostId ?? routeStream?.hostId;
   const isOwnLive = !!(userId && hostId && String(hostId) === String(userId));
 
@@ -52,20 +71,95 @@ export default function LivePlayerScreen({ route, navigation }) {
   }, [streamId, stream?.field, loadStream]);
 
   useEffect(() => {
-    // Socket join stream room and listen for viewer_count_update / stream:viewerCount
-    // When stream_stopped, navigate back
-    return () => {
-      // Socket leave stream room
+    if (!useAgora || !streamId || isHost) return;
+    livestreamApi.getStreamToken(streamId).then((t) => setAgoraToken(t)).catch(() => {});
+  }, [useAgora, streamId, isHost]);
+
+  const { ready: agoraReady, remoteUid } = useAgoraViewer({
+    streamId: useAgora && !isHost ? streamId : null,
+    channelName: agoraToken?.providerRoom,
+    token: agoraToken?.token,
+    uid: agoraToken?.uid,
+  });
+
+  useEffect(() => {
+    if (!streamId || !token || isHost) return;
+    ensureChatSocket(token);
+    const onHostAway = (data) => {
+      if (data?.streamId === streamId) setHostAway(true);
     };
-  }, [streamId]);
+    const onHostBack = (data) => {
+      if (data?.streamId === streamId) setHostAway(false);
+    };
+    const onViewerCount = (data) => {
+      if (data?.streamId === streamId) setViewerCount((c) => data?.viewerCount ?? c);
+    };
+    const onStop = (data) => {
+      if (data?.streamId === streamId) navigation.goBack();
+    };
+    onStreamHostAway(onHostAway);
+    onStreamHostBack(onHostBack);
+    onStreamViewerCount(onViewerCount);
+    onLivestreamStop(onStop);
+    joinStream(streamId, (ack) => {
+      if (ack?.ok && ack?.stream?.viewerCount != null) setViewerCount(ack.stream.viewerCount);
+    });
+    return () => {
+      offStreamHostAway(onHostAway);
+      offStreamHostBack(onHostBack);
+      offStreamViewerCount(onViewerCount);
+      offLivestreamStop(onStop);
+      leaveStream(streamId);
+    };
+  }, [streamId, token, isHost, navigation]);
+
+  const renderVideoContent = () => {
+    if (hostAway && !isHost) {
+      return (
+        <View style={styles.waitingOverlay}>
+          <MaterialIcons name="hourglass-empty" size={64} color={colors.textMuted} />
+          <Text style={styles.waitingTitle}>Host will be right back</Text>
+          <Text style={styles.waitingSub}>Please wait while the host returns to the stream</Text>
+        </View>
+      );
+    }
+    if (useAgora && agoraToken && !hostAway) {
+      if (agoraReady && remoteUid != null) {
+        return (
+          <AgoraRemoteView
+            channelId={agoraToken.providerRoom}
+            remoteUid={remoteUid}
+            style={StyleSheet.absoluteFill}
+          />
+        );
+      }
+      if (agoraReady && remoteUid == null) {
+        return (
+          <View style={styles.waitingOverlay}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={styles.waitingTitle}>Waiting for host video…</Text>
+          </View>
+        );
+      }
+      return (
+        <View style={styles.waitingOverlay}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.waitingTitle}>Connecting to stream…</Text>
+        </View>
+      );
+    }
+    return (
+      <>
+        <MaterialIcons name="videocam" size={64} color={colors.textMuted} />
+        <Text style={styles.placeholderText}>Live stream (install Agora for video)</Text>
+        <Text style={styles.meta}>{viewerCount} watching</Text>
+      </>
+    );
+  };
 
   return (
     <View style={styles.container}>
-      <View style={styles.videoPlaceholder}>
-        <MaterialIcons name="videocam" size={64} color={colors.textMuted} />
-        <Text style={styles.placeholderText}>Live stream (Agora/LiveKit)</Text>
-        <Text style={styles.meta}>{viewerCount} watching</Text>
-      </View>
+      <View style={styles.videoPlaceholder}>{renderVideoContent()}</View>
       <View style={[styles.overlay, { paddingTop: insets.top + 8, paddingBottom: insets.bottom + 8 }]}>
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
           <MaterialIcons name="arrow-back" size={24} color={colors.white} />
@@ -144,6 +238,14 @@ export default function LivePlayerScreen({ route, navigation }) {
 function createStyles(colors, insets) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: "#000" },
+    waitingOverlay: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+      padding: 24,
+    },
+    waitingTitle: { fontSize: 18, fontWeight: "700", color: colors.text, marginTop: 16 },
+    waitingSub: { fontSize: 14, color: colors.textMuted, marginTop: 8, textAlign: "center" },
     videoPlaceholder: {
       ...StyleSheet.absoluteFillObject,
       backgroundColor: colors.surface,

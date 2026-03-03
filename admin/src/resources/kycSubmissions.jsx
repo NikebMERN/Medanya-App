@@ -11,7 +11,7 @@ import {
   useNotify,
   useRecordContext,
 } from "react-admin";
-import { Card, CardContent, Typography, Box, Grid } from "@mui/material";
+import { Card, CardContent, Typography, Box } from "@mui/material";
 
 const kycFilterChoices = [
   { id: "all", name: "All" },
@@ -100,11 +100,11 @@ function KYCImages() {
   const docBack = record.doc_back_url || (record.cloudinary_url_private && record.cloudinary_url_private.split("|")[1]);
   const selfie = record.selfie_url || record.selfie_image_url;
   return (
-    <Grid container spacing={2} sx={{ mt: 2 }}>
-      <Grid item xs={12} md={4}><DocImage src={docFront} label="Doc Front" /></Grid>
-      <Grid item xs={12} md={4}><DocImage src={docBack} label="Doc Back" /></Grid>
-      <Grid item xs={12} md={4}><DocImage src={selfie} label="Selfie" /></Grid>
-    </Grid>
+    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2, mt: 2 }}>
+      <Box sx={{ flex: "1 1 200px", minWidth: 0 }}><DocImage src={docFront} label="Doc Front" /></Box>
+      <Box sx={{ flex: "1 1 200px", minWidth: 0 }}><DocImage src={docBack} label="Doc Back" /></Box>
+      <Box sx={{ flex: "1 1 200px", minWidth: 0 }}><DocImage src={selfie} label="Selfie" /></Box>
+    </Box>
   );
 }
 

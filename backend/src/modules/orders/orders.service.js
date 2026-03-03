@@ -172,8 +172,10 @@ async function createOrder(user, body) {
             cod_cash_due_cents: null,
         });
 
+        // Always create order_confirmations for BOTH COD and Stripe (QR + 7-digit for both)
+        await orderConfirmationService.createForOrder(conn, orderId);
+
         if (pm === "STRIPE") {
-            await orderConfirmationService.createForOrder(conn, orderId);
             await orderPaymentsDb.insert(conn, {
                 order_id: orderId,
                 provider: "STRIPE",
@@ -242,8 +244,8 @@ async function confirmDelivery(user, orderId, code) {
 
     const order = await ordersDb.findById(pool, orderId);
     if (!order) throw codeErr("NOT_FOUND", "Order not found");
-    if (order.payment_method !== "STRIPE") throw codeErr("NOT_APPLICABLE", "Use mark delivered for COD orders. Code confirmation is only for card orders.");
     if (String(order.seller_id) !== userId) throw codeErr("FORBIDDEN", "Only the seller can confirm delivery");
+    const isCod = order.payment_method === "COD";
 
     const status = order.status || "";
     if (!ALLOW_CONFIRM_STATUSES.has(status)) throw codeErr("BAD_STATE", "Order is not in a state that allows delivery confirmation");
@@ -270,11 +272,22 @@ async function confirmDelivery(user, orderId, code) {
             if (!verifyDeliveryCode(codeStr, order.delivery_code_hash)) throw codeErr("INVALID_CODE", "Invalid delivery code");
         }
 
+        // COD: only mark completed, no payout (cash already received in person)
+        if (isCod) {
+            await ordersDb.updateStatus(conn, orderId, STATUS.COMPLETED);
+            await conn.commit();
+            try {
+                const notifService = require("../inAppNotifications/inAppNotifications.service");
+                await notifService.deleteByOrderId(orderId);
+            } catch (_) {}
+            return ordersDb.findById(pool, orderId);
+        }
+
+        // Stripe: release escrow and transfer to seller
         const op = await orderPaymentsDb.findByOrderId(conn, orderId);
         if (op && op.escrow_status === "HELD") {
             await orderPaymentsDb.updateEscrowStatus(conn, orderId, "RELEASED");
         }
-        // Stripe uses automatic capture; payment is captured when buyer pays. Do NOT call capture here.
 
         const platformUserId = payments.platformWalletUserId || "platform";
         if ((order.commission_cents || 0) > 0) {
@@ -285,12 +298,7 @@ async function confirmDelivery(user, orderId, code) {
             });
         }
 
-        let sellerNetCents = 0;
-        if (order.payment_method === "STRIPE") {
-            sellerNetCents = order.total_cents - (order.commission_cents || 0);
-        } else if (order.payment_method === "COD" && (order.cod_deposit_cents || 0) > 0) {
-            sellerNetCents = order.cod_deposit_cents;
-        }
+        const sellerNetCents = order.total_cents - (order.commission_cents || 0);
 
         const userDb = require("../users/user.mysql");
         const seller = await userDb.getById(order.seller_id);
@@ -355,13 +363,12 @@ async function getOrder(user, orderId) {
         const userDb = require("../users/user.mysql");
         const seller = await userDb.getById(order.seller_id);
         order.seller_phone = seller?.phone_number || null;
-        // Confirmation (code/QR) only for Stripe; COD has no code
-        if (order.payment_method === "STRIPE") {
-            const confSummary = await orderConfirmationService.getConfirmationForBuyer(orderId, order.status || "");
-            order.confirmation = confSummary;
-        } else {
-            order.confirmation = { canReveal: false, qrAvailable: false, notApplicable: true };
-        }
+        // Confirmation (code/QR) for BOTH COD and Stripe; reveal after OUT_FOR_DELIVERY
+        const confSummary = await orderConfirmationService.getConfirmationForBuyer(orderId, order.status || "", order.payment_method || "");
+        order.confirmation = confSummary;
+        order.confirmationLabel = order.payment_method === "STRIPE"
+            ? "Confirm delivery to release payment"
+            : "Confirm delivery completion";
     }
     if (order.payment_method === "STRIPE") {
         const op = await orderPaymentsDb.findByOrderId(pool, orderId);
@@ -771,8 +778,8 @@ async function confirmDeliveryByQr(user, orderId, qrToken) {
 
     const order = await ordersDb.findById(pool, orderId);
     if (!order) throw codeErr("NOT_FOUND", "Order not found");
-    if (order.payment_method !== "STRIPE") throw codeErr("NOT_APPLICABLE", "Use mark delivered for COD orders. QR confirmation is only for card orders.");
     if (String(order.seller_id) !== userId) throw codeErr("FORBIDDEN", "Only the seller can confirm delivery");
+    const isCod = order.payment_method === "COD";
 
     const status = order.status || "";
     if (!ALLOW_CONFIRM_STATUSES.has(status)) throw codeErr("BAD_STATE", "Order is not in a state that allows delivery confirmation");
@@ -796,11 +803,21 @@ async function confirmDeliveryByQr(user, orderId, qrToken) {
             if (!verifyQrToken(qrToken, orderId)) throw codeErr("INVALID_CODE", "Invalid or expired QR token");
         }
 
+        // COD: only mark completed, no payout
+        if (isCod) {
+            await ordersDb.updateStatus(conn, orderId, STATUS.COMPLETED);
+            await conn.commit();
+            try {
+                const notifService = require("../inAppNotifications/inAppNotifications.service");
+                await notifService.deleteByOrderId(orderId);
+            } catch (_) {}
+            return ordersDb.findById(pool, orderId);
+        }
+
         const op = await orderPaymentsDb.findByOrderId(conn, orderId);
         if (op && op.escrow_status === "HELD") {
             await orderPaymentsDb.updateEscrowStatus(conn, orderId, "RELEASED");
         }
-        // Stripe uses automatic capture; payment is captured when buyer pays. Do NOT call capture here.
 
         const platformUserId = payments.platformWalletUserId || "platform";
         if ((order.commission_cents || 0) > 0) {
@@ -811,12 +828,7 @@ async function confirmDeliveryByQr(user, orderId, qrToken) {
             });
         }
 
-        let sellerNetCents = 0;
-        if (order.payment_method === "STRIPE") {
-            sellerNetCents = order.total_cents - (order.commission_cents || 0);
-        } else if (order.payment_method === "COD" && (order.cod_deposit_cents || 0) > 0) {
-            sellerNetCents = order.cod_deposit_cents;
-        }
+        const sellerNetCents = order.total_cents - (order.commission_cents || 0);
 
         const userDb = require("../users/user.mysql");
         const seller = await userDb.getById(order.seller_id);
@@ -856,6 +868,10 @@ async function confirmDeliveryByQr(user, orderId, qrToken) {
         conn.release();
     }
 
+    try {
+        const notifService = require("../inAppNotifications/inAppNotifications.service");
+        await notifService.deleteByOrderId(orderId);
+    } catch (_) {}
     return ordersDb.findById(pool, orderId);
 }
 

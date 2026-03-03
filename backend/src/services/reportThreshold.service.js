@@ -95,7 +95,7 @@ async function createReportAndCheckThreshold({ targetType, targetId, reporterId,
                 { _id: sid },
                 {
                     $set: {
-                        status: "stopped_pending_review",
+                        status: "flagged",
                         reportCount: uniqueCount,
                         lastReportAt: new Date(),
                     },

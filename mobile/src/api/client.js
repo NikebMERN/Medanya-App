@@ -28,6 +28,9 @@ client.interceptors.response.use(
     if (err.response?.status === 401) {
       useAuthStore.getState().logout();
     }
+    if (err.response?.status === 403 && err.response?.data?.error?.code === "BANNED") {
+      useAuthStore.getState().setBannedRedirect?.(true);
+    }
     return Promise.reject(err);
   }
 );

@@ -160,6 +160,18 @@ async function endStream(user, streamId) {
     return doc.toObject();
 }
 
+async function adminEndStream(adminUser, streamId) {
+    if (adminUser?.role !== "admin") throw codeErr("FORBIDDEN", "Admin only");
+    if (!mongoose.isValidObjectId(streamId)) throw codeErr("NOT_FOUND", "Stream not found");
+    const doc = await Stream.findById(streamId);
+    if (!doc) throw codeErr("NOT_FOUND", "Stream not found");
+    if (doc.status !== "live" && doc.status !== "flagged") return doc.toObject();
+    doc.status = "ended";
+    doc.endedAt = new Date();
+    await doc.save();
+    return doc.toObject();
+}
+
 async function banStream(adminUser, streamId) {
     if (adminUser?.role !== "admin") throw codeErr("FORBIDDEN", "Admin only");
     if (!mongoose.isValidObjectId(streamId))
@@ -325,6 +337,15 @@ async function pinListing(user, streamId, listingId) {
     return getStreamPins(streamId);
 }
 
+async function getMyActiveStream(user) {
+    const userId = toId(user);
+    if (!userId) return null;
+    const doc = await Stream.findOne({ hostId: userId, status: "live" })
+        .sort({ startedAt: -1 })
+        .lean();
+    return doc || null;
+}
+
 async function getStreamPins(streamId) {
     if (!mongoose.isValidObjectId(streamId)) return { pins: [], items: [] };
     const rawPins = await streamPinsDb.getPinsByStreamId(pool, streamId);
@@ -343,7 +364,9 @@ module.exports = {
     getToken,
     listStreams,
     getStream,
+    getMyActiveStream,
     endStream,
+    adminEndStream,
     banStream,
     persistChatMessage,
     sendGift,

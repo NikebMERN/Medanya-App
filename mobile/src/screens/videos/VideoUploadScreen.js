@@ -23,7 +23,6 @@ export default function VideoUploadScreen({ navigation }) {
   if (isGuest) {
     return <GuestGate message="Sign in to upload videos" />;
   }
-  const kycVerified = user?.kyc_face_verified ?? user?.kycFaceVerified ?? false;
   const canPost = canPostVideo(getDobFromUser(user));
   const [thumbUri, setThumbUri] = useState(null);
   const [caption, setCaption] = useState("");
@@ -63,7 +62,6 @@ export default function VideoUploadScreen({ navigation }) {
   }, []);
 
   const submit = useCallback(async () => {
-    if (!kycVerified) return Alert.alert("Identity verification required", "Complete identity verification in Profile before posting videos. Go to Profile → Identity Verification.", [{ text: "OK" }, { text: "Go to verification", onPress: () => navigation.navigate("Profile", { screen: "Kyc" }) }]);
     if (!canPost) return Alert.alert("Age requirement", "You must be 16 or older to post videos. Add your date of birth in Edit Profile.");
     if (!videoUri) return Alert.alert("Required", "Select a video.");
     if (!thumbUri) return Alert.alert("Required", "Select a thumbnail image.");
@@ -76,33 +74,30 @@ export default function VideoUploadScreen({ navigation }) {
       const video = await videosApi.createVideo({ videoUrl, thumbnailUrl, caption });
       Alert.alert("Uploaded", "Video submitted.", [{ text: "OK", onPress: () => navigation.goBack() }]);
     } catch (e) {
-      Alert.alert("Error", e?.response?.data?.error?.message || e?.message || "Upload failed");
+      const msg = e?.response?.data?.error?.message || e?.message || "Upload failed";
+      const code = e?.response?.data?.error?.code;
+      if (code === "AGE_REQUIRED" || (msg && /date of birth|dob|age/i.test(msg))) {
+        Alert.alert("Age requirement", "Add your date of birth in Edit Profile to post videos.");
+      } else {
+        Alert.alert("Error", msg);
+      }
     } finally {
       setUploading(false);
     }
-  }, [videoUri, thumbUri, caption, navigation, kycVerified, canPost]);
+  }, [videoUri, thumbUri, caption, navigation, canPost]);
 
   const tabNav = navigation.getParent?.() ?? navigation;
 
-  if (!kycVerified || !canPost) {
+  if (!canPost) {
     return (
       <View style={styles.container}>
         <SubScreenHeader title="Create Video" onBack={() => navigation.goBack()} showProfileDropdown navigation={tabNav} />
         <View style={[styles.content, { justifyContent: "center", alignItems: "center", padding: 24 }]}>
-          <MaterialIcons name={!kycVerified ? "verified-user" : "cake"} size={48} color={colors.textMuted} style={{ marginBottom: 12 }} />
-          <Text style={[styles.label, { textAlign: "center", marginBottom: 8 }]}>
-            {!kycVerified ? "Identity verification required" : "Age requirement"}
-          </Text>
+          <MaterialIcons name="cake" size={48} color={colors.textMuted} style={{ marginBottom: 12 }} />
+          <Text style={[styles.label, { textAlign: "center", marginBottom: 8 }]}>Age requirement</Text>
           <Text style={{ color: colors.textMuted, textAlign: "center", marginBottom: 16, fontSize: 14 }}>
-            {!kycVerified
-              ? "Complete Identity Verification in Profile and have your face matched to your document before posting videos."
-              : "You must be 16 or older to post videos. Add your date of birth in Edit Profile."}
+            You must be 16 or older to post videos. Add your date of birth in Edit Profile.
           </Text>
-          {!kycVerified && (
-            <TouchableOpacity onPress={() => navigation.navigate("Profile", { screen: "Kyc" })} style={[styles.submitBtn, { marginBottom: 8 }]}>
-              <Text style={{ color: colors.white, fontWeight: "600" }}>Go to Identity Verification</Text>
-            </TouchableOpacity>
-          )}
           <TouchableOpacity onPress={() => navigation.goBack()} style={{ padding: 12 }}>
             <Text style={{ color: colors.textMuted }}>Go back</Text>
           </TouchableOpacity>

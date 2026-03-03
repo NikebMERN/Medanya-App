@@ -44,6 +44,7 @@ export const adminApi = {
   getUserFullData: (userId) => api.get(`/admin/users/${userId}/full`),
   setUserRole: (userId, role) => api.patch(`/admin/users/${userId}/role`, { role }),
   banUser: (userId, banned) => api.patch(`/admin/users/${userId}/ban`, { banned }),
+  unbanUser: (userId) => api.patch(`/admin/users/${userId}/unban`),
   getUserRisk: (userId) => api.get(`/admin/users/${userId}/risk`),
   kycList: (params) => api.get("/admin/kyc", { params }),
   kycUsers: (params) => api.get("/admin/kyc/users", { params }),

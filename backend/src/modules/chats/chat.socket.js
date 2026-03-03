@@ -130,7 +130,7 @@ module.exports = function registerChatSocket(io, socket) {
             const check = await ensureParticipantAndJoin(socket, chatId);
             if (!check.ok) return ackErr(ack, check.error);
 
-            const message = await chatService.sendMessage(me, {
+            const { message, recipientUnreadCounts = {} } = await chatService.sendMessage(me, {
                 chatId,
                 type: payload.type,
                 text: payload.text,
@@ -139,6 +139,14 @@ module.exports = function registerChatSocket(io, socket) {
 
             // Emit to chat room
             io.to(chatRoom(chatId)).emit("chat:message:new", message);
+
+            // Emit unread count updates to each recipient's personal room
+            for (const [userId, unreadCount] of Object.entries(recipientUnreadCounts)) {
+                io.to(`user:${userId}`).emit("chat:unreadCountUpdated", {
+                    chatId,
+                    unreadCount: Number(unreadCount) || 0,
+                });
+            }
 
             return ackOk(ack, {
                 messageId: String(message._id),
@@ -221,6 +229,8 @@ module.exports = function registerChatSocket(io, socket) {
             if (Array.isArray(messageIds) && messageIds.length > 0) {
                 io.to(chatRoom(chatId)).emit("chat:message:read-receipt", { messageIds, readByUserId: me });
             }
+            // Emit unread count update to current user (now 0)
+            io.to(`user:${me}`).emit("chat:unreadCountUpdated", { chatId, unreadCount: 0 });
             return ackOk(ack);
         } catch (e) {
             const code = e.code || "SERVER_ERROR";

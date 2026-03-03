@@ -36,6 +36,9 @@ const createLimiter = rateLimit({ windowMs: 60_000, max: 4 });
 const commentLimiter = rateLimit({ windowMs: 60_000, max: 12 });
 const reportLimiter = rateLimit({ windowMs: 60_000, max: 6 });
 
+// Upload sign (must be before /videos/:id)
+router.post("/videos/upload/sign", auth, controller.uploadSign);
+
 // Public
 router.get("/videos", controller.list);
 router.get("/videos/:id", controller.detail);
