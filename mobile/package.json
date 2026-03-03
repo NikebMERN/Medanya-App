@@ -18,6 +18,7 @@
     "start:dev-client:tunnel": "node scripts/update-api-url.js && npx expo start --tunnel --dev-client",
     "start:dev-client:tunnel:clean": "node scripts/update-api-url.js && expo start --clear --tunnel --dev-client",
     "start:dev-client": "node scripts/update-api-url.js && npx expo start --dev-client",
+    "start:dev-client:lan": "node scripts/update-api-url.js && npx expo start --lan --dev-client",
     "start:dev-client:clean": "node scripts/update-api-url.js && expo start --clear --dev-client"
   },
   "dependencies": {
