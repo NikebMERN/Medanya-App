@@ -1,6 +1,8 @@
-import { Platform } from "react-native";
+/**
+ * Firebase config for web — use browser persistence (getReactNativePersistence is native-only).
+ */
 import { initializeApp, getApps } from "firebase/app";
-import { initializeAuth, getAuth } from "firebase/auth";
+import { initializeAuth, getAuth, browserLocalPersistence } from "firebase/auth";
 import { firebaseConfig } from "./appConfig";
 import { validateConfig } from "./validateConfig";
 
@@ -10,21 +12,11 @@ const firebaseEnabled = flags.firebaseEnabled;
 let app = null;
 let auth = null;
 
-function getPersistence() {
-  if (Platform.OS === "web") {
-    const { browserLocalPersistence } = require("firebase/auth");
-    return browserLocalPersistence;
-  }
-  const { getReactNativePersistence } = require("firebase/auth");
-  const ReactNativeAsyncStorage = require("@react-native-async-storage/async-storage").default;
-  return getReactNativePersistence(ReactNativeAsyncStorage);
-}
-
 if (firebaseEnabled) {
   if (getApps().length === 0) {
     app = initializeApp(firebaseConfig);
     auth = initializeAuth(app, {
-      persistence: getPersistence(),
+      persistence: browserLocalPersistence,
     });
   } else {
     app = getApps()[0];

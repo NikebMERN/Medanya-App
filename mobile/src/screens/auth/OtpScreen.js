@@ -15,6 +15,8 @@ import { useAuthStore } from "../../store/auth.store";
 import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
 import { isOtpCode } from "../../utils/validators";
+import { COUNTRY_CODES } from "../../data/countryCodes";
+import { webScreenContainer } from "../../theme/webLayout";
 
 const RESEND_COOLDOWN = 60;
 const OTP_LENGTH = 6;
@@ -24,6 +26,12 @@ export default function OtpScreen() {
   const route = useRoute();
   const colors = useThemeColors();
   const phone = route.params?.phone || "";
+  const countryParam = route.params?.country;
+  const country = countryParam ?? (() => {
+    if (!phone) return null;
+    const sorted = [...COUNTRY_CODES].sort((a, b) => b.code.length - a.code.length);
+    return sorted.find((c) => phone.startsWith(c.code)) ?? null;
+  })();
   const setAuth = useAuthStore((s) => s.setAuth);
   const inputRefs = useRef([]);
   const styles = React.useMemo(() => createStyles(colors), [colors]);
@@ -78,7 +86,7 @@ export default function OtpScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={[styles.container, webScreenContainer]}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
@@ -88,7 +96,10 @@ export default function OtpScreen() {
       <Logo small />
 
       <Text style={styles.screenTitle}>Verify Phone</Text>
-      <Text style={styles.hint}>We sent a code to {phone || "+971 *******"}</Text>
+      <View style={styles.phoneHintRow}>
+        {country?.flag ? <Text style={styles.phoneHintFlag}>{country.flag}</Text> : null}
+        <Text style={styles.hint}>We sent a code to {phone ? (country?.code || "+971") + " •••••••••" : "+971 •••••••••"}</Text>
+      </View>
 
       <View style={styles.otpRow}>
         {[0, 1, 2, 3, 4, 5].map((i) => (
@@ -116,8 +127,12 @@ export default function OtpScreen() {
               }
             }}
             onKeyPress={(e) => {
-              if (e.nativeEvent.key === "Backspace" && !code[i] && i > 0) {
+              const k = e?.nativeEvent?.key;
+              if (k === "Backspace" && !code[i] && i > 0) {
                 inputRefs.current[i - 1]?.focus();
+              }
+              if (k === "Enter" && canConfirm && !loading) {
+                handleConfirm();
               }
             }}
             keyboardType="number-pad"
@@ -156,6 +171,7 @@ function createStyles(colors) {
     backgroundColor: colors.background,
     paddingHorizontal: spacing.lg,
     paddingTop: 60,
+    maxWidth: "100%",
   },
   backBtn: {
     position: "absolute",
@@ -176,19 +192,28 @@ function createStyles(colors) {
     fontWeight: "800",
     marginBottom: spacing.xs,
   },
+  phoneHintRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: spacing.lg,
+  },
+  phoneHintFlag: { fontSize: 24 },
   hint: {
     color: colors.textSecondary,
     fontSize: 14,
-    marginBottom: spacing.lg,
+    flex: 1,
   },
   otpRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     marginBottom: spacing.lg,
     gap: spacing.sm,
+    maxWidth: "100%",
   },
   otpBox: {
     flex: 1,
+    minWidth: 0,
     height: 56,
     borderRadius: 12,
     backgroundColor: colors.surface,
@@ -198,6 +223,7 @@ function createStyles(colors) {
     fontSize: 24,
     fontWeight: "700",
     textAlign: "center",
+    ...(Platform.OS === "web" && { lineHeight: 28, paddingVertical: 12 }),
   },
   error: {
     color: colors.error,

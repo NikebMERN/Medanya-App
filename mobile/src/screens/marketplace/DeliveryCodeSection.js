@@ -18,6 +18,7 @@ import * as Clipboard from "expo-clipboard";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useThemeColors } from "../../theme/useThemeColors";
 import { radii } from "../../theme/designSystem";
+import { webModalOverlay, webModalContent } from "../../theme/webLayout";
 import { spacing } from "../../theme/spacing";
 import * as ordersApi from "../../services/orders.api";
 
@@ -165,8 +166,8 @@ export default function DeliveryCodeSection({ orderId, orderStatus, confirmation
       </View>
 
       <Modal visible={warningModalVisible} transparent animationType="fade">
-        <Pressable style={styles.modalOverlay} onPress={() => setWarningModalVisible(false)}>
-          <Pressable style={styles.modalBox} onPress={(e) => e.stopPropagation()}>
+        <Pressable style={[styles.modalOverlay, webModalOverlay]} onPress={() => setWarningModalVisible(false)}>
+          <Pressable style={[styles.modalBox, webModalContent]} onPress={(e) => e.stopPropagation()}>
             <MaterialIcons name="warning" size={48} color={colors.warning} />
             <Text style={styles.modalTitle}>Confirm</Text>
             <Text style={styles.modalText}>

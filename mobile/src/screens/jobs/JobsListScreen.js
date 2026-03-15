@@ -26,6 +26,7 @@ import SkeletonCard from "../../components/SkeletonCard";
 import EmptyState from "../../components/EmptyState";
 import { normalizePlaceholder } from "../../components/ui/Input";
 import { inputStyleAndroid } from "../../theme/inputStyles";
+import { webModalOverlay, webModalContent } from "../../theme/webLayout";
 
 const SORT_OPTIONS = [
   { value: "newest", label: "Newest" },
@@ -303,8 +304,8 @@ export default function JobsListScreen() {
         />
       )}
       <Modal visible={categoryDropdownVisible} transparent animationType="fade">
-        <Pressable style={styles.modalOverlay} onPress={() => setCategoryDropdownVisible(false)}>
-          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+        <Pressable style={[styles.modalOverlay, webModalOverlay]} onPress={() => setCategoryDropdownVisible(false)}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface }, webModalContent]}>
             <Text style={[styles.modalTitle, { color: colors.text }]}>Category</Text>
             <ScrollView style={styles.modalList} nestedScrollEnabled>
               {JOB_CATEGORIES.map((cat) => (
@@ -336,8 +337,8 @@ export default function JobsListScreen() {
         </Pressable>
       </Modal>
       <Modal visible={sortDropdownVisible} transparent animationType="fade">
-        <Pressable style={styles.modalOverlay} onPress={() => setSortDropdownVisible(false)}>
-          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+        <Pressable style={[styles.modalOverlay, webModalOverlay]} onPress={() => setSortDropdownVisible(false)}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface }, webModalContent]}>
             <Text style={[styles.modalTitle, { color: colors.text }]}>Sort by</Text>
             <ScrollView style={styles.modalList}>
               {SORT_OPTIONS.map((o) => (

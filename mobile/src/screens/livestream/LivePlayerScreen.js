@@ -42,7 +42,8 @@ export default function LivePlayerScreen({ route, navigation }) {
   const [agoraToken, setAgoraToken] = useState(null);
   const userId = useAuthStore((s) => s.user)?.id ?? useAuthStore((s) => s.user)?.userId;
   const token = useAuthStore((s) => s.token);
-  const useAgora = isAgoraAvailable();
+  const [agoraUnavailable, setAgoraUnavailable] = useState(false);
+  const useAgora = isAgoraAvailable() && !agoraUnavailable;
   const hostId = stream?.hostId ?? routeStream?.hostId;
   const isOwnLive = !!(userId && hostId && String(hostId) === String(userId));
 
@@ -75,11 +76,12 @@ export default function LivePlayerScreen({ route, navigation }) {
     livestreamApi.getStreamToken(streamId).then((t) => setAgoraToken(t)).catch(() => {});
   }, [useAgora, streamId, isHost]);
 
-  const { ready: agoraReady, remoteUid } = useAgoraViewer({
+  const { ready: agoraReady, remoteUid, remoteVideoTrack } = useAgoraViewer({
     streamId: useAgora && !isHost ? streamId : null,
     channelName: agoraToken?.providerRoom,
     token: agoraToken?.token,
     uid: agoraToken?.uid,
+    onUnavailable: () => setAgoraUnavailable(true),
   });
 
   useEffect(() => {
@@ -129,6 +131,7 @@ export default function LivePlayerScreen({ route, navigation }) {
           <AgoraRemoteView
             channelId={agoraToken.providerRoom}
             remoteUid={remoteUid}
+            remoteVideoTrack={remoteVideoTrack}
             style={StyleSheet.absoluteFill}
           />
         );
@@ -151,7 +154,9 @@ export default function LivePlayerScreen({ route, navigation }) {
     return (
       <>
         <MaterialIcons name="videocam" size={64} color={colors.textMuted} />
-        <Text style={styles.placeholderText}>Live stream (install Agora for video)</Text>
+        <Text style={styles.placeholderText}>
+          Live stream (use a dev build or web to watch video)
+        </Text>
         <Text style={styles.meta}>{viewerCount} watching</Text>
       </>
     );

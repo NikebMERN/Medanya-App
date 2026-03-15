@@ -23,6 +23,7 @@ export default function Input({
   style,
   multiline,
   numberOfLines,
+  onSubmit,
 }) {
   const colors = useThemeColors();
   const styles = makeStyles(colors);
@@ -44,6 +45,9 @@ export default function Input({
           selectionColor={colors.primary}
           multiline={multiline}
           numberOfLines={numberOfLines}
+          onSubmitEditing={onSubmit}
+          blurOnSubmit={!multiline}
+          returnKeyType={onSubmit ? "done" : "default"}
         />
         {rightComponent ? <View style={styles.side}>{rightComponent}</View> : null}
       </View>
@@ -53,7 +57,7 @@ export default function Input({
 
 function makeStyles(colors) {
   return StyleSheet.create({
-    wrap: { marginBottom: spacing.md },
+    wrap: { marginBottom: spacing.md, ...(Platform.OS === "web" && { maxWidth: "100%", overflow: "hidden" }) },
     label: {
       color: colors.textSecondary,
       fontSize: 11,
@@ -69,6 +73,7 @@ function makeStyles(colors) {
       borderWidth: 1,
       borderColor: colors.border,
       minHeight: 52,
+      ...(Platform.OS === "web" && { overflow: "hidden", maxWidth: "100%" }),
     },
     inputWrapMultiline: {
       alignItems: "flex-start",
@@ -80,10 +85,12 @@ function makeStyles(colors) {
     },
     input: {
       flex: 1,
+      minWidth: 0,
       paddingHorizontal: spacing.md,
       paddingVertical: spacing.sm,
       color: colors.text,
       fontSize: 16,
+      ...(Platform.OS === "web" && { maxWidth: "100%", lineHeight: 20 }),
     },
     inputAndroid: {
       includeFontPadding: false,

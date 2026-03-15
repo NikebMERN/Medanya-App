@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import * as SecureStore from "expo-secure-store";
+import { secureStorage } from "../utils/secureStorage";
 import { disconnectSocket } from "../realtime/socket";
 import { auth, firebaseReady } from "../config/firebase";
 import { validateConfig } from "../config/validateConfig";
@@ -34,13 +34,13 @@ const slimUser = (user) => {
 };
 
 const persistToken = async (token) => {
-  if (token) await SecureStore.setItemAsync(TOKEN_KEY, token);
-  else await SecureStore.deleteItemAsync(TOKEN_KEY);
+  if (token) await secureStorage.setItemAsync(TOKEN_KEY, token);
+  else await secureStorage.deleteItemAsync(TOKEN_KEY);
 };
 
 const persistUser = async (user) => {
   if (!user) {
-    await SecureStore.deleteItemAsync(USER_KEY);
+    await secureStorage.deleteItemAsync(USER_KEY);
     return;
   }
   const slim = slimUser(user);
@@ -54,9 +54,9 @@ const persistUser = async (user) => {
       kyc_face_verified: user.kyc_face_verified ?? user.kycFaceVerified,
       display_name: ((user.display_name ?? user.displayName) || "").slice(0, 50),
     };
-    await SecureStore.setItemAsync(USER_KEY, JSON.stringify(minimal));
+    await secureStorage.setItemAsync(USER_KEY, JSON.stringify(minimal));
   } else {
-    await SecureStore.setItemAsync(USER_KEY, json);
+    await secureStorage.setItemAsync(USER_KEY, json);
   }
 };
 
@@ -112,8 +112,8 @@ export const useAuthStore = create((set, get) => ({
   rehydrate: async () => {
     try {
       const [token, userJson] = await Promise.all([
-        SecureStore.getItemAsync(TOKEN_KEY),
-        SecureStore.getItemAsync(USER_KEY),
+        secureStorage.getItemAsync(TOKEN_KEY),
+        secureStorage.getItemAsync(USER_KEY),
       ]);
       let user = null;
       if (userJson) {

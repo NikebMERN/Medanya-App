@@ -20,6 +20,7 @@ import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
 import { useAuthStore } from "../../store/auth.store";
 import { updateMe, uploadAvatarAndSave } from "../../api/user.api";
+import { webScreenContainer } from "../../theme/webLayout";
 
 const BIO_MAX_WORDS = 120;
 function countWords(text) {
@@ -38,32 +39,86 @@ function useLocationPermission() {
     setError(null);
     setLoading(true);
     try {
-      let Location;
-      try {
-        Location = await import("expo-location");
-      } catch (modErr) {
-        setError("Location not available. Run: npx expo install expo-location. Or enter your neighborhood manually.");
-        setLoading(false);
-        return;
-      }
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
-        setError("Location permission denied. Enter your neighborhood manually.");
-        setLoading(false);
-        return;
-      }
-      const position = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
-      const { latitude, longitude } = position.coords;
-      const [address] = await Location.reverseGeocodeAsync({ latitude, longitude });
-      if (address) {
-        const parts = [address.city, address.district, address.subregion, address.region].filter(Boolean);
-        const neighborhood = parts.length > 0 ? parts.join(", ") : `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
-        onResult(neighborhood);
+      let latitude, longitude;
+
+      if (Platform.OS === "web") {
+        await new Promise((resolve, reject) => {
+          if (!navigator.geolocation) {
+            reject(new Error("Geolocation is not supported by this browser."));
+            return;
+          }
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              latitude = pos.coords.latitude;
+              longitude = pos.coords.longitude;
+              resolve();
+            },
+            (err) => {
+              reject(new Error(err.message || "Could not get location."));
+            },
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
+          );
+        });
       } else {
-        onResult(`${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
+        let Location;
+        try {
+          Location = await import("expo-location");
+        } catch (modErr) {
+          setError("Location not available. Run: npx expo install expo-location. Or enter your neighborhood manually.");
+          setLoading(false);
+          return;
+        }
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== "granted") {
+          setError("Location permission denied. Enter your neighborhood manually.");
+          setLoading(false);
+          return;
+        }
+        const position = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        latitude = position.coords.latitude;
+        longitude = position.coords.longitude;
       }
+
+      let neighborhood = null;
+      try {
+        if (Platform.OS === "web") {
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=10`
+          );
+          const data = await res.json();
+          if (data && data.address) {
+            const parts = [
+              data.address.city || data.address.town || data.address.village,
+              data.address.state || data.address.region,
+            ].filter(Boolean);
+            if (parts.length > 0) neighborhood = parts.join(", ");
+          }
+        } else {
+          const Location = await import("expo-location");
+          const [address] = await Location.reverseGeocodeAsync({
+            latitude,
+            longitude,
+          });
+          if (address) {
+            const parts = [
+              address.city,
+              address.district,
+              address.subregion,
+              address.region,
+            ].filter(Boolean);
+            if (parts.length > 0) neighborhood = parts.join(", ");
+          }
+        }
+      } catch (geoErr) {
+        console.warn("Geocoding failed:", geoErr);
+      }
+
+      if (!neighborhood) {
+        neighborhood = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+      }
+      onResult(neighborhood);
     } catch (e) {
       setError(
         e.message && e.message.includes("Cannot find module")
@@ -243,7 +298,7 @@ export default function ProfileCreationScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={[styles.container, webScreenContainer]}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <TouchableOpacity
@@ -347,6 +402,7 @@ export default function ProfileCreationScreen() {
           placeholder="e.g. joy@example.com"
           keyboardType="email-address"
           autoCapitalize="none"
+          onSubmit={handleJoinCommunity}
         />
 
         {error ? <Text style={styles.error}>{error}</Text> : null}

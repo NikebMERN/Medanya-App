@@ -55,26 +55,18 @@ export default function RechargeScreen() {
       if (clientSecret) {
         let paid = false;
         try {
-          const stripe = require("@stripe/stripe-react-native");
-          if (stripe?.initPaymentSheet && stripe?.presentPaymentSheet) {
-            await stripe.initPaymentSheet({
-              paymentIntentClientSecret: clientSecret,
-              merchantDisplayName: "Medanya",
-            });
-            const { error } = await stripe.presentPaymentSheet();
-            if (error) {
-              Alert.alert("Payment failed", error.message);
-            } else {
-              paid = true;
-              updateBalanceAfterRecharge?.(pkg.coins ?? 0);
-              await fetchWallet?.();
-              Alert.alert("Success", `You received ${pkg.coins ?? pkg.coinAmount ?? 0} MedCoins!`, [
-                { text: "OK", onPress: () => navigation.goBack() },
-              ]);
-            }
+          const { tryPaymentSheet } = require("../../utils/stripePaymentHelper");
+          const result = await tryPaymentSheet(clientSecret, "Medanya");
+          if (result.paid) {
+            paid = true;
+            updateBalanceAfterRecharge?.(pkg.coins ?? 0);
+            await fetchWallet?.();
+            Alert.alert("Success", `You received ${pkg.coins ?? pkg.coinAmount ?? 0} MedCoins!`, [
+              { text: "OK", onPress: () => navigation.goBack() },
+            ]);
           }
-        } catch (_) {
-          /* Stripe native not available */
+        } catch (e) {
+          Alert.alert("Payment failed", e?.message || "Could not complete payment");
         }
         if (!paid) {
           const checkoutData = await walletApi.createCheckoutSession(pkg.packageId ?? pkg.id);

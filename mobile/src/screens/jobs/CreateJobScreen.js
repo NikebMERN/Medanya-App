@@ -28,6 +28,7 @@ import { JOB_CATEGORY_OPTIONS, CURRENCY_OPTIONS } from "../../store/jobs.store";
 import SubScreenHeader from "../../components/SubScreenHeader";
 import { normalizePlaceholder } from "../../components/ui/Input";
 import { inputStyleAndroid } from "../../theme/inputStyles";
+import { webModalOverlay, webModalContent } from "../../theme/webLayout";
 
 export default function CreateJobScreen() {
   const navigation = useNavigation();
@@ -341,8 +342,8 @@ export default function CreateJobScreen() {
           )}
 
           <Modal visible={categoryModalVisible} transparent animationType="fade">
-            <Pressable style={styles.modalOverlay} onPress={() => setCategoryModalVisible(false)}>
-              <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+            <Pressable style={[styles.modalOverlay, webModalOverlay]} onPress={() => setCategoryModalVisible(false)}>
+              <View style={[styles.modalContent, { backgroundColor: colors.surface }, webModalContent]}>
                 <Text style={[styles.modalTitle, { color: colors.text }]}>Select category</Text>
                 <ScrollView style={styles.modalList}>
                   {JOB_CATEGORY_OPTIONS.map((opt) => (
@@ -382,8 +383,8 @@ export default function CreateJobScreen() {
             </TouchableOpacity>
           </View>
           <Modal visible={currencyModalVisible} transparent animationType="fade">
-            <Pressable style={styles.modalOverlay} onPress={() => setCurrencyModalVisible(false)}>
-              <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+            <Pressable style={[styles.modalOverlay, webModalOverlay]} onPress={() => setCurrencyModalVisible(false)}>
+              <View style={[styles.modalContent, { backgroundColor: colors.surface }, webModalContent]}>
                 <Text style={[styles.modalTitle, { color: colors.text }]}>Select currency</Text>
                 <ScrollView style={styles.modalList}>
                   {CURRENCY_OPTIONS.map((opt) => (

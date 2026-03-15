@@ -17,6 +17,7 @@ import { useWalletStore } from "../modules/wallet/wallet.store";
 import { spacing } from "../theme/spacing";
 import { typography } from "../theme/typography";
 import { canUseMarketplace, canPostJobs, getDobFromUser } from "../utils/age";
+import { webModalOverlay, webModalContent } from "../theme/webLayout";
 
 /**
  * Header for sub-screens: back arrow + title (no "Back" text), optional rightElement, profile pic + dropdown on the right.
@@ -95,8 +96,8 @@ export default function SubScreenHeader({
         animationType="fade"
         onRequestClose={closeMenu}
       >
-        <Pressable style={styles.menuOverlay} onPress={closeMenu}>
-          <Pressable style={[styles.menuSheet, { paddingBottom: insets.bottom + spacing.md }]} onPress={(e) => e.stopPropagation()}>
+        <Pressable style={[styles.menuOverlay, webModalOverlay]} onPress={closeMenu}>
+          <Pressable style={[styles.menuSheet, { paddingBottom: insets.bottom + spacing.md }, webModalContent]} onPress={(e) => e.stopPropagation()}>
             <View style={styles.menuHandle} />
             <TouchableOpacity
               style={[styles.menuItem, styles.menuItemCoins]}
@@ -163,7 +164,7 @@ export default function SubScreenHeader({
               <Text style={styles.menuItemText}>{theme === "dark" ? "Light mode" : "Dark mode"}</Text>
               <MaterialIcons name="chevron-right" size={20} color={colors.textSecondary} />
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.menuItem, styles.menuItemDanger]} onPress={() => { closeMenu(); logout(); }} activeOpacity={0.7}>
+            <TouchableOpacity style={[styles.menuItem, styles.menuItemDanger]} onPress={async () => { closeMenu(); try { await logout(); } catch (_) {} }} activeOpacity={0.7}>
               <MaterialIcons name="logout" size={22} color={colors.error || "#e53935"} />
               <Text style={[styles.menuItemText, styles.menuItemTextDanger]}>Log out</Text>
             </TouchableOpacity>

@@ -15,7 +15,7 @@ import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
 import SubScreenHeader from "../../components/SubScreenHeader";
 import * as penaltiesApi from "../../services/penalties.api";
-import { useStripe } from "@stripe/stripe-react-native";
+import { useStripe } from "../../hooks/useStripe";
 import { useAuthStore } from "../../store/auth.store";
 
 export default function PenaltyCenterScreen() {

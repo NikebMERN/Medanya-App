@@ -11,6 +11,7 @@ import * as ordersApi from "../../services/orders.api";
 import DeliveryCodeSection from "./DeliveryCodeSection";
 import { normalizePlaceholder } from "../../components/ui/Input";
 import { inputStyleAndroid } from "../../theme/inputStyles";
+import { webModalOverlay, webModalContent } from "../../theme/webLayout";
 
 const SELLER_CANCEL_REASONS = [
   { key: "distance_too_far", label: "Distance too far" },
@@ -391,13 +392,13 @@ export default function OrderStatusScreen() {
 
       <Modal visible={acceptWithFeeModalVisible} transparent animationType="fade">
         <TouchableOpacity
-          style={styles.modalOverlay}
+          style={[styles.modalOverlay, webModalOverlay]}
           activeOpacity={1}
           onPress={() => { setAcceptWithFeeModalVisible(false); setAcceptDeliveryFeeInput(""); }}
         >
           <KeyboardAvoidingView
             behavior={Platform.OS === "ios" ? "padding" : undefined}
-            style={styles.modalContentWrap}
+            style={[styles.modalContentWrap, webModalContent]}
           >
             <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()}>
               <View style={[styles.card, styles.modalCard]}>
@@ -444,13 +445,13 @@ export default function OrderStatusScreen() {
 
       <Modal visible={deliveryFeeModalVisible} transparent animationType="fade">
         <TouchableOpacity
-          style={styles.modalOverlay}
+          style={[styles.modalOverlay, webModalOverlay]}
           activeOpacity={1}
           onPress={() => setDeliveryFeeModalVisible(false)}
         >
           <KeyboardAvoidingView
             behavior={Platform.OS === "ios" ? "padding" : undefined}
-            style={styles.modalContentWrap}
+            style={[styles.modalContentWrap, webModalContent]}
           >
             <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()}>
               <View style={[styles.card, styles.modalCard]}>
@@ -483,13 +484,13 @@ export default function OrderStatusScreen() {
 
       <Modal visible={cancelReasonModalVisible} transparent animationType="fade">
         <TouchableOpacity
-          style={styles.modalOverlay}
+          style={[styles.modalOverlay, webModalOverlay]}
           activeOpacity={1}
           onPress={() => setCancelReasonModalVisible(false)}
         >
           <KeyboardAvoidingView
             behavior={Platform.OS === "ios" ? "padding" : undefined}
-            style={styles.modalContentWrap}
+            style={[styles.modalContentWrap, webModalContent]}
           >
             <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()}>
               <View style={[styles.card, styles.modalCard]}>

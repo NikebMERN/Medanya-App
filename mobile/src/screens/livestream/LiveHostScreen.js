@@ -45,7 +45,8 @@ export default function LiveHostScreen() {
   const endStream = useLivestreamStore((s) => s.endStream);
   const token = useAuthStore((s) => s.token);
   const [agoraToken, setAgoraToken] = useState(null);
-  const useAgora = isAgoraAvailable();
+  const [agoraUnavailable, setAgoraUnavailable] = useState(false);
+  const useAgora = isAgoraAvailable() && !agoraUnavailable;
 
   useEffect(() => {
     if (!useAgora || !streamId) return;
@@ -57,6 +58,7 @@ export default function LiveHostScreen() {
     channelName: agoraToken?.providerRoom,
     token: agoraToken?.token,
     uid: agoraToken?.uid,
+    onUnavailable: () => setAgoraUnavailable(true),
   });
 
   useEffect(() => {

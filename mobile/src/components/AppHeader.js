@@ -17,6 +17,7 @@ import { useWalletStore } from "../modules/wallet/wallet.store";
 import { canUseMarketplace, canPostJobs, getDobFromUser } from "../utils/age";
 import { useThemeStore } from "../store/theme.store";
 import { spacing } from "../theme/spacing";
+import { webModalOverlay, webModalContent } from "../theme/webLayout";
 
 function AppHeaderComponent({ navigation, route, focusedRouteName }) {
   const insets = useSafeAreaInsets();
@@ -123,9 +124,11 @@ function AppHeaderComponent({ navigation, route, focusedRouteName }) {
     closeMenu();
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     closeMenu();
-    logout();
+    try {
+      await logout();
+    } catch (_) {}
   };
 
   return (
@@ -195,8 +198,8 @@ function AppHeaderComponent({ navigation, route, focusedRouteName }) {
         animationType="none"
         onRequestClose={closeMenu}
       >
-        <Pressable style={styles.menuOverlay} onPress={closeMenu}>
-          <Pressable style={[styles.menuSheet, { paddingBottom: insets.bottom + spacing.md }]} onPress={(e) => e.stopPropagation()}>
+        <Pressable style={[styles.menuOverlay, webModalOverlay]} onPress={closeMenu}>
+          <Pressable style={[styles.menuSheet, { paddingBottom: insets.bottom + spacing.md }, webModalContent]} onPress={(e) => e.stopPropagation()}>
             <View style={styles.menuHandle} />
             {!isGuest && (
               <TouchableOpacity

@@ -28,6 +28,7 @@ import { CURRENCY_OPTIONS } from "../../store/jobs.store";
 import { MARKETPLACE_CATEGORY_OPTIONS } from "../../store/marketplace.store";
 import SubScreenHeader from "../../components/SubScreenHeader";
 import { normalizePlaceholder } from "../../components/ui/Input";
+import { webModalOverlay, webModalContent } from "../../theme/webLayout";
 import { inputStyleAndroid } from "../../theme/inputStyles";
 
 export default function CreateItemScreen() {
@@ -340,8 +341,8 @@ export default function CreateItemScreen() {
           />
         )}
         <Modal visible={categoryModalVisible} transparent animationType="fade">
-          <Pressable style={styles.modalOverlay} onPress={() => setCategoryModalVisible(false)}>
-            <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+          <Pressable style={[styles.modalOverlay, webModalOverlay]} onPress={() => setCategoryModalVisible(false)}>
+            <View style={[styles.modalContent, { backgroundColor: colors.surface }, webModalContent]}>
               <Text style={[styles.modalTitle, { color: colors.text }]}>Select category</Text>
               <ScrollView style={styles.modalList}>
                 {MARKETPLACE_CATEGORY_OPTIONS.map((opt) => (
@@ -385,8 +386,8 @@ export default function CreateItemScreen() {
           </TouchableOpacity>
         </View>
         <Modal visible={currencyModalVisible} transparent animationType="fade">
-          <Pressable style={styles.modalOverlay} onPress={() => setCurrencyModalVisible(false)}>
-            <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+          <Pressable style={[styles.modalOverlay, webModalOverlay]} onPress={() => setCurrencyModalVisible(false)}>
+            <View style={[styles.modalContent, { backgroundColor: colors.surface }, webModalContent]}>
               <Text style={[styles.modalTitle, { color: colors.text }]}>Select currency</Text>
               <ScrollView style={styles.modalList}>
                 {CURRENCY_OPTIONS.map((opt) => (

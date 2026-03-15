@@ -7,7 +7,7 @@ const linking = {
           Landing: "",
           Phone: "phone",
           Otp: "otp",
-          ProfileCreation: "profile",
+          ProfileCreation: "setup-profile",
         },
       },
       Main: {

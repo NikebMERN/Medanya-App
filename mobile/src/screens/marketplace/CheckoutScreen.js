@@ -18,7 +18,7 @@ import SubScreenHeader from "../../components/SubScreenHeader";
 import * as ordersApi from "../../services/orders.api";
 import { trackEvent } from "../../utils/trackEvent";
 import * as marketplaceApi from "../../services/marketplace.api";
-import { useStripe } from "@stripe/stripe-react-native";
+import { useStripe } from "../../hooks/useStripe";
 import { normalizePlaceholder } from "../../components/ui/Input";
 import { inputStyleAndroid } from "../../theme/inputStyles";
 

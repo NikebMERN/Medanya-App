@@ -20,11 +20,13 @@ import { spacing } from "../../theme/spacing";
 import { useMarketplaceStore, MARKETPLACE_CATEGORIES } from "../../store/marketplace.store";
 import { useAuthStore } from "../../store/auth.store";
 import StatusChip from "../../components/StatusChip";
+import MarketplaceGridCard from "../../components/marketplace/MarketplaceGridCard";
 import RiskBadge from "../../components/RiskBadge";
 import SkeletonCard from "../../components/SkeletonCard";
 import EmptyState from "../../components/EmptyState";
 import { normalizePlaceholder } from "../../components/ui/Input";
 import { inputStyleAndroid } from "../../theme/inputStyles";
+import { webModalOverlay, webModalContent } from "../../theme/webLayout";
 
 const SORT_OPTIONS = [
   { value: "newest", label: "Newest" },
@@ -144,7 +146,6 @@ export default function MarketplaceListScreen() {
 
   const renderItem = useCallback(
     ({ item }) => {
-      const img = Array.isArray(item.image_urls) && item.image_urls[0] ? item.image_urls[0] : item.image_url;
       const sellerId = item.seller_id ?? item.sellerId ?? "";
       const isCreator = String(sellerId) === String(userId);
       const status = (item.status || "active").toLowerCase();
@@ -153,51 +154,25 @@ export default function MarketplaceListScreen() {
       const showRiskBadge = isCreator && (riskScore >= 60 || aiScamScore >= 80);
 
       return (
-        <TouchableOpacity
-          style={styles.card}
-          onPress={() => navigation.navigate("MarketplaceDetail", { itemId: item.id })}
-          activeOpacity={0.8}
-        >
-          {img ? (
-            <Image source={{ uri: img }} style={styles.cardImage} resizeMode="cover" />
-          ) : (
-            <View style={[styles.cardImage, styles.cardImagePlaceholder]}>
-              <MaterialIcons name="image-not-supported" size={32} color={colors.textMuted} />
+        <View style={styles.cardWrapper}>
+          <MarketplaceGridCard
+            item={item}
+            onPress={() => navigation.navigate("MarketplaceDetail", { itemId: item.id })}
+          />
+          {isCreator && (
+            <View style={styles.cardOverlay}>
+              <StatusChip status={status} />
             </View>
           )}
-          <View style={styles.cardBody}>
-            <View style={styles.cardTop}>
-              <Text style={styles.cardTitle} numberOfLines={1}>
-                {item.title}
-              </Text>
-              {isCreator && <StatusChip status={status} />}
+          {showRiskBadge && (
+            <View style={styles.riskWrap}>
+              <RiskBadge riskScore={riskScore} aiScamScore={aiScamScore} />
             </View>
-            <Text style={styles.cardPrice}>
-              {item.price != null ? `${item.currency || "AED"} ${item.price}` : ""}
-            </Text>
-            {showRiskBadge && (
-              <View style={styles.riskWrap}>
-                <RiskBadge riskScore={riskScore} aiScamScore={aiScamScore} />
-              </View>
-            )}
-            {item.location ? (
-              <View style={styles.cardLocation}>
-                <MaterialIcons name="location-on" size={12} color={colors.textMuted} />
-                <Text style={styles.cardLocationText} numberOfLines={1}>
-                  {item.location}
-                </Text>
-              </View>
-            ) : null}
-            {item.created_at || item.createdAt ? (
-              <Text style={styles.cardTime}>
-                {formatTime(item.created_at || item.createdAt)}
-              </Text>
-            ) : null}
-          </View>
-        </TouchableOpacity>
+          )}
+        </View>
       );
     },
-    [navigation, styles, colors, userId]
+    [navigation, styles, userId]
   );
 
   const listHeader = null;
@@ -325,8 +300,8 @@ export default function MarketplaceListScreen() {
         />
       )}
       <Modal visible={categoryDropdownVisible} transparent animationType="fade">
-        <Pressable style={styles.modalOverlay} onPress={() => setCategoryDropdownVisible(false)}>
-          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+        <Pressable style={[styles.modalOverlay, webModalOverlay]} onPress={() => setCategoryDropdownVisible(false)}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface }, webModalContent]}>
             <Text style={[styles.modalTitle, { color: colors.text }]}>Category</Text>
             <ScrollView style={styles.modalList} nestedScrollEnabled>
               {MARKETPLACE_CATEGORIES.map((c) => (
@@ -358,8 +333,8 @@ export default function MarketplaceListScreen() {
         </Pressable>
       </Modal>
       <Modal visible={sortDropdownVisible} transparent animationType="fade">
-        <Pressable style={styles.modalOverlay} onPress={() => setSortDropdownVisible(false)}>
-          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+        <Pressable style={[styles.modalOverlay, webModalOverlay]} onPress={() => setSortDropdownVisible(false)}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface }, webModalContent]}>
             <Text style={[styles.modalTitle, { color: colors.text }]}>Sort by</Text>
             <ScrollView style={styles.modalList}>
               {SORT_OPTIONS.map((o) => (
@@ -389,8 +364,8 @@ export default function MarketplaceListScreen() {
         </Pressable>
       </Modal>
       <Modal visible={locationModalVisible} transparent animationType="fade">
-        <Pressable style={styles.modalOverlay} onPress={() => setLocationModalVisible(false)}>
-          <Pressable style={[styles.modalContent, { backgroundColor: colors.surface }]} onPress={(e) => e.stopPropagation?.()}>
+        <Pressable style={[styles.modalOverlay, webModalOverlay]} onPress={() => setLocationModalVisible(false)}>
+          <Pressable style={[styles.modalContent, { backgroundColor: colors.surface }, webModalContent]} onPress={(e) => e.stopPropagation?.()}>
             <Text style={[styles.modalTitle, { color: colors.text }]}>Filter by location</Text>
             <TextInput
               style={[styles.locationInput, inputStyleAndroid, { color: colors.text, borderColor: colors.border }]}
@@ -556,6 +531,9 @@ function createStyles(colors) {
     modalLocationBtnPrimary: { flex: 1, paddingVertical: spacing.md, borderRadius: 12, alignItems: "center" },
     modalLocationBtnPrimaryText: { fontSize: 16, fontWeight: "600", color: "#fff" },
     row: { gap: spacing.sm, marginBottom: spacing.sm, paddingHorizontal: spacing.md },
+    cardWrapper: { flex: 1, minWidth: 0, position: "relative" },
+    cardOverlay: { position: "absolute", top: spacing.sm, left: spacing.sm, zIndex: 2 },
+    riskWrap: { position: "absolute", top: spacing.sm, right: spacing.sm, zIndex: 2 },
     card: {
       flex: 1,
       maxWidth: "48%",

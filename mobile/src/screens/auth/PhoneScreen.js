@@ -19,6 +19,7 @@ import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
 import { isValidPhone } from "../../utils/validators";
 import { COUNTRY_CODES, DEFAULT_COUNTRY as DEFAULT_COUNTRY_DATA } from "../../data/countryCodes";
+import { webModalOverlay, webModalContent, webScreenContainer } from "../../theme/webLayout";
 
 export default function PhoneScreen() {
   const navigation = useNavigation();
@@ -46,7 +47,7 @@ export default function PhoneScreen() {
     try {
       const { sendOtp } = await import("../../api/auth.api");
       await sendOtp(fullPhoneE164);
-      navigation.navigate("Otp", { phone: fullPhoneE164 });
+      navigation.navigate("Otp", { phone: fullPhoneE164, country });
     } catch (err) {
       const msg = err.response?.data?.message;
       if (msg) {
@@ -70,7 +71,7 @@ export default function PhoneScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={[styles.container, webScreenContainer]}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
@@ -105,6 +106,7 @@ export default function PhoneScreen() {
           }}
           placeholder="52 123 4567"
           keyboardType="phone-pad"
+          onSubmit={handleRequestOtp}
           leftComponent={
             <Text style={styles.inputCountryCode}>{country.code}</Text>
           }
@@ -140,9 +142,9 @@ export default function PhoneScreen() {
         animationType="slide"
         onRequestClose={closeCountryPicker}
       >
-        <View style={styles.modalOverlay}>
+        <View style={[styles.modalOverlay, webModalOverlay]}>
           <Pressable style={StyleSheet.absoluteFill} onPress={closeCountryPicker} />
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, webModalContent]}>
             <View style={styles.modalHandle} />
             <Text style={styles.modalTitle}>Select country code</Text>
             <FlatList
@@ -280,7 +282,7 @@ function createStyles(colors) {
     paddingHorizontal: spacing.md,
     gap: spacing.sm,
   },
-  countryCodeFlag: { fontSize: 22 },
+  countryCodeFlag: { fontSize: 24, lineHeight: 28 },
   countryCodeText: {
     color: colors.text,
     fontSize: 16,
@@ -364,7 +366,7 @@ function createStyles(colors) {
   countryRowSelected: {
     backgroundColor: colors.primary + "20",
   },
-  countryRowFlag: { fontSize: 22 },
+  countryRowFlag: { fontSize: 24, lineHeight: 28 },
   countryRowCode: {
     color: colors.text,
     fontSize: 16,

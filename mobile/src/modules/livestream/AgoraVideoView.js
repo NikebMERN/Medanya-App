@@ -4,9 +4,9 @@
  */
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { View, StyleSheet } from "react-native";
-import { isAgoraAvailable, AGORA_APP_ID } from "./agora.provider";
+import { isAgoraAvailable, setAgoraUnavailable, AGORA_APP_ID } from "./agora.provider";
 
-export function useAgoraHost({ streamId, channelName, token, uid, onError }) {
+export function useAgoraHost({ streamId, channelName, token, uid, onError, onUnavailable }) {
   const engineRef = useRef(null);
   const [ready, setReady] = useState(false);
 
@@ -33,6 +33,7 @@ export function useAgoraHost({ streamId, channelName, token, uid, onError }) {
         });
 
         engine.enableVideo();
+        engine.enableLocalVideo(true);
         engine.startPreview();
 
         engine.joinChannel(token, channelName, uid, {
@@ -47,7 +48,11 @@ export function useAgoraHost({ streamId, channelName, token, uid, onError }) {
           engine.release();
         }
       } catch (e) {
-        if (!cancelled) onError?.(e);
+        if (!cancelled) {
+          setAgoraUnavailable();
+          onUnavailable?.();
+          onError?.(e);
+        }
       }
     })();
 
@@ -75,7 +80,7 @@ export function useAgoraHost({ streamId, channelName, token, uid, onError }) {
   return { ready, engineRef, switchCamera, setMute };
 }
 
-export function useAgoraViewer({ streamId, channelName, token, uid, onError }) {
+export function useAgoraViewer({ streamId, channelName, token, uid, onError, onUnavailable }) {
   const engineRef = useRef(null);
   const [remoteUid, setRemoteUid] = useState(null);
   const [ready, setReady] = useState(false);
@@ -123,7 +128,11 @@ export function useAgoraViewer({ streamId, channelName, token, uid, onError }) {
           engine.release();
         }
       } catch (e) {
-        if (!cancelled) onError?.(e);
+        if (!cancelled) {
+          setAgoraUnavailable();
+          onUnavailable?.();
+          onError?.(e);
+        }
       }
     })();
 
@@ -164,12 +173,16 @@ export function AgoraRemoteView({ channelId, remoteUid, style }) {
   if (remoteUid == null) return <View style={style} />;
 
   try {
-    const { RtcSurfaceView } = require("react-native-agora");
+    const { RtcSurfaceView, VideoSourceType } = require("react-native-agora");
+    const uid = typeof remoteUid === "number" ? remoteUid : Number(remoteUid);
+    if (Number.isNaN(uid)) return <View style={style} />;
     return (
       <RtcSurfaceView
         style={[StyleSheet.absoluteFill, style]}
-        canvas={{ uid: remoteUid }}
-        channelId={channelId}
+        canvas={{
+          uid,
+          sourceType: VideoSourceType?.VideoSourceRemote ?? 9,
+        }}
       />
     );
   } catch {
