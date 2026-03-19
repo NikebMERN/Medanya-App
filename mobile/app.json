@@ -114,10 +114,14 @@
         {
           "ios": {
             "useFrameworks": "static"
+          },
+          "android": {
+            "extraMavenRepos": ["https://cdn.veriff.me/android/"]
           }
         }
       ],
-      "expo-audio"
+      "expo-audio",
+      "./plugins/withVeriffMaven.js"
     ],
     "extra": {
       "eas": {
