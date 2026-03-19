@@ -48,6 +48,10 @@ export async function initializeAds() {
       await requestTrackingIfNeeded();
       await requestConsentIfNeeded();
       const { mobileAds } = require("react-native-google-mobile-ads");
+      if (typeof mobileAds !== "function") {
+        useAdsStore.getState().setAdsReady(false);
+        return false;
+      }
       await mobileAds().initialize();
       useAdsStore.getState().setAdsReady(true);
       return true;

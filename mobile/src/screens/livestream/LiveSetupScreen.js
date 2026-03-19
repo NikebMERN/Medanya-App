@@ -26,6 +26,7 @@ import { useAuthStore } from "../../store/auth.store";
 import { useLivestreamStore } from "../../store/livestream.store";
 import { canLiveStreamHost, getDobFromUser } from "../../utils/age";
 import SubScreenHeader from "../../components/SubScreenHeader";
+import FeatureGuard from "../../components/guards/FeatureGuard";
 
 const CATEGORIES = [
   { id: "community", label: "Community Talk" },
@@ -42,6 +43,21 @@ const RULES_TEXT = [
 ];
 
 export default function LiveSetupScreen() {
+  return (
+    <FeatureGuard
+      featureName="livestream-broadcast"
+      mode="block"
+      variant="full"
+      iconName="live-tv"
+      title="Go live from the mobile app"
+      message="Go live from the app for the best quality, camera support, and performance."
+    >
+      <LiveSetupScreenInner />
+    </FeatureGuard>
+  );
+}
+
+function LiveSetupScreenInner() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const colors = useThemeColors();

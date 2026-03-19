@@ -245,7 +245,11 @@ export default function ChatsScreen() {
     ];
     otherIds.forEach((otherId) => {
       const idStr = String(otherId);
-      if (participantProfiles[idStr]) return;
+      if (useChatStore.getState().participantProfiles[idStr]) return;
+      
+      // Mark as loading/failed immediately to prevent duplicate requests in the same session
+      setParticipantProfile(otherId, { displayName: `User ${idStr}`, avatarUrl: null });
+      
       userApi
         .getPublicProfile(otherId)
         .then((data) => {
@@ -257,8 +261,7 @@ export default function ChatsScreen() {
           });
         })
         .catch(() => {
-          if (!cancelled)
-            setParticipantProfile(otherId, { displayName: `User ${idStr}`, avatarUrl: null });
+          // Already marked as default above, so we just catch the error and do nothing to prevent unhandled rejections
         });
     });
     return () => { cancelled = true; };

@@ -103,6 +103,7 @@ export default function ChatRoomScreen() {
   const listRef = useRef(null);
 
   const [canMessage, setCanMessage] = useState(null);
+  const [mutualFollowRequired, setMutualFollowRequired] = useState(false);
   const [peerUser, setPeerUser] = useState(null);
   const [chatType, setChatType] = useState("direct");
   const [peerNickname, setPeerNickname] = useState(null);
@@ -143,11 +144,16 @@ export default function ChatRoomScreen() {
   const peerDisplayName = peerIsBlocked ? "medanya_user" : (peerUser?.displayName || "User");
   const peerAvatarUrl = peerIsBlocked ? null : (peerUser?.avatarUrl ?? null);
 
+  const fetchedMembersRef = useRef(new Set());
+
   useEffect(() => {
     if (chatType !== "group" || !chatParticipants.length) return;
     let cancelled = false;
     chatParticipants.forEach((id) => {
       const idStr = String(id);
+      if (fetchedMembersRef.current.has(idStr)) return;
+      fetchedMembersRef.current.add(idStr);
+
       userApi.getPublicProfile(id).then((data) => {
         if (cancelled) return;
         const u = data?.user ?? data;
@@ -165,6 +171,7 @@ export default function ChatRoomScreen() {
 
   useEffect(() => {
     if (!chatId || !userId) return;
+    setMutualFollowRequired(false);
     let cancelled = false;
     (async () => {
       try {
@@ -196,20 +203,27 @@ export default function ChatRoomScreen() {
           if (!cancelled) setCanMessage(false);
           return;
         }
-        const mutual = await userApi.checkMutualFollow(userId, otherId);
-        if (!cancelled) setCanMessage(!!mutual);
-        try {
-          const profile = await userApi.getPublicProfile(otherId);
-          const u = profile?.user ?? profile;
-          if (!cancelled && u) {
-            setPeerUser({
-              id: u.id ?? otherId,
-              displayName: u.display_name ?? u.displayName ?? `User ${otherId}`,
-              avatarUrl: u.avatar_url ?? u.avatarUrl,
-            });
+        const [mutual, profileRes] = await Promise.all([
+          userApi.checkMutualFollow(userId, otherId),
+          userApi.getPublicProfile(otherId).catch(() => null),
+        ]);
+        const u = profileRes?.user ?? profileRes;
+        const isPrivate = u && (u.account_private ?? u.accountPrivate);
+        if (!cancelled) {
+          if (isPrivate) {
+            setCanMessage(!!mutual);
+          } else {
+            setCanMessage(true);
           }
-        } catch (_) {
-          if (!cancelled) setPeerUser({ id: otherId, displayName: `User ${otherId}`, avatarUrl: null });
+        }
+        if (!cancelled && u) {
+          setPeerUser({
+            id: u.id ?? otherId,
+            displayName: u.display_name ?? u.displayName ?? `User ${otherId}`,
+            avatarUrl: u.avatar_url ?? u.avatarUrl,
+          });
+        } else if (!cancelled) {
+          setPeerUser({ id: otherId, displayName: `User ${otherId}`, avatarUrl: null });
         }
       } catch {
         if (!cancelled) setCanMessage(false);
@@ -217,6 +231,17 @@ export default function ChatRoomScreen() {
     })();
     return () => { cancelled = true; };
   }, [chatId, userId]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!chatId || !userId || chatType !== "direct" || !peerUser?.id) return;
+      let cancelled = false;
+      userApi.checkMutualFollow(userId, peerUser.id).then((mutual) => {
+        if (!cancelled && mutual) setMutualFollowRequired(false);
+      });
+      return () => { cancelled = true; };
+    }, [chatId, userId, chatType, peerUser?.id])
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -402,6 +427,7 @@ export default function ChatRoomScreen() {
         },
         (ack) => {
           if (ack?.ok && ack.messageId) {
+            setMutualFollowRequired(false);
             replaceOptimistic(chatId, tempId, {
               _id: ack.messageId,
               chatId,
@@ -417,6 +443,13 @@ export default function ChatRoomScreen() {
             updateChatInList(chatId, { lastMessageAt: ack.createdAt, lastMessagePreview: preview });
           } else {
             removeOptimistic(chatId, tempId);
+            if (ack?.error === "MUTUAL_FOLLOW_REQUIRED") {
+              setMutualFollowRequired(true);
+              Alert.alert(
+                "Follow to continue",
+                "You've already sent an intro message. Follow each other to continue the conversation."
+              );
+            }
           }
         }
       );
@@ -720,6 +753,30 @@ export default function ChatRoomScreen() {
     [forwardMessage, sendChatMessage]
   );
 
+  const mediaItems = useMemo(() => {
+    const media = messages.filter(
+      (m) => m.type === "image" || m.type === "video" || m.type === "voice"
+    );
+    return [...media].sort(
+      (a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0)
+    );
+  }, [messages]);
+
+  const imageOnlyItems = useMemo(() => mediaItems.filter((m) => m.type === "image"), [mediaItems]);
+
+  const openZoomGallery = useCallback((uriOrIndex) => {
+    if (typeof uriOrIndex === "number") {
+      setZoomGalleryInitialIndex(Math.max(0, Math.min(uriOrIndex, imageOnlyItems.length - 1)));
+      const item = imageOnlyItems[uriOrIndex];
+      if (item?.mediaUrl) Image.prefetch(item.mediaUrl);
+    } else {
+      const idx = imageOnlyItems.findIndex((m) => m.mediaUrl === uriOrIndex);
+      setZoomGalleryInitialIndex(idx >= 0 ? idx : 0);
+      if (typeof uriOrIndex === "string") Image.prefetch(uriOrIndex);
+    }
+    setZoomGalleryOpen(true);
+  }, [imageOnlyItems]);
+
   // Build list with date separators; each item is { type: 'date', key, label } or { type: 'message', key, message }
   const displayItems = useMemo(() => {
     const reversed = [...messages].reverse();
@@ -867,30 +924,6 @@ export default function ChatRoomScreen() {
       </View>
     </View>
   );
-
-  const mediaItems = useMemo(() => {
-    const media = messages.filter(
-      (m) => m.type === "image" || m.type === "video" || m.type === "voice"
-    );
-    return [...media].sort(
-      (a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0)
-    );
-  }, [messages]);
-
-  const imageOnlyItems = useMemo(() => mediaItems.filter((m) => m.type === "image"), [mediaItems]);
-
-  const openZoomGallery = useCallback((uriOrIndex) => {
-    if (typeof uriOrIndex === "number") {
-      setZoomGalleryInitialIndex(Math.max(0, Math.min(uriOrIndex, imageOnlyItems.length - 1)));
-      const item = imageOnlyItems[uriOrIndex];
-      if (item?.mediaUrl) Image.prefetch(item.mediaUrl);
-    } else {
-      const idx = imageOnlyItems.findIndex((m) => m.mediaUrl === uriOrIndex);
-      setZoomGalleryInitialIndex(idx >= 0 ? idx : 0);
-      if (typeof uriOrIndex === "string") Image.prefetch(uriOrIndex);
-    }
-    setZoomGalleryOpen(true);
-  }, [imageOnlyItems]);
 
   const nicknameModal = (
     <Modal visible={nicknameModalVisible} transparent animationType="fade">
@@ -1447,10 +1480,12 @@ export default function ChatRoomScreen() {
               }
             />
           )}
-          {canMessage === false && (
+          {(canMessage === false || mutualFollowRequired) && (
             <View style={styles.mutualBanner}>
               <Text style={styles.mutualBannerText}>
-                You need to follow each other to message. Follow them from their profile first.
+                {mutualFollowRequired
+                  ? "You've sent your intro message. Follow each other to continue the conversation."
+                  : "You need to follow each other to message. Follow them from their profile first."}
               </Text>
             </View>
           )}
@@ -1465,17 +1500,6 @@ export default function ChatRoomScreen() {
             >
               <MaterialIcons name="keyboard-arrow-down" size={28} color="#fff" />
             </TouchableOpacity>
-          )}
-          {canSendInChannel && (
-            <ChatInput
-              onSend={handleSend}
-              disabled={!token || canMessage === false}
-              replyTo={replyTo}
-              onCancelReply={() => setReplyTo(null)}
-              editingMessage={editingMessage}
-              onCancelEdit={() => setEditingMessage(null)}
-              onMediaPicked={onMediaPicked}
-            />
           )}
         </View>
         <View style={[styles.chatSegmentPage, { width: windowWidth }]}>
@@ -1508,6 +1532,17 @@ export default function ChatRoomScreen() {
           </ScrollView>
         </View>
       </ScrollView>
+      {chatSegmentIndex === 0 && canSendInChannel && (
+        <ChatInput
+          onSend={handleSend}
+          disabled={!token || canMessage === false || mutualFollowRequired}
+          replyTo={replyTo}
+          onCancelReply={() => setReplyTo(null)}
+          editingMessage={editingMessage}
+          onCancelEdit={() => setEditingMessage(null)}
+          onMediaPicked={onMediaPicked}
+        />
+      )}
     </KeyboardAvoidingView>
   );
 }

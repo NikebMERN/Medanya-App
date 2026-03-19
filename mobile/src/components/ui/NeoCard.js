@@ -15,7 +15,7 @@ export default function NeoCard({ children, style, noShadow, ...props }) {
   ];
   return (
     <View style={[cardStyle, style]} {...props}>
-      <View style={[styles.highlight, { borderColor: "rgba(255,255,255,0.06)", borderRadius: radii.card }]} pointerEvents="none" />
+      <View style={[styles.highlight, { borderColor: "rgba(255,255,255,0.06)", borderRadius: radii.card, pointerEvents: "none" }]} />
       {children}
     </View>
   );

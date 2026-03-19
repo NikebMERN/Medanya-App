@@ -22,6 +22,7 @@ import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
 import { useVideoCreateStore } from "../../store/videoCreate.store";
 import FilterTray from "../../components/camera/FilterTray.js";
+import FeatureGuard from "../../components/guards/FeatureGuard";
 
 const DURATION_OPTIONS = [15, 30, 60];
 
@@ -40,6 +41,21 @@ function getVideoUriAndDuration(result) {
 }
 
 export default function VideoRecordScreen() {
+  return (
+    <FeatureGuard
+      featureName="video-posting"
+      mode="block"
+      variant="full"
+      iconName="movie-creation"
+      title="Create videos in the mobile app"
+      message="Recording is optimized for mobile for better quality and performance."
+    >
+      <VideoRecordScreenInner />
+    </FeatureGuard>
+  );
+}
+
+function VideoRecordScreenInner() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();

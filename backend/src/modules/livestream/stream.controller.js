@@ -61,6 +61,18 @@ const detail = async (req, res) => {
     }
 };
 
+const homeFollowing = async (req, res) => {
+    try {
+        const userId = req.user?.id ?? req.user?.userId ?? null;
+        const streams = await service.getLiveStreamsForFollowing(userId, {
+            limit: req.query.limit ?? 10,
+        });
+        return res.json({ success: true, streams });
+    } catch (e) {
+        return sendErr(res, e);
+    }
+};
+
 const myActive = async (req, res) => {
     try {
         const stream = await service.getMyActiveStream(req.user);
@@ -121,4 +133,4 @@ const getPins = async (req, res) => {
     }
 };
 
-module.exports = { create, token, list, detail, myActive, end, adminEnd, ban, pinListing, getPins };
+module.exports = { create, token, list, detail, myActive, homeFollowing, end, adminEnd, ban, pinListing, getPins };

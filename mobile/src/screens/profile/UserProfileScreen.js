@@ -334,277 +334,278 @@ export default function UserProfileScreen() {
       : "person-add";
 
   return (
-    <>
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.sm }]}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={() => loadProfile(true)} tintColor={colors.primary} />
-      }
-      showsVerticalScrollIndicator={false}
-    >
+    <View style={styles.container}>
       <SubScreenHeader
         title={displayName !== "—" ? displayName : "Profile"}
         onBack={() => navigation.goBack()}
         showProfileDropdown
         navigation={navigation.getParent?.() ?? navigation}
       />
-      <View style={styles.headerCard}>
-        <View style={styles.headerRow}>
-          <TouchableOpacity
-            style={styles.avatarWrap}
-            onPress={() => avatarUrl && openAvatarFullScreen()}
-            activeOpacity={avatarUrl ? 0.9 : 1}
-            disabled={!avatarUrl}
-          >
-            {avatarUrl ? (
-              <Image source={{ uri: avatarUrl }} style={styles.avatar} key={avatarUrl} />
-            ) : (
-              <View style={styles.avatarPlaceholder}>
-                <Text style={styles.avatarLetter}>
-                  {displayName !== "—" ? displayName.charAt(0).toUpperCase() : "?"}
-                </Text>
-              </View>
-            )}
-          </TouchableOpacity>
-          <View style={styles.headerActions}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={() => loadProfile(true)} tintColor={colors.primary} />
+        }
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.headerCard}>
+          <View style={styles.headerRow}>
             <TouchableOpacity
-              style={[
-                styles.followBtn,
-                (user.isFollowing || followRequestPending) && styles.followingBtn,
-              ]}
-              onPress={handleFollow}
-              disabled={followLoading || followRequestPending}
-              activeOpacity={0.8}
+              style={styles.avatarWrap}
+              onPress={() => avatarUrl && openAvatarFullScreen()}
+              activeOpacity={avatarUrl ? 0.9 : 1}
+              disabled={!avatarUrl}
             >
-              {followLoading ? (
-                <ActivityIndicator size="small" color={colors.white} />
+              {avatarUrl ? (
+                <Image source={{ uri: avatarUrl }} style={styles.avatar} key={avatarUrl} />
               ) : (
-                <>
-                  <MaterialIcons name={followButtonIcon} size={16} color={colors.white} />
-                  <Text style={styles.followBtnText}>{followButtonLabel}</Text>
-                </>
-              )}
-            </TouchableOpacity>
-            {!isOwnProfile && (
-              <TouchableOpacity
-                style={styles.reportBtn}
-                onPress={() => setReportModalVisible(true)}
-                activeOpacity={0.8}
-              >
-                <MaterialIcons name="flag" size={16} color={colors.white} />
-                <Text style={styles.reportBtnText}>Report</Text>
-              </TouchableOpacity>
-            )}
-            <TouchableOpacity
-              style={styles.blockBtn}
-              onPress={handleBlock}
-              disabled={blockLoading}
-              activeOpacity={0.8}
-            >
-              <MaterialIcons name="block" size={16} color={colors.white} />
-              <Text style={styles.blockBtnText}>Block</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-        <Text style={styles.displayName}>{displayName}</Text>
-        {!(user?.account_private ?? user?.accountPrivate) && (
-          <View style={styles.idPhoneRow}>
-            {(user?.id ?? user?.userId) ? (
-              <Text style={styles.phoneText}>ID: {String(user?.id ?? user?.userId)}</Text>
-            ) : null}
-            {(user.phone_number ?? user.phoneNumber) ? (
-              <Text style={styles.phoneText}>
-                {formatPhoneDisplay(user.phone_number ?? user.phoneNumber)}
-              </Text>
-            ) : null}
-          </View>
-        )}
-        {bio ? <Text style={styles.bioUnderPhoto}>{bio}</Text> : null}
-        {neighborhood !== "—" && (
-          <View style={styles.locationRow}>
-            <MaterialIcons name="location-on" size={14} color={colors.textSecondary} />
-            <Text style={styles.locationText}>{neighborhood.toUpperCase()}</Text>
-          </View>
-        )}
-      </View>
-
-      <View style={styles.statsRow}>
-        <TouchableOpacity
-          style={styles.statCard}
-          onPress={() => navigation.navigate("FollowersList", { userId: targetUserId })}
-          activeOpacity={0.8}
-        >
-          <MaterialIcons name="people" size={20} color={colors.textSecondary} style={styles.statIcon} />
-          <Text style={styles.statNumber}>{followerCount}</Text>
-          <Text style={styles.statLabel}>FOLLOWERS</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.statCard}
-          onPress={() => navigation.navigate("FollowingList", { userId: targetUserId })}
-          activeOpacity={0.8}
-        >
-          <MaterialIcons name="person-add" size={20} color={colors.textSecondary} style={styles.statIcon} />
-          <Text style={styles.statNumber}>{followingCount}</Text>
-          <Text style={styles.statLabel}>FOLLOWING</Text>
-        </TouchableOpacity>
-      </View>
-
-      {isFriend && (
-        <View style={styles.messageRow}>
-          <TouchableOpacity style={styles.messageBtn} onPress={handleMessage} activeOpacity={0.8}>
-            <View style={styles.messageBtnInner}>
-              <MaterialIcons name="message" size={20} color={colors.white} />
-              {unreadWithUser > 0 && (
-                <View style={[styles.unreadDot, { backgroundColor: colors.unreadIndicatorBlue || "#3b82f6" }]}>
-                  <Text style={styles.unreadDotText}>{unreadWithUser > 99 ? "99+" : unreadWithUser}</Text>
+                <View style={styles.avatarPlaceholder}>
+                  <Text style={styles.avatarLetter}>
+                    {displayName !== "—" ? displayName.charAt(0).toUpperCase() : "?"}
+                  </Text>
                 </View>
               )}
+            </TouchableOpacity>
+            <View style={styles.headerActions}>
+              <TouchableOpacity
+                style={[
+                  styles.followBtn,
+                  (user.isFollowing || followRequestPending) && styles.followingBtn,
+                ]}
+                onPress={handleFollow}
+                disabled={followLoading || followRequestPending}
+                activeOpacity={0.8}
+              >
+                {followLoading ? (
+                  <ActivityIndicator size="small" color={colors.white} />
+                ) : (
+                  <>
+                    <MaterialIcons name={followButtonIcon} size={16} color={colors.white} />
+                    <Text style={styles.followBtnText}>{followButtonLabel}</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+              {!isOwnProfile && (
+                <TouchableOpacity
+                  style={styles.reportBtn}
+                  onPress={() => setReportModalVisible(true)}
+                  activeOpacity={0.8}
+                >
+                  <MaterialIcons name="flag" size={16} color={colors.white} />
+                  <Text style={styles.reportBtnText}>Report</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                style={styles.blockBtn}
+                onPress={handleBlock}
+                disabled={blockLoading}
+                activeOpacity={0.8}
+              >
+                <MaterialIcons name="block" size={16} color={colors.white} />
+                <Text style={styles.blockBtnText}>Block</Text>
+              </TouchableOpacity>
             </View>
-            <Text style={styles.messageBtnText}>Message</Text>
+          </View>
+          <Text style={styles.displayName}>{displayName}</Text>
+          {!(user?.account_private ?? user?.accountPrivate) && (
+            <View style={styles.idPhoneRow}>
+              {(user?.id ?? user?.userId) ? (
+                <Text style={styles.phoneText}>ID: {String(user?.id ?? user?.userId)}</Text>
+              ) : null}
+              {(user.phone_number ?? user.phoneNumber) ? (
+                <Text style={styles.phoneText}>
+                  {formatPhoneDisplay(user.phone_number ?? user.phoneNumber)}
+                </Text>
+              ) : null}
+            </View>
+          )}
+          {bio ? <Text style={styles.bioUnderPhoto}>{bio}</Text> : null}
+          {neighborhood !== "—" && (
+            <View style={styles.locationRow}>
+              <MaterialIcons name="location-on" size={14} color={colors.textSecondary} />
+              <Text style={styles.locationText}>{neighborhood.toUpperCase()}</Text>
+            </View>
+          )}
+        </View>
+
+        <View style={styles.statsRow}>
+          <TouchableOpacity
+            style={styles.statCard}
+            onPress={() => navigation.navigate("FollowersList", { userId: targetUserId })}
+            activeOpacity={0.8}
+          >
+            <MaterialIcons name="people" size={20} color={colors.textSecondary} style={styles.statIcon} />
+            <Text style={styles.statNumber}>{followerCount}</Text>
+            <Text style={styles.statLabel}>FOLLOWERS</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.shareContactBtn} onPress={openShareProfileModal} activeOpacity={0.8}>
-            <MaterialIcons name="share" size={20} color={colors.primary} />
-            <Text style={styles.shareContactBtnText}>Share profile</Text>
+          <TouchableOpacity
+            style={styles.statCard}
+            onPress={() => navigation.navigate("FollowingList", { userId: targetUserId })}
+            activeOpacity={0.8}
+          >
+            <MaterialIcons name="person-add" size={20} color={colors.textSecondary} style={styles.statIcon} />
+            <Text style={styles.statNumber}>{followingCount}</Text>
+            <Text style={styles.statLabel}>FOLLOWING</Text>
           </TouchableOpacity>
         </View>
-      )}
 
-      <View style={styles.footer} />
-    </ScrollView>
-
-    <Modal
-      visible={avatarFullScreenVisible}
-      transparent
-      animationType="fade"
-      onRequestClose={closeAvatarFullScreen}
-    >
-      <Pressable
-        style={[styles.avatarFullScreenOverlay, { width: windowWidth, height: windowHeight }]}
-        onPress={closeAvatarFullScreen}
-      >
-        <PinchGestureHandler
-          onGestureEvent={onPinchGestureEvent}
-          onHandlerStateChange={onPinchStateChange}
-        >
-          <View style={styles.avatarFullScreenContent}>
-            <PanGestureHandler
-              onGestureEvent={onPanGestureEvent}
-              onHandlerStateChange={onPanStateChange}
-              minPointers={1}
-            >
-              <View
-                style={[
-                  styles.avatarFullScreenImageWrap,
-                  {
-                    transform: [
-                      { scale: zoomScale },
-                      { translateX },
-                      { translateY },
-                    ],
-                  },
-                ]}
-              >
-                <Image
-                  source={{ uri: avatarUrl }}
-                  style={[
-                    styles.avatarFullScreenImage,
-                    { width: windowWidth, height: windowWidth, maxHeight: windowHeight },
-                  ]}
-                  resizeMode="contain"
-                />
+        {isFriend && (
+          <View style={styles.messageRow}>
+            <TouchableOpacity style={styles.messageBtn} onPress={handleMessage} activeOpacity={0.8}>
+              <View style={styles.messageBtnInner}>
+                <MaterialIcons name="message" size={20} color={colors.white} />
+                {unreadWithUser > 0 && (
+                  <View style={[styles.unreadDot, { backgroundColor: colors.unreadIndicatorBlue || "#3b82f6" }]}>
+                    <Text style={styles.unreadDotText}>{unreadWithUser > 99 ? "99+" : unreadWithUser}</Text>
+                  </View>
+                )}
               </View>
-            </PanGestureHandler>
+              <Text style={styles.messageBtnText}>Message</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.shareContactBtn} onPress={openShareProfileModal} activeOpacity={0.8}>
+              <MaterialIcons name="share" size={20} color={colors.primary} />
+              <Text style={styles.shareContactBtnText}>Share profile</Text>
+            </TouchableOpacity>
           </View>
-        </PinchGestureHandler>
+        )}
 
-        <TouchableOpacity
-          style={styles.avatarFullScreenClose}
+        <View style={styles.footer} />
+      </ScrollView>
+
+      <Modal
+        visible={avatarFullScreenVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={closeAvatarFullScreen}
+      >
+        <Pressable
+          style={[styles.avatarFullScreenOverlay, { width: windowWidth, height: windowHeight }]}
           onPress={closeAvatarFullScreen}
-          hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
         >
-          <MaterialIcons name="close" size={28} color={colors.white} />
-        </TouchableOpacity>
-      </Pressable>
-    </Modal>
+          <PinchGestureHandler
+            onGestureEvent={onPinchGestureEvent}
+            onHandlerStateChange={onPinchStateChange}
+          >
+            <View style={styles.avatarFullScreenContent}>
+              <PanGestureHandler
+                onGestureEvent={onPanGestureEvent}
+                onHandlerStateChange={onPanStateChange}
+                minPointers={1}
+              >
+                <View
+                  style={[
+                    styles.avatarFullScreenImageWrap,
+                    {
+                      transform: [
+                        { scale: zoomScale },
+                        { translateX },
+                        { translateY },
+                      ],
+                    },
+                  ]}
+                >
+                  <Image
+                    source={{ uri: avatarUrl }}
+                    style={[
+                      styles.avatarFullScreenImage,
+                      { width: windowWidth, height: windowWidth, maxHeight: windowHeight },
+                    ]}
+                    resizeMode="contain"
+                  />
+                </View>
+              </PanGestureHandler>
+            </View>
+          </PinchGestureHandler>
 
-    <ReportOptionsModal
-      visible={reportModalVisible}
-      onClose={() => setReportModalVisible(false)}
-      targetType="user"
-      targetId={targetUserId}
-      targetUserId={targetUserId}
-      onBlocked={() => {
-        setReportModalVisible(false);
-        loadProfile(true);
-      }}
-    />
-    <Modal visible={shareProfileVisible} transparent animationType="slide" onRequestClose={() => !shareProfileSending && setShareProfileVisible(false)}>
-      <Pressable style={styles.shareProfileOverlay} onPress={() => !shareProfileSending && setShareProfileVisible(false)}>
-        <Pressable style={[styles.shareProfileSheet, { backgroundColor: colors.surface, paddingBottom: insets.bottom + spacing.md }]} onPress={(e) => e.stopPropagation()}>
-          <View style={[styles.shareProfileHandle, { backgroundColor: colors.border }]} />
-          <Text style={[styles.shareProfileTitle, { color: colors.text }]}>Share profile to</Text>
-          <Text style={[styles.shareProfileSub, { color: colors.textMuted }]}>Select one or more chats</Text>
-          <ScrollView style={styles.shareProfileList} keyboardShouldPersistTaps="handled">
-            {shareChatsSorted.length === 0 ? (
-              <Text style={[styles.shareProfileEmpty, { color: colors.textMuted }]}>No chats yet</Text>
-            ) : (
-              shareChatsSorted.map((c) => {
-                const cid = c._id || c.id;
-                const title = getShareChatTitle(c);
-                const subtitle = c.lastMessagePreview || "No message yet";
-                const avatarUrl = getShareChatAvatarUrl(c);
-                const selected = !!shareProfileSelected[String(cid)];
-                return (
-                  <TouchableOpacity
-                    key={cid}
-                    style={[styles.shareProfileItem, { borderBottomColor: colors.border }]}
-                    onPress={() => toggleShareChat(String(cid))}
-                    activeOpacity={0.7}
-                  >
-                    {avatarUrl ? (
-                      <Image source={{ uri: avatarUrl }} style={styles.shareProfileAvatar} />
-                    ) : (
-                      <View style={[styles.shareProfileAvatar, styles.shareProfileAvatarPlaceholder]}>
-                        <Text style={styles.shareProfileAvatarLetter}>{title.charAt(0).toUpperCase()}</Text>
-                      </View>
-                    )}
-                    <View style={styles.shareProfileItemBody}>
-                      <Text style={[styles.shareProfileItemText, { color: colors.text }]} numberOfLines={1}>{title}</Text>
-                      <Text style={[styles.shareProfileItemSub, { color: colors.textMuted }]} numberOfLines={1}>{subtitle}</Text>
-                    </View>
-                    <MaterialIcons name={selected ? "check-circle" : "radio-button-unchecked"} size={26} color={selected ? colors.primary : colors.textMuted} />
-                  </TouchableOpacity>
-                );
-              })
-            )}
-          </ScrollView>
-          <View style={styles.shareProfileActions}>
-            <TouchableOpacity style={styles.shareProfileCancelBtn} onPress={() => setShareProfileVisible(false)} disabled={shareProfileSending}>
-              <Text style={[styles.shareProfileCancelText, { color: colors.textMuted }]}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.shareProfileSendBtn, { backgroundColor: colors.primary }]}
-              onPress={handleShareProfileToChats}
-              disabled={shareProfileSending || Object.values(shareProfileSelected).every((v) => !v)}
-            >
-              {shareProfileSending ? (
-                <ActivityIndicator size="small" color={colors.white} />
-              ) : (
-                <Text style={styles.shareProfileSendText}>Share</Text>
-              )}
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity
+            style={styles.avatarFullScreenClose}
+            onPress={closeAvatarFullScreen}
+            hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+          >
+            <MaterialIcons name="close" size={28} color={colors.white} />
+          </TouchableOpacity>
         </Pressable>
-      </Pressable>
-    </Modal>
-  </>
+      </Modal>
+
+      <ReportOptionsModal
+        visible={reportModalVisible}
+        onClose={() => setReportModalVisible(false)}
+        targetType="user"
+        targetId={targetUserId}
+        targetUserId={targetUserId}
+        onBlocked={() => {
+          setReportModalVisible(false);
+          loadProfile(true);
+        }}
+      />
+      <Modal visible={shareProfileVisible} transparent animationType="slide" onRequestClose={() => !shareProfileSending && setShareProfileVisible(false)}>
+        <Pressable style={styles.shareProfileOverlay} onPress={() => !shareProfileSending && setShareProfileVisible(false)}>
+          <Pressable style={[styles.shareProfileSheet, { backgroundColor: colors.surface, paddingBottom: insets.bottom + spacing.md }]} onPress={(e) => e.stopPropagation()}>
+            <View style={[styles.shareProfileHandle, { backgroundColor: colors.border }]} />
+            <Text style={[styles.shareProfileTitle, { color: colors.text }]}>Share profile to</Text>
+            <Text style={[styles.shareProfileSub, { color: colors.textMuted }]}>Select one or more chats</Text>
+            <ScrollView style={styles.shareProfileList} keyboardShouldPersistTaps="handled">
+              {shareChatsSorted.length === 0 ? (
+                <Text style={[styles.shareProfileEmpty, { color: colors.textMuted }]}>No chats yet</Text>
+              ) : (
+                shareChatsSorted.map((c) => {
+                  const cid = c._id || c.id;
+                  const title = getShareChatTitle(c);
+                  const subtitle = c.lastMessagePreview || "No message yet";
+                  const avatarUrl = getShareChatAvatarUrl(c);
+                  const selected = !!shareProfileSelected[String(cid)];
+                  return (
+                    <TouchableOpacity
+                      key={cid}
+                      style={[styles.shareProfileItem, { borderBottomColor: colors.border }]}
+                      onPress={() => toggleShareChat(String(cid))}
+                      activeOpacity={0.7}
+                    >
+                      {avatarUrl ? (
+                        <Image source={{ uri: avatarUrl }} style={styles.shareProfileAvatar} />
+                      ) : (
+                        <View style={[styles.shareProfileAvatar, styles.shareProfileAvatarPlaceholder]}>
+                          <Text style={styles.shareProfileAvatarLetter}>{title.charAt(0).toUpperCase()}</Text>
+                        </View>
+                      )}
+                      <View style={styles.shareProfileItemBody}>
+                        <Text style={[styles.shareProfileItemText, { color: colors.text }]} numberOfLines={1}>{title}</Text>
+                        <Text style={[styles.shareProfileItemSub, { color: colors.textMuted }]} numberOfLines={1}>{subtitle}</Text>
+                      </View>
+                      <MaterialIcons name={selected ? "check-circle" : "radio-button-unchecked"} size={26} color={selected ? colors.primary : colors.textMuted} />
+                    </TouchableOpacity>
+                  );
+                })
+              )}
+            </ScrollView>
+            <View style={styles.shareProfileActions}>
+              <TouchableOpacity style={styles.shareProfileCancelBtn} onPress={() => setShareProfileVisible(false)} disabled={shareProfileSending}>
+                <Text style={[styles.shareProfileCancelText, { color: colors.textMuted }]}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.shareProfileSendBtn, { backgroundColor: colors.primary }]}
+                onPress={handleShareProfileToChats}
+                disabled={shareProfileSending || Object.values(shareProfileSelected).every((v) => !v)}
+              >
+                {shareProfileSending ? (
+                  <ActivityIndicator size="small" color={colors.white} />
+                ) : (
+                  <Text style={styles.shareProfileSendText}>Share</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+    </View>
   );
 }
 
 function createStyles(colors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
+    scroll: { flex: 1 },
     content: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl },
     backRow: {
       flexDirection: "row",

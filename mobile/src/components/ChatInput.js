@@ -18,7 +18,7 @@ import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
 import * as Location from "expo-location";
 import * as Contacts from "expo-contacts";
-import { Audio } from "expo-av";
+import { useAudioRecorder, AudioModule, RecordingPresets, useAudioRecorderState } from "expo-audio";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useThemeColors } from "../theme/useThemeColors";
 import { spacing } from "../theme/spacing";
@@ -105,13 +105,14 @@ export default function ChatInput({
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [text, setText] = useState("");
   const [uploading, setUploading] = useState(false);
-  const [recording, setRecording] = useState(false);
+  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const recorderState = useAudioRecorderState(audioRecorder);
+  const recording = recorderState.isRecording;
   const [pendingMedia, setPendingMedia] = useState(null);
   const [plusMenuVisible, setPlusMenuVisible] = useState(false);
   const [pollModalVisible, setPollModalVisible] = useState(false);
   const [pollQuestion, setPollQuestion] = useState("");
   const [pollOptions, setPollOptions] = useState(["", ""]);
-  const recordingRef = useRef(null);
 
   useEffect(() => {
     if (editingMessage) {
@@ -245,17 +246,41 @@ export default function ChatInput({
     if (disabled || uploading) return;
     setPlusMenuVisible(false);
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
-        Alert.alert("Permission needed", "Allow location access to share your position.");
-        return;
-      }
       setUploading(true);
-      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      let latitude, longitude;
+      if (Platform.OS === "web") {
+        await new Promise((resolve, reject) => {
+          if (!navigator.geolocation) {
+            reject(new Error("Geolocation is not supported by this browser."));
+            return;
+          }
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              latitude = pos.coords.latitude;
+              longitude = pos.coords.longitude;
+              resolve();
+            },
+            (err) => {
+              reject(new Error(err.message || "Could not get location."));
+            },
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
+          );
+        });
+      } else {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== "granted") {
+          Alert.alert("Permission needed", "Allow location access to share your position.");
+          setUploading(false);
+          return;
+        }
+        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        latitude = loc.coords.latitude;
+        longitude = loc.coords.longitude;
+      }
       setUploading(false);
       const text = JSON.stringify({
-        lat: loc.coords.latitude,
-        lng: loc.coords.longitude,
+        lat: latitude,
+        lng: longitude,
       });
       onSend({ type: "location", text });
     } catch (e) {
@@ -337,64 +362,44 @@ export default function ChatInput({
   ];
 
   const discardVoice = useCallback(async () => {
-    if (!recording) return;
+    if (!audioRecorder.isRecording) return;
     try {
-      const r = recordingRef.current;
-      if (r) {
-        await r.stopAndUnloadAsync();
-      }
+      await audioRecorder.stop();
     } catch (_) {}
-    recordingRef.current = null;
-    setRecording(false);
-  }, [recording]);
+  }, [audioRecorder]);
 
   const toggleVoice = useCallback(async () => {
     if (disabled || uploading) return;
 
-    if (recording) {
+    if (audioRecorder.isRecording) {
       try {
-        const r = recordingRef.current;
-        if (r) {
-          await r.stopAndUnloadAsync();
-          const uri = r.getURI();
-          if (uri) {
-            setUploading(true);
-            const url = await uploadToCloudinary(uri, "raw", "audio/m4a");
-            setUploading(false);
-            if (url) onSend({ type: "voice", mediaUrl: url });
-          }
+        await audioRecorder.stop();
+        const uri = audioRecorder.uri;
+        if (uri) {
+          setUploading(true);
+          const url = await uploadToCloudinary(uri, "raw", "audio/m4a");
+          setUploading(false);
+          if (url) onSend({ type: "voice", mediaUrl: url });
         }
       } catch (e) {
         setUploading(false);
         Alert.alert("Voice error", e?.message ?? "Could not send voice.");
       }
-      setRecording(false);
-      recordingRef.current = null;
       return;
     }
 
     try {
-      const { status } = await Audio.requestPermissionsAsync();
-      if (status !== "granted") {
+      const status = await AudioModule.requestRecordingPermissionsAsync();
+      if (!status.granted) {
         Alert.alert("Permission needed", "Allow microphone access to send voice messages.");
         return;
       }
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
-        shouldDuckAndroid: true,
-        playThroughEarpieceAndroid: false,
-      });
-      const { recording: r } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
-      );
-      recordingRef.current = r;
-      setRecording(true);
+      await audioRecorder.prepareToRecordAsync();
+      audioRecorder.record();
     } catch (e) {
       Alert.alert("Recording failed", e?.message ?? "Could not start recording.");
     }
-  }, [disabled, uploading, recording, onSend]);
+  }, [disabled, uploading, audioRecorder, onSend]);
 
   const replyPreview =
     replyTo?.type === "text"
@@ -408,10 +413,7 @@ export default function ChatInput({
             : "Message";
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
-    >
+    <View style={styles.wrapper}>
       {replyTo && (
         <View style={styles.replyBar}>
           <View style={styles.replyBarLine} />
@@ -571,12 +573,15 @@ export default function ChatInput({
           </Pressable>
         </Pressable>
       </Modal>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 
 function createStyles(colors) {
   return StyleSheet.create({
+    wrapper: {
+      backgroundColor: colors.surface,
+    },
     container: {
       flexDirection: "row",
       alignItems: "flex-end",
@@ -708,6 +713,7 @@ function createStyles(colors) {
       backgroundColor: colors.surfaceLight,
       color: colors.text,
       fontSize: 15,
+      ...Platform.select({ web: { outlineStyle: "none" }, default: {} }),
     },
     sendBtn: {
       paddingHorizontal: spacing.md,

@@ -7,14 +7,14 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:12212015536:android:d728dbaf4ff6e2e8888675",
+        "mobilesdk_app_id": "1:12212015536:android:3a71e22c48cd04c3888675",
         "android_client_info": {
-          "package_name": "app.json"
+          "package_name": "com.medanya.app"
         }
       },
       "oauth_client": [
         {
-          "client_id": "12212015536-fi6vq0j53svqrb0k35ggk9l8pkkbouji.apps.googleusercontent.com",
+          "client_id": "12212015536-jkd02r826k6f59eqm68j0ql2d0445jcq.apps.googleusercontent.com",
           "client_type": 3
         }
       ],
@@ -27,14 +27,14 @@
         "appinvite_service": {
           "other_platform_oauth_client": [
             {
-              "client_id": "12212015536-fi6vq0j53svqrb0k35ggk9l8pkkbouji.apps.googleusercontent.com",
+              "client_id": "12212015536-jkd02r826k6f59eqm68j0ql2d0445jcq.apps.googleusercontent.com",
               "client_type": 3
             },
             {
-              "client_id": "12212015536-5nn3pa6ohev4799e14d8hnqsca424g45.apps.googleusercontent.com",
+              "client_id": "12212015536-iabo63q7ah6231qs7nthmhu7sduher66.apps.googleusercontent.com",
               "client_type": 2,
               "ios_info": {
-                "bundle_id": "ios.bundleIdentifier"
+                "bundle_id": "com.medanya.app"
               }
             }
           ]

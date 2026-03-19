@@ -20,11 +20,27 @@ import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
 import { useVideoCreateStore, FILTER_PRESETS } from "../../store/videoCreate.store";
 import SubScreenHeader from "../../components/SubScreenHeader";
+import FeatureGuard from "../../components/guards/FeatureGuard";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const PREVIEW_HEIGHT = SCREEN_WIDTH * (16 / 9);
 
 export default function VideoEditScreen() {
+  return (
+    <FeatureGuard
+      featureName="video-editing"
+      mode="block"
+      variant="full"
+      iconName="auto-fix-high"
+      title="Edit videos in the mobile app"
+      message="Editing is optimized for the mobile app for smoother performance and better exports."
+    >
+      <VideoEditScreenInner />
+    </FeatureGuard>
+  );
+}
+
+function VideoEditScreenInner() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const colors = useThemeColors();
@@ -88,7 +104,7 @@ export default function VideoEditScreen() {
           contentFit="contain"
           nativeControls={false}
         />
-        <View style={[styles.filterOverlay, selectedFilterId !== "none" && styles.filterOverlayActive]} pointerEvents="none" />
+        <View style={[styles.filterOverlay, selectedFilterId !== "none" && styles.filterOverlayActive, { pointerEvents: "none" }]} />
       </View>
 
       <View style={styles.timeline}>

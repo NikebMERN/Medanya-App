@@ -60,6 +60,13 @@ export async function getGiftCatalog() {
   return data?.gifts ?? [];
 }
 
+export async function getLiveStreamsFollowing(params = {}) {
+  const { data } = await client.get("/streams/home-following", {
+    params: { limit: params.limit ?? 10 },
+  });
+  return { streams: data?.streams ?? [] };
+}
+
 export async function getStreamPins(streamId) {
   const { data } = await client.get(`/live/${streamId}/pins`);
   return { pins: data?.pins ?? [], items: data?.items ?? [] };

@@ -25,8 +25,24 @@ import { ensureChatSocket } from "../../realtime/chat.socket";
 import { joinStream, leaveStream, onStreamViewerCount, offStreamViewerCount } from "../../realtime/livestream.socket";
 import * as livestreamApi from "../../api/livestream.api";
 import { isAgoraAvailable, useAgoraHost, AgoraLocalView } from "../../modules/livestream/AgoraVideoView";
+import FeatureGuard from "../../components/guards/FeatureGuard";
 
 export default function LiveHostScreen() {
+  return (
+    <FeatureGuard
+      featureName="livestream-broadcast"
+      mode="block"
+      variant="full"
+      iconName="live-tv"
+      title="Go live from the mobile app"
+      message="Go live from the app for the best quality, camera support, and performance."
+    >
+      <LiveHostScreenInner />
+    </FeatureGuard>
+  );
+}
+
+function LiveHostScreenInner() {
   const navigation = useNavigation();
   const route = useRoute();
   const insets = useSafeAreaInsets();

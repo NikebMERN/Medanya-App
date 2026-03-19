@@ -11,6 +11,7 @@ const streamPinsDb = require("./stream_pins.mysql");
 const marketDb = require("../marketplace/market.mysql");
 const { pool } = require("../../config/mysql");
 const userDb = require("../users/user.mysql");
+const followDb = require("../users/follow.mysql");
 
 const STREAM_FIELDS = ["GENERAL", "MARKETING", "EDUCATION", "MUSIC", "JOBS", "SAFETY"];
 
@@ -337,6 +338,46 @@ async function pinListing(user, streamId, listingId) {
     return getStreamPins(streamId);
 }
 
+/** Get live streams only from users the current user follows (or who follow them). Excludes banned hosts. */
+async function getLiveStreamsForFollowing(userId, { limit = 20 } = {}) {
+    const uid = toId(userId);
+    if (!uid) return [];
+
+    const [followingIds, followerIds] = await Promise.all([
+        followDb.getFollowingIds(uid, { limit: 500 }),
+        followDb.getFollowerIds(uid, { limit: 500 }),
+    ]);
+    const allowedHostIds = [...new Set([...followingIds, ...followerIds])];
+    if (allowedHostIds.length === 0) return [];
+
+    // Exclude banned users
+    const [bannedRows] = await pool.query(
+        `SELECT id FROM users WHERE is_banned = 1 AND id IN (${allowedHostIds.map(() => "?").join(",")})`,
+        allowedHostIds,
+    );
+    const bannedSet = new Set(bannedRows.map((r) => String(r.id)));
+    const safeHostIds = allowedHostIds.filter((id) => !bannedSet.has(id));
+    if (safeHostIds.length === 0) return [];
+
+    const l = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 50);
+    const streams = await Stream.find({
+        status: "live",
+        hostId: { $in: safeHostIds },
+    })
+        .sort({ viewerCount: -1, startedAt: -1 })
+        .limit(l)
+        .lean();
+
+    return streams.map((s) => ({
+        streamId: s._id.toString(),
+        hostId: s.hostId,
+        title: s.title || "Live",
+        viewerCount: s.viewerCount ?? 0,
+        channelName: s.channelName || s.providerRoom,
+        startedAt: s.startedAt,
+    }));
+}
+
 async function getMyActiveStream(user) {
     const userId = toId(user);
     if (!userId) return null;
@@ -362,6 +403,7 @@ async function getStreamPins(streamId) {
 module.exports = {
     createStream,
     getToken,
+    getLiveStreamsForFollowing,
     listStreams,
     getStream,
     getMyActiveStream,

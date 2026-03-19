@@ -1,9 +1,15 @@
 import { create } from "zustand";
 import { secureStorage } from "../utils/secureStorage";
 import { disconnectSocket } from "../realtime/socket";
-import { auth, firebaseReady } from "../config/firebase";
+import { auth, authReady, firebaseReady } from "../config/firebase";
 import { validateConfig } from "../config/validateConfig";
-import { signInWithGoogle as googleSignIn, signInWithFacebook as facebookSignIn, ERROR_CODES } from "../services/socialAuth.service";
+import {
+  signInWithGoogle as googleSignIn,
+  signInWithGoogleWebPopup as googleSignInWebPopup,
+  signInWithFacebook as facebookSignIn,
+  signInWithFacebookWebPopup as facebookSignInWebPopup,
+  ERROR_CODES,
+} from "../services/socialAuth.service";
 
 const TOKEN_KEY = "medanya_jwt";
 const USER_KEY = "medanya_user";
@@ -127,6 +133,21 @@ export const useAuthStore = create((set, get) => ({
         isAuthenticated: !!token,
         authProvidersAvailable: getProvidersFromFlags(),
       });
+
+      // Wait for Firebase persistence so auth state is restored before we check currentUser
+      if (firebaseReady) {
+        await authReady;
+        if (!token && auth?.currentUser) {
+          try {
+            const idToken = await auth.currentUser.getIdToken();
+            const { loginWithFirebaseToken } = await import("../api/auth.api");
+            const res = await loginWithFirebaseToken(idToken);
+            if (res?.token && res?.user) {
+              get().setAuth(res.token, normalizeBackendUser(res.user));
+            }
+          } catch (_) {}
+        }
+      }
     } catch (_) {
       set({ token: null, user: null, isAuthenticated: false });
     }
@@ -166,6 +187,41 @@ export const useAuthStore = create((set, get) => ({
     }
   },
 
+  /** Web only: use Firebase signInWithPopup to avoid COOP / window.closed issues. */
+  loginWithGoogleWebPopup: async ({ onToast } = {}) => {
+    const providers = get().authProvidersAvailable;
+    if (!providers?.google) {
+      const msg = "Google sign-in is not configured. Add EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID to .env";
+      if (onToast) onToast(msg);
+      return { ok: false, errorCode: ERROR_CODES.GOOGLE_AUTH_NOT_CONFIGURED };
+    }
+    try {
+      const result = await googleSignInWebPopup();
+      if (result.cancelled) return { ok: false, cancelled: true };
+      if (!result.ok || !result.firebaseIdToken) {
+        if (onToast) onToast(result.message || "Google sign-in failed.");
+        return result;
+      }
+      const { loginWithFirebaseToken } = await import("../api/auth.api");
+      const res = await loginWithFirebaseToken(result.firebaseIdToken);
+      if (res?.token && res?.user) {
+        get().setAuth(res.token, normalizeBackendUser(res.user));
+        return { ok: true };
+      }
+      const backendMsg = res?.message || "Login failed. Please try again.";
+      if (onToast) onToast(backendMsg);
+      return { ok: false };
+    } catch (e) {
+      if (e?.message === ERROR_CODES.GOOGLE_AUTH_NOT_CONFIGURED) {
+        if (onToast) onToast("Add EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID to .env");
+        return { ok: false, errorCode: ERROR_CODES.GOOGLE_AUTH_NOT_CONFIGURED };
+      }
+      const msg = e?.response?.data?.message || e?.message || "Google sign-in failed.";
+      if (onToast) onToast(msg);
+      return { ok: false, errorCode: "AUTH_FAILED", message: msg };
+    }
+  },
+
   loginWithFacebook: async (accessToken, { onToast } = {}) => {
     const providers = get().authProvidersAvailable;
     if (!providers?.facebook) {
@@ -175,6 +231,41 @@ export const useAuthStore = create((set, get) => ({
     }
     try {
       const result = await facebookSignIn(accessToken);
+      if (result.cancelled) return { ok: false, cancelled: true };
+      if (!result.ok || !result.firebaseIdToken) {
+        if (onToast) onToast(result.message || "Facebook sign-in failed.");
+        return result;
+      }
+      const { loginWithFirebaseToken } = await import("../api/auth.api");
+      const res = await loginWithFirebaseToken(result.firebaseIdToken);
+      if (res?.token && res?.user) {
+        get().setAuth(res.token, normalizeBackendUser(res.user));
+        return { ok: true };
+      }
+      const backendMsg = res?.message || "Login failed. Please try again.";
+      if (onToast) onToast(backendMsg);
+      return { ok: false };
+    } catch (e) {
+      if (e?.message === ERROR_CODES.FACEBOOK_AUTH_NOT_CONFIGURED) {
+        if (onToast) onToast("Add EXPO_PUBLIC_FACEBOOK_APP_ID to .env");
+        return { ok: false, errorCode: ERROR_CODES.FACEBOOK_AUTH_NOT_CONFIGURED };
+      }
+      const msg = e?.response?.data?.message || e?.message || "Facebook sign-in failed.";
+      if (onToast) onToast(msg);
+      return { ok: false, errorCode: "AUTH_FAILED", message: msg };
+    }
+  },
+
+  /** Web only: use Firebase signInWithPopup for Facebook (website-like behavior). */
+  loginWithFacebookWebPopup: async ({ onToast } = {}) => {
+    const providers = get().authProvidersAvailable;
+    if (!providers?.facebook) {
+      const msg = "Facebook sign-in is not configured. Add EXPO_PUBLIC_FACEBOOK_APP_ID to .env";
+      if (onToast) onToast(msg);
+      return { ok: false, errorCode: ERROR_CODES.FACEBOOK_AUTH_NOT_CONFIGURED };
+    }
+    try {
+      const result = await facebookSignInWebPopup();
       if (result.cancelled) return { ok: false, cancelled: true };
       if (!result.ok || !result.firebaseIdToken) {
         if (onToast) onToast(result.message || "Facebook sign-in failed.");

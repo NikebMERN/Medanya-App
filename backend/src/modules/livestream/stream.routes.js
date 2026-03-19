@@ -3,12 +3,14 @@ const express = require("express");
 const router = express.Router();
 
 const auth = require("../../middlewares/auth.middleware");
+const optionalAuth = require("../../middlewares/auth.middleware").optional;
 const { requireRole } = require("../../middlewares/admin.middleware");
 const controller = require("./stream.controller");
 const payments = require("../../config/payments");
 
 // Public
 router.get("/streams", controller.list);
+router.get("/streams/home-following", optionalAuth, controller.homeFollowing);
 router.get("/streams/my-active", auth, controller.myActive); // must be before :id
 router.get("/streams/:id", controller.detail);
 

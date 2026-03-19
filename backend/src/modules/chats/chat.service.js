@@ -4,6 +4,7 @@ const Chat = require("./chat.model");
 const Message = require("./message.model");
 const ChatMember = require("./chatMember.model");
 const followDb = require("../users/follow.mysql");
+const userDb = require("../users/user.mysql");
 
 const MAX_GROUP_SIZE = 200;
 const MAX_LIMIT = 50;
@@ -472,6 +473,36 @@ async function sendMessage(
         err.code = "FORBIDDEN";
         err.message = "Only the channel owner can send messages";
         throw err;
+    }
+
+    // Direct chat: public-account users can receive one intro message from non-mutual users;
+    // after that, sender must be mutual friend (both follow each other) to continue.
+    if (chat.type === "direct") {
+        const peer = (chat.participants || []).find((p) => String(p) !== me);
+        if (peer) {
+            const peerUser = await userDb.getById(peer);
+            const isPublic = peerUser && !peerUser.account_private;
+            if (isPublic) {
+                const [iFollowPeer, peerFollowsMe] = await Promise.all([
+                    followDb.isFollowing(me, peer),
+                    followDb.isFollowing(peer, me),
+                ]);
+                const isMutual = iFollowPeer && peerFollowsMe;
+                if (!isMutual) {
+                    const myMessageCount = await Message.countDocuments({
+                        chatId: chat._id,
+                        senderId: me,
+                    });
+                    if (myMessageCount >= 1) {
+                        const err = new Error("MUTUAL_FOLLOW_REQUIRED");
+                        err.code = "MUTUAL_FOLLOW_REQUIRED";
+                        err.message =
+                            "You've already sent an intro message. Follow each other to continue the conversation.";
+                        throw err;
+                    }
+                }
+            }
+        }
     }
 
     const msgType = String(type || "");

@@ -31,6 +31,9 @@ const envSchema = z.object({
 
     JWT_SECRET: z.string().min(1, "JWT_SECRET is required for auth"),
 
+    // CORS: optional. Omit or set to * for all origins; or comma-separated list (e.g. https://app.com,https://web.app.com)
+    CORS_ORIGIN: z.string().optional(),
+
     FIREBASE_WEB_API_KEY: z.string().optional(),
 
     EMERGENCY_PHONE: z.string().optional(),

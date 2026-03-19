@@ -69,6 +69,28 @@ async function listFollowers(userId, { page = 1, limit = 50, q = "" } = {}) {
     return { page: p, limit: l, total: c.total, users: rows };
 }
 
+/** Returns array of user IDs that userId follows (for feed/livestream filtering). */
+async function getFollowingIds(userId, { limit = 500 } = {}) {
+    if (!userId) return [];
+    const l = Math.min(Math.max(parseInt(limit, 10) || 500, 1), 1000);
+    const [rows] = await pool.query(
+        `SELECT following_id FROM follows WHERE follower_id = ? LIMIT ?`,
+        [userId, l],
+    );
+    return rows.map((r) => String(r.following_id));
+}
+
+/** Returns array of user IDs that follow userId (for mutual visibility). */
+async function getFollowerIds(userId, { limit = 500 } = {}) {
+    if (!userId) return [];
+    const l = Math.min(Math.max(parseInt(limit, 10) || 500, 1), 1000);
+    const [rows] = await pool.query(
+        `SELECT follower_id FROM follows WHERE following_id = ? LIMIT ?`,
+        [userId, l],
+    );
+    return rows.map((r) => String(r.follower_id));
+}
+
 async function listFollowing(userId, { page = 1, limit = 50, q = "" } = {}) {
     const p = Math.max(parseInt(page, 10) || 1, 1);
     const l = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 100);
@@ -317,6 +339,8 @@ module.exports = {
     countBlocking,
     countBlockedBy,
     follow,
+    getFollowingIds,
+    getFollowerIds,
     unfollow,
     isFollowing,
     countFollowers,

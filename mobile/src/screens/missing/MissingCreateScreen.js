@@ -16,7 +16,7 @@ import { useNavigation } from "@react-navigation/native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
-import { Audio } from "expo-av";
+import { useAudioRecorder, AudioModule, RecordingPresets, useAudioRecorderState } from "expo-audio";
 import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
 import { useAuthStore } from "../../store/auth.store";
@@ -30,7 +30,9 @@ export default function MissingCreateScreen() {
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const isLoggedIn = !!useAuthStore((s) => s.token);
-  const recordingRef = useRef(null);
+  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const recorderState = useAudioRecorderState(audioRecorder);
+  const recording = recorderState.isRecording;
 
   const [photoUrl, setPhotoUrl] = useState("");
   const [localPhotoUri, setLocalPhotoUri] = useState(null);
@@ -39,7 +41,6 @@ export default function MissingCreateScreen() {
   const [lastKnownLocationText, setLastKnownLocationText] = useState("");
   const [description, setDescription] = useState("");
   const [voiceUrl, setVoiceUrl] = useState("");
-  const [recording, setRecording] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [uploadingVoice, setUploadingVoice] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -107,49 +108,34 @@ export default function MissingCreateScreen() {
   }, [uploadingPhoto, takePhoto, pickPhoto]);
 
   const toggleVoice = useCallback(async () => {
-    if (recording) {
+    if (audioRecorder.isRecording) {
       try {
-        const r = recordingRef.current;
-        if (r) {
-          await r.stopAndUnloadAsync();
-          const uri = r.getURI();
-          if (uri) {
-            setUploadingVoice(true);
-            const url = await uploadToCloudinary(uri, "raw", "audio/m4a");
-            setUploadingVoice(false);
-            if (url) setVoiceUrl(url);
-          }
+        await audioRecorder.stop();
+        const uri = audioRecorder.uri;
+        if (uri) {
+          setUploadingVoice(true);
+          const url = await uploadToCloudinary(uri, "raw", "audio/m4a");
+          setUploadingVoice(false);
+          if (url) setVoiceUrl(url);
         }
       } catch (e) {
         setUploadingVoice(false);
         Alert.alert("Voice error", e?.message ?? "Could not save voice.");
       }
-      setRecording(false);
-      recordingRef.current = null;
       return;
     }
     try {
-      const { status } = await Audio.requestPermissionsAsync();
-      if (status !== "granted") {
+      const status = await AudioModule.requestRecordingPermissionsAsync();
+      if (!status.granted) {
         Alert.alert("Permission", "Allow microphone access to record voice.");
         return;
       }
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
-        shouldDuckAndroid: true,
-        playThroughEarpieceAndroid: false,
-      });
-      const { recording: r } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
-      );
-      recordingRef.current = r;
-      setRecording(true);
+      await audioRecorder.prepareToRecordAsync();
+      audioRecorder.record();
     } catch (e) {
       Alert.alert("Recording failed", e?.message ?? "Could not start recording.");
     }
-  }, [recording]);
+  }, [audioRecorder]);
 
   const handleSubmit = useCallback(async () => {
     if (!isLoggedIn) {

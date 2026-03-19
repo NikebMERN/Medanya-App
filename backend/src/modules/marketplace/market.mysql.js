@@ -292,10 +292,11 @@ const listRecentMarketplaceForFeed = async ({ limit = 25 } = {}) => {
     const l = Math.min(Math.max(parseInt(limit, 10) || 25, 1), 100);
     const [rows] = await pool.query(
         `
-    SELECT id, title, price, category, location, image_urls, status, created_at
-    FROM marketplace_items
-    WHERE status = 'active'
-    ORDER BY created_at DESC
+    SELECT m.id, m.seller_id, m.title, m.price, m.currency, m.category, m.location, m.image_urls, m.status, m.created_at
+    FROM marketplace_items m
+    LEFT JOIN users u ON u.id = m.seller_id
+    WHERE m.status = 'active' AND (u.id IS NULL OR (u.is_banned = 0 AND u.is_active = 1))
+    ORDER BY m.created_at DESC
     LIMIT ?
     `,
         [l],

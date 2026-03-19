@@ -1,5 +1,6 @@
 // src/modules/feed/feed.controller.js
 const feedService = require("./feed.service");
+const feedRankingService = require("./feedRanking.service");
 
 function sendErr(res, err) {
     return res
@@ -34,9 +35,36 @@ const highlights = async (req, res) => {
 const getHomeFeed = async (req, res) => {
     try {
         const data = await feedService.getHomeFeed({
-            tab: req.query.tab || "all",
+            tab: req.query.tab || "feeds",
             cursor: req.query.cursor,
             limit: req.query.limit,
+        });
+        return res.json({ success: true, ...data });
+    } catch (err) {
+        return sendErr(res, err);
+    }
+};
+
+const getPersonalizedFeed = async (req, res) => {
+    try {
+        const userId = req.user?.id ?? req.user?.userId ?? null;
+        const data = await feedRankingService.getPersonalizedFeed({
+            userId,
+            tab: req.query.tab || "feeds",
+            cursor: req.query.cursor,
+            limit: req.query.limit,
+        });
+        return res.json({ success: true, ...data });
+    } catch (err) {
+        return sendErr(res, err);
+    }
+};
+
+const getReportsFeed = async (req, res) => {
+    try {
+        const data = await feedService.getReportsFeed({
+            cursor: req.query.cursor,
+            limit: req.query.limit ?? 20,
         });
         return res.json({ success: true, ...data });
     } catch (err) {
@@ -53,4 +81,4 @@ const getLiveStreams = async (req, res) => {
     }
 };
 
-module.exports = { getFeed, highlights, getHomeFeed, getLiveStreams };
+module.exports = { getFeed, highlights, getHomeFeed, getPersonalizedFeed, getReportsFeed, getLiveStreams };

@@ -3,17 +3,39 @@
 const logger = require("../utils/logger.util");
 
 let client = null;
+let redisUnavailable = false; // when true, always fall back to in-memory and never try Redis again this process
 
 async function getRedis() {
+    if (redisUnavailable) return null;
     if (client) return client;
     try {
         const Redis = require("ioredis");
         const url = process.env.REDIS_URL || "redis://localhost:6379";
-        client = new Redis(url, { maxRetriesPerRequest: 2, lazyConnect: true });
-        await client.connect().catch(() => {});
+        client = new Redis(url, {
+            maxRetriesPerRequest: 1,
+            lazyConnect: true,
+            retryStrategy: () => null, // do not keep retrying forever
+        });
+
+        // Try a single connect; on failure, disable Redis for this process and use in-memory fallback.
+        await client.connect().catch((e) => {
+            logger.warn("Redis connect failed, using in-memory fallback", e?.message || e);
+            redisUnavailable = true;
+            try {
+                client.disconnect();
+            } catch {}
+            client = null;
+        });
+
+        if (redisUnavailable) {
+            return null;
+        }
+
         return client;
     } catch (e) {
-        logger.warn("Redis not available, using in-memory fallback", e?.message);
+        logger.warn("Redis not available, using in-memory fallback", e?.message || e);
+        redisUnavailable = true;
+        client = null;
         return null;
     }
 }

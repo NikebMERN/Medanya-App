@@ -99,21 +99,16 @@ export default function BlockedUsersScreen() {
   };
 
   const tabNav = navigation.getParent?.() ?? navigation;
-  const listHeader = (
-    <View style={styles.headerWrap}>
-      <SubScreenHeader
-        title="Blacklist"
-        onBack={() => navigation.goBack()}
-        showProfileDropdown
-        navigation={tabNav}
-      />
-    </View>
-  );
 
   if (loading && users.length === 0) {
     return (
       <View style={styles.container}>
-        {listHeader}
+        <SubScreenHeader
+          title="Blacklist"
+          onBack={() => navigation.goBack()}
+          showProfileDropdown
+          navigation={tabNav}
+        />
         <View style={styles.center}>
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
@@ -123,13 +118,18 @@ export default function BlockedUsersScreen() {
 
   return (
     <View style={styles.container}>
+      <SubScreenHeader
+        title="Blacklist"
+        onBack={() => navigation.goBack()}
+        showProfileDropdown
+        navigation={tabNav}
+      />
       <FlatList
         data={users}
         keyExtractor={(item) => String(item.id ?? item.userId)}
         renderItem={renderItem}
         ListHeaderComponent={
           <View>
-            {listHeader}
             <Text style={styles.subtitle}>Users you've blocked. Tap Unblock to allow them again.</Text>
           </View>
         }

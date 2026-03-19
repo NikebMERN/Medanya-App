@@ -11,8 +11,8 @@ import {
   ScrollView,
   Modal,
   Pressable,
-  Alert,
 } from "react-native";
+import { useToastStore } from "../../store/toast.store";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
@@ -24,8 +24,13 @@ import { useAuthStore } from "../../store/auth.store";
 import JobCard from "../../components/feed/JobCard";
 import MissingCard from "../../components/feed/MissingCard";
 import AlertCard from "../../components/feed/AlertCard";
-import MarketCard from "../../components/feed/MarketCard";
+import MarketplaceFeedCard from "../../components/marketplace/MarketplaceFeedCard";
 import VideoPreviewCard from "../../components/feed/VideoPreviewCard";
+import VideoReelCard from "../../components/feed/VideoReelCard";
+import MissingReelCard from "../../components/feed/MissingReelCard";
+import GalleryBannerCard from "../../components/feed/GalleryBannerCard";
+import MarketplaceReelCard from "../../components/marketplace/MarketplaceReelCard";
+import InlineErrorBanner from "../../components/ui/InlineErrorBanner";
 import * as chatApi from "../../services/chat.api";
 import { ensureChatSocket, sendChatMessage } from "../../realtime/chat.socket";
 import * as livestreamApi from "../../api/livestream.api";
@@ -80,6 +85,7 @@ function CategoryChips({ selectedTab, onSelect, colors }) {
           onPress={() => onSelect(tab.id)}
           activeOpacity={0.8}
         >
+          {tab.icon ? <MaterialIcons name={tab.icon} size={16} color={selectedTab === tab.id ? colors.primary : colors.textMuted} style={styles.chipIcon} /> : null}
           <Text style={[styles.chipText, selectedTab === tab.id && styles.chipTextActive]}>{tab.label}</Text>
         </TouchableOpacity>
       ))}
@@ -92,6 +98,8 @@ function chipStyles(colors) {
     scroll: { flexGrow: 0 },
     container: { paddingHorizontal: spacing.md, paddingVertical: spacing.sm, gap: spacing.sm, flexDirection: "row", alignItems: "center", flexWrap: "nowrap" },
     chip: {
+      flexDirection: "row",
+      alignItems: "center",
       paddingHorizontal: spacing.md,
       paddingVertical: 10,
       minHeight: 40,
@@ -101,45 +109,103 @@ function chipStyles(colors) {
       borderColor: colors.border,
       marginRight: spacing.sm,
     },
+    chipIcon: { marginRight: 6 },
     chipActive: { backgroundColor: colors.primary + "25", borderColor: colors.primary },
     chipText: { fontSize: 14, fontWeight: "600", color: colors.textSecondary },
     chipTextActive: { color: colors.primary },
   });
 }
 
-function ActiveNowRow({ streams, onPress, colors }) {
-  const styles = useMemo(() => activeStyles(colors), [colors]);
-  if (!streams?.length) return null;
+function LiveFollowingRow({ streams, onPress, onExploreCreators, onViewAll, isLoggedIn, colors }) {
+  const styles = useMemo(() => liveRowStyles(colors), [colors]);
   return (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>ACTIVE NOW</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
-        {streams.slice(0, 10).map((s) => (
-          <TouchableOpacity key={s.streamId} style={styles.avatarWrap} onPress={() => onPress(s)} activeOpacity={0.8}>
-            <View style={styles.avatar}>
-              <MaterialIcons name="videocam" size={20} color={colors.primary} />
-            </View>
-            <Text style={styles.name} numberOfLines={1}>{s.title || "Live"}</Text>
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>((o)) LIVE COMMUNITY STREAMS</Text>
+        {streams?.length ? (
+          <TouchableOpacity onPress={onViewAll} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Text style={[styles.viewAll, { color: colors.primary }]}>VIEW ALL</Text>
           </TouchableOpacity>
-        ))}
-      </ScrollView>
+        ) : null}
+      </View>
+      {streams?.length ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
+          {streams.slice(0, 10).map((s) => (
+            <TouchableOpacity key={s.streamId} style={styles.avatarWrap} onPress={() => onPress(s)} activeOpacity={0.8}>
+              <View style={styles.avatarContainer}>
+                <View style={[styles.avatar, { borderColor: colors.primary }]}>
+                  <MaterialIcons name="videocam" size={20} color={colors.primary} />
+                </View>
+                <View style={styles.liveBadge}>
+                  <Text style={styles.liveBadgeText}>LIVE</Text>
+                </View>
+              </View>
+              <Text style={styles.name} numberOfLines={1}>{s.title || "Live"}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      ) : (
+        <View style={styles.emptyCard}>
+          <MaterialIcons name="videocam-off" size={28} color={colors.textMuted} />
+          <Text style={styles.emptyText}>
+            {isLoggedIn ? "No one you follow is live right now" : "Sign in to see live streams from people you follow"}
+          </Text>
+          {isLoggedIn && (
+            <TouchableOpacity style={[styles.exploreBtn, { backgroundColor: colors.primary }]} onPress={onExploreCreators} activeOpacity={0.8}>
+              <Text style={styles.exploreBtnText}>Find people to follow</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
     </View>
   );
 }
 
-function activeStyles(colors) {
+function liveRowStyles(colors) {
   return StyleSheet.create({
     section: { marginBottom: spacing.md },
-    sectionTitle: { fontSize: 12, fontWeight: "800", color: colors.textMuted, letterSpacing: 0.5, marginLeft: spacing.md, marginBottom: spacing.xs },
-    row: { paddingHorizontal: spacing.md, flexDirection: "row", alignItems: "center", gap: spacing.sm },
+    sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginLeft: spacing.md, marginRight: spacing.md, marginBottom: spacing.xs },
+    sectionTitle: { fontSize: 12, fontWeight: "800", color: colors.textMuted, letterSpacing: 0.5 },
+    viewAll: { fontSize: 12, fontWeight: "700" },
+    row: { paddingHorizontal: spacing.md, flexDirection: "row", alignItems: "flex-start", gap: spacing.sm },
     avatarWrap: { alignItems: "center", marginRight: spacing.md },
-    avatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.primary, justifyContent: "center", alignItems: "center" },
-    name: { fontSize: 11, fontWeight: "600", color: colors.text, marginTop: 4, maxWidth: 56 },
+    avatarContainer: { position: "relative" },
+    avatar: { width: 52, height: 52, borderRadius: 26, backgroundColor: colors.surface, borderWidth: 2, justifyContent: "center", alignItems: "center" },
+    liveBadge: {
+      position: "absolute",
+      bottom: -4,
+      left: "50%",
+      marginLeft: -18,
+      backgroundColor: colors.error || "#e53935",
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 4,
+    },
+    liveBadgeText: { fontSize: 9, fontWeight: "800", color: "#fff", letterSpacing: 0.5 },
+    name: { fontSize: 11, fontWeight: "600", color: colors.text, marginTop: 8, maxWidth: 56, textAlign: "center" },
+    emptyCard: {
+      marginHorizontal: spacing.md,
+      padding: spacing.lg,
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: "center",
+    },
+    emptyText: { fontSize: 14, color: colors.textMuted, marginTop: spacing.sm, textAlign: "center" },
+    exploreBtn: { marginTop: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, borderRadius: 20 },
+    exploreBtnText: { fontSize: 14, fontWeight: "700", color: "#fff" },
   });
 }
 
-function FeedCard({ item, onPress, onShare, colors }) {
+/** On Feeds tab: only jobs in main vertical list; videos/market/missing/gallery in separate horizontal rows. */
+const FEED_CARD_TYPES_MAIN = ["JOB"];
+const FEED_CARD_TYPES = ["JOB", "MISSING", "MARKET"];
+const GALLERY_TYPES = ["GALLERY_CARD", "IMAGE_POST"];
+
+function FeedCard({ item, onPress, onShare, colors, hideAlerts }) {
   const { type, data } = item;
+  if (hideAlerts && type === "ALERT") return null;
 
   switch (type) {
     case "JOB":
@@ -158,21 +224,21 @@ function FeedCard({ item, onPress, onShare, colors }) {
           data={data}
           onPress={() => onPress(item)}
           onCall={() => {}}
-          onShare={() => {}}
+          onShare={onShare ? () => onShare(item) : undefined}
         />
       );
     case "ALERT":
-      return <AlertCard data={data} onPress={() => onPress(item)} />;
+      return <AlertCard data={data} onPress={() => onPress(item)} onShare={onShare ? () => onShare(item) : undefined} />;
     case "MARKET":
       return (
-        <MarketCard
+        <MarketplaceFeedCard
           data={data}
           onPress={() => onPress(item)}
           onShare={onShare ? () => onShare(item) : undefined}
         />
       );
     case "VIDEO_CARD":
-      return <VideoPreviewCard data={data} onPress={() => onPress(item)} />;
+      return <VideoPreviewCard data={data} onPress={() => onPress(item)} onShare={onShare ? () => onShare(item) : undefined} />;
     default:
       return (
         <TouchableOpacity onPress={() => onPress(item)} style={{ padding: spacing.md }}>
@@ -204,6 +270,7 @@ export default function HomeScreen() {
     error,
     refresh,
     loadMore,
+    clearError,
   } = useHomeStore();
 
   const [initialLoad, setInitialLoad] = useState(true);
@@ -273,6 +340,9 @@ export default function HomeScreen() {
         case "VIDEO_CARD":
           navigation.getParent()?.navigate?.("VideoReels", { screen: "VideoDetail", params: { videoId: data.id } });
           break;
+        case "GALLERY_CARD":
+        case "IMAGE_POST":
+          break;
         default:
           break;
       }
@@ -311,7 +381,7 @@ export default function HomeScreen() {
     if (!shareItem) return;
     const selectedIds = Object.keys(shareSelected).filter((id) => shareSelected[id]);
     if (selectedIds.length === 0) {
-      Alert.alert("Select chats", "Select at least one chat to share to.");
+      useToastStore.getState().showToast({ type: "info", message: "Select at least one chat to share to." });
       return;
     }
     const { type, data } = shareItem;
@@ -336,8 +406,8 @@ export default function HomeScreen() {
           setShareModalVisible(false);
           setShareItem(null);
           setShareSelected({});
-          if (done > 0) Alert.alert("Shared", `Shared to ${done} chat${done !== 1 ? "s" : ""}.${failed > 0 ? ` ${failed} failed.` : ""}`);
-          else Alert.alert("Error", "Could not share to any chat.");
+          if (done > 0) useToastStore.getState().success(`Shared to ${done} chat${done !== 1 ? "s" : ""}.${failed > 0 ? ` ${failed} failed.` : ""}`);
+          else useToastStore.getState().error("Could not share to any chat.");
         }
       });
     });
@@ -345,16 +415,144 @@ export default function HomeScreen() {
 
   const shareChatsSorted = useMemo(() => [...(chats || [])].sort((a, b) => new Date(b.lastMessageAt || 0) - new Date(a.lastMessageAt || 0)), [chats]);
 
+  const { feedItems, videoItems, marketItems, missingItems, galleryItems } = useMemo(() => {
+    if (selectedTab !== "feeds") {
+      return {
+        feedItems: homeFeedItems,
+        videoItems: [],
+        marketItems: [],
+        missingItems: [],
+        galleryItems: [],
+      };
+    }
+    const videos = homeFeedItems.filter((i) => i.type === "VIDEO_CARD");
+    const market = homeFeedItems.filter((i) => i.type === "MARKET");
+    const missing = homeFeedItems.filter((i) => i.type === "MISSING");
+    const gallery = homeFeedItems.filter((i) => GALLERY_TYPES.includes(i.type));
+    const mainList = homeFeedItems.filter((i) => FEED_CARD_TYPES_MAIN.includes(i.type));
+    return {
+      feedItems: mainList,
+      videoItems: videos,
+      marketItems: market,
+      missingItems: missing,
+      galleryItems: gallery,
+    };
+  }, [homeFeedItems, selectedTab]);
+
   const renderItem = useCallback(
-    ({ item }) => <FeedCard item={item} onPress={handleCardPress} onShare={openShare} colors={colors} />,
-    [handleCardPress, openShare, colors]
+    ({ item }) => (
+      <FeedCard
+        item={item}
+        onPress={handleCardPress}
+        onShare={openShare}
+        colors={colors}
+        hideAlerts={selectedTab === "feeds"}
+      />
+    ),
+    [handleCardPress, openShare, colors, selectedTab]
   );
 
   const keyExtractor = useCallback((item) => `${item.type}-${item.data?.id ?? item.data?.phoneMasked ?? Math.random()}`, []);
 
+  const VideosHorizontalRow = useMemo(() => {
+    if (selectedTab !== "feeds" || !videoItems?.length) return null;
+    return (
+      <View style={styles.videosSection}>
+        <Text style={[styles.videosSectionTitle, { color: colors.textMuted }]}>VIDEOS FOR YOU</Text>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.videosRow}
+        >
+          {videoItems.map((item) => (
+            <VideoReelCard
+              key={`video-${item.data?.id}`}
+              data={item.data}
+              onPress={() => handleCardPress(item)}
+            />
+          ))}
+        </ScrollView>
+      </View>
+    );
+  }, [selectedTab, videoItems, colors, handleCardPress, styles]);
+
+  const MarketplaceHorizontalRow = useMemo(() => {
+    if (selectedTab !== "feeds" || !marketItems?.length) return null;
+    return (
+      <View style={styles.videosSection}>
+        <Text style={[styles.videosSectionTitle, { color: colors.textMuted }]}>MARKETPLACE</Text>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.videosRow}
+        >
+          {marketItems.map((item) => (
+            <MarketplaceReelCard
+              key={`market-${item.data?.id}`}
+              data={item.data}
+              onPress={() => handleCardPress(item)}
+            />
+          ))}
+        </ScrollView>
+      </View>
+    );
+  }, [selectedTab, marketItems, colors, handleCardPress, styles]);
+
+  const MissingHorizontalRow = useMemo(() => {
+    if (selectedTab !== "feeds" || !missingItems?.length) return null;
+    return (
+      <View style={styles.videosSection}>
+        <Text style={[styles.videosSectionTitle, { color: colors.textMuted }]}>MISSING PERSONS</Text>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.videosRow}
+        >
+          {missingItems.map((item) => (
+            <MissingReelCard
+              key={`missing-${item.data?.id}`}
+              data={item.data}
+              onPress={() => handleCardPress(item)}
+            />
+          ))}
+        </ScrollView>
+      </View>
+    );
+  }, [selectedTab, missingItems, colors, handleCardPress, styles]);
+
+  const GalleryBannerRow = useMemo(() => {
+    if (selectedTab !== "feeds" || !galleryItems?.length) return null;
+    return (
+      <View style={styles.videosSection}>
+        <Text style={[styles.videosSectionTitle, { color: colors.textMuted }]}>GALLERY</Text>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.videosRow}
+        >
+          {galleryItems.map((item) => (
+            <GalleryBannerCard
+              key={`gallery-${item.data?.id}`}
+              data={item.data}
+              onPress={() => handleCardPress(item)}
+              onShare={openShare ? () => openShare(item) : undefined}
+            />
+          ))}
+        </ScrollView>
+      </View>
+    );
+  }, [selectedTab, galleryItems, colors, handleCardPress, openShare, styles]);
+
   const listHeader = useMemo(
     () => (
       <>
+        {error ? (
+          <InlineErrorBanner
+            message={error}
+            onRetry={refresh}
+            onDismiss={clearError}
+          />
+        ) : null}
         {myActiveStream && (
           <TouchableOpacity
             style={[styles.returnToLiveBanner, { backgroundColor: colors.primary + "20", borderColor: colors.primary }]}
@@ -369,12 +567,25 @@ export default function HomeScreen() {
             <MaterialIcons name="videocam" size={20} color={colors.primary} style={styles.returnToLiveIcon} />
           </TouchableOpacity>
         )}
-        <LiveHeroCard stream={liveStreams[0]} onPress={handleLivePress} colors={colors} />
+        {selectedTab === "feeds" && liveStreams?.[0] ? <LiveHeroCard stream={liveStreams[0]} onPress={handleLivePress} colors={colors} /> : null}
         <CategoryChips selectedTab={selectedTab} onSelect={onSelectTab} colors={colors} />
-        <ActiveNowRow streams={liveStreams?.filter((s) => String(s?.hostId) !== String(userId)) ?? []} onPress={handleLivePress} colors={colors} />
+        {selectedTab === "feeds" && (
+          <LiveFollowingRow
+            streams={liveStreams?.filter((s) => String(s?.hostId) !== String(userId)) ?? []}
+            onPress={handleLivePress}
+            onViewAll={() => navigation.getParent()?.navigate?.("Live")}
+            onExploreCreators={() => navigation.getParent()?.navigate?.("Profile")}
+            isLoggedIn={!!userId}
+            colors={colors}
+          />
+        )}
+        {GalleryBannerRow}
+        {VideosHorizontalRow}
+        {MarketplaceHorizontalRow}
+        {MissingHorizontalRow}
       </>
     ),
-    [myActiveStream, liveStreams, userId, selectedTab, onSelectTab, handleLivePress, handleReturnToLive, colors]
+    [error, refresh, clearError, myActiveStream, liveStreams, userId, selectedTab, onSelectTab, handleLivePress, handleReturnToLive, GalleryBannerRow, VideosHorizontalRow, MarketplaceHorizontalRow, MissingHorizontalRow, colors]
   );
 
   const listEmpty =
@@ -391,7 +602,13 @@ export default function HomeScreen() {
     </View>
   ) : null;
 
-  if (initialLoad && !homeFeedItems.length) {
+  const hasAnyFeedContent =
+    feedItems.length > 0 ||
+    videoItems.length > 0 ||
+    marketItems.length > 0 ||
+    missingItems.length > 0 ||
+    galleryItems.length > 0;
+  if (initialLoad && !hasAnyFeedContent) {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" color={colors.primary} />
@@ -401,22 +618,14 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
-      {error ? (
-        <View style={styles.errorWrap}>
-          <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity onPress={refresh}>
-            <Text style={styles.retryText}>Retry</Text>
-          </TouchableOpacity>
-        </View>
-      ) : null}
       <FlatList
-        data={homeFeedItems}
+        data={feedItems}
         keyExtractor={keyExtractor}
         renderItem={renderItem}
         ListHeaderComponent={listHeader}
         ListEmptyComponent={listEmpty}
         ListFooterComponent={listFooter}
-        contentContainerStyle={homeFeedItems.length === 0 ? styles.listEmpty : styles.listContent}
+        contentContainerStyle={feedItems.length === 0 ? styles.listEmpty : styles.listContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
         onEndReached={onEndReached}
         onEndReachedThreshold={0.3}
@@ -518,5 +727,8 @@ function createStyles(colors) {
     shareCancelText: { fontSize: 16 },
     shareSendBtn: { paddingVertical: spacing.sm, paddingHorizontal: spacing.lg, borderRadius: 12, minWidth: 100, alignItems: "center" },
     shareSendText: { fontSize: 16, fontWeight: "700", color: "#fff" },
+    videosSection: { marginBottom: spacing.md },
+    videosSectionTitle: { fontSize: 12, fontWeight: "800", letterSpacing: 0.5, marginLeft: spacing.md, marginBottom: spacing.sm },
+    videosRow: { paddingHorizontal: spacing.md, paddingRight: spacing.lg },
   });
 }

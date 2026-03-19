@@ -2,6 +2,10 @@
  * Medanya design system — matches UI screenshots (dark theme, neumorphic cards, blue accent).
  * Use with useThemeColors() for theme-aware colors; this file adds radii, shadows, typography.
  */
+import { Platform } from "react-native";
+
+const isWeb = Platform.OS === "web";
+
 export const radii = {
   card: 26,
   pill: 20,
@@ -12,27 +16,33 @@ export const radii = {
 };
 
 export const shadows = {
-  neo: {
-    shadowColor: "#000000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 18,
-    elevation: 10,
-  },
-  neoSoft: {
-    shadowColor: "#000000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 6,
-  },
-  glow: {
-    shadowColor: "#2E6BFF",
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 8,
-  },
+  neo: isWeb
+    ? { boxShadow: "0 6px 18px rgba(0,0,0,0.35)", elevation: 10 }
+    : {
+        shadowColor: "#000000",
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.35,
+        shadowRadius: 18,
+        elevation: 10,
+      },
+  neoSoft: isWeb
+    ? { boxShadow: "0 4px 12px rgba(0,0,0,0.2)", elevation: 6 }
+    : {
+        shadowColor: "#000000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 12,
+        elevation: 6,
+      },
+  glow: isWeb
+    ? { boxShadow: "0 0 12px rgba(46,107,255,0.4)", elevation: 8 }
+    : {
+        shadowColor: "#2E6BFF",
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.4,
+        shadowRadius: 12,
+        elevation: 8,
+      },
 };
 
 export const typography = {

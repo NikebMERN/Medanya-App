@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
-import { Audio } from "expo-av";
+import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useThemeColors } from "../theme/useThemeColors";
 import { spacing } from "../theme/spacing";
@@ -15,107 +15,35 @@ const SPEEDS = [1, 1.5, 2];
 export default function VoiceMessagePlayer({ mediaUrl, isOwn, createdAt }) {
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors, isOwn), [colors, isOwn]);
-  const [playing, setPlaying] = useState(false);
-  const [positionMillis, setPositionMillis] = useState(0);
-  const [durationMillis, setDurationMillis] = useState(0);
+  
   const [speedIndex, setSpeedIndex] = useState(0);
-  const soundRef = useRef(null);
-  const intervalRef = useRef(null);
-
   const rate = SPEEDS[speedIndex];
+
+  const player = useAudioPlayer(mediaUrl);
+  const status = useAudioPlayerStatus(player);
+
+  const playing = status.playing;
+  const positionMillis = (status.currentTime || 0) * 1000;
+  const durationMillis = (status.duration || 0) * 1000;
   const progress = durationMillis > 0 ? positionMillis / durationMillis : 0;
 
-  const stopProgressInterval = useCallback(() => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-  }, []);
-
-  const updatePosition = useCallback(async () => {
-    const s = soundRef.current;
-    if (!s) return;
-    try {
-      const st = await s.getStatusAsync();
-      if (st?.isLoaded && st.positionMillis != null) {
-        setPositionMillis(st.positionMillis);
-        if (st.durationMillis != null) setDurationMillis(st.durationMillis);
-        if (st.durationMillis != null && st.positionMillis >= st.durationMillis) {
-          setPlaying(false);
-          setPositionMillis(0);
-          stopProgressInterval();
-        }
-      }
-    } catch (_) {}
-  }, [stopProgressInterval]);
-
-  useEffect(() => {
-    if (!mediaUrl) return;
-    let s = null;
-    (async () => {
-      try {
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: false,
-          playsInSilentModeIOS: true,
-          staysActiveInBackground: false,
-          shouldDuckAndroid: true,
-          playThroughEarpieceAndroid: false,
-        });
-        const { sound } = await Audio.Sound.createAsync(
-          { uri: mediaUrl },
-          { shouldPlay: false }
-        );
-        soundRef.current = sound;
-        const st = await sound.getStatusAsync();
-        if (st?.isLoaded && st.durationMillis != null) {
-          setDurationMillis(st.durationMillis);
-        }
-      } catch (_) {}
-    })();
-    return () => {
-      stopProgressInterval();
-      if (soundRef.current) {
-        soundRef.current.unloadAsync().catch(() => {});
-        soundRef.current = null;
-      }
-    };
-  }, [mediaUrl, stopProgressInterval]);
-
-  useEffect(() => {
+  const togglePlayPause = () => {
     if (playing) {
-      intervalRef.current = setInterval(updatePosition, 200);
-      return () => stopProgressInterval();
+      player.pause();
     } else {
-      stopProgressInterval();
-    }
-  }, [playing, updatePosition, stopProgressInterval]);
-
-  const togglePlayPause = useCallback(async () => {
-    const s = soundRef.current;
-    if (!s) return;
-    try {
-      if (playing) {
-        await s.pauseAsync();
-        setPlaying(false);
-      } else {
-        await s.setRateAsync(rate, true);
-        await s.playFromPositionAsync(positionMillis);
-        setPlaying(true);
+      player.playbackRate = rate;
+      if (positionMillis >= durationMillis && durationMillis > 0) {
+        player.seekTo(0);
       }
-    } catch (_) {
-      setPlaying(false);
+      player.play();
     }
-  }, [playing, rate, positionMillis]);
+  };
 
-  const cycleSpeed = useCallback(() => {
-    setSpeedIndex((i) => (i + 1) % SPEEDS.length);
-  }, []);
-
-  useEffect(() => {
-    const s = soundRef.current;
-    if (!s || !playing) return;
-    s.setRateAsync(rate, true).catch(() => {});
-  }, [rate, playing]);
+  const cycleSpeed = () => {
+    const nextIdx = (speedIndex + 1) % SPEEDS.length;
+    setSpeedIndex(nextIdx);
+    player.playbackRate = SPEEDS[nextIdx];
+  };
 
   const barHeights = Array.from({ length: BAR_COUNT }, (_, i) => {
     const t = i / BAR_COUNT;

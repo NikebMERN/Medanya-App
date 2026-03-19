@@ -99,28 +99,22 @@ export default function FollowRequestsScreen() {
   };
 
   const tabNav = navigation.getParent?.() ?? navigation;
-  const listHeader = (
-    <View style={styles.headerWrap}>
+  return (
+    <View style={styles.container}>
       <SubScreenHeader
         title="Follow requests"
         onBack={() => navigation.goBack()}
         showProfileDropdown
         navigation={tabNav}
       />
-      <Text style={styles.sectionTitle}>Pending requests</Text>
-    </View>
-  );
-
-  return (
-    <View style={styles.container}>
       {loading ? (
         <View style={styles.center}>
-          {listHeader}
+          <Text style={styles.sectionTitle}>Pending requests</Text>
           <ActivityIndicator size="large" color={colors.primary} style={styles.loader} />
         </View>
       ) : requests.length === 0 ? (
         <View style={styles.center}>
-          {listHeader}
+          <Text style={styles.sectionTitle}>Pending requests</Text>
           <Text style={styles.empty}>No pending requests</Text>
         </View>
       ) : (
@@ -128,7 +122,7 @@ export default function FollowRequestsScreen() {
           data={requests}
           keyExtractor={(item) => String(item.id)}
           renderItem={renderItem}
-          ListHeaderComponent={listHeader}
+          ListHeaderComponent={<Text style={styles.sectionTitle}>Pending requests</Text>}
           contentContainerStyle={styles.list}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.primary} />

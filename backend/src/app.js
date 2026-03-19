@@ -4,11 +4,19 @@ const cors = require("cors");
 const morgan = require("morgan");
 const errorHandler = require("./middlewares/error.middleware");
 const routes = require("./routes");
+const env = require("./config/env");
 
 const app = express();
 
-// Global Middlewares
-app.use(cors());
+// CORS: allow app origins (web, Expo, native). Set CORS_ORIGIN in .env to restrict in prod (e.g. https://yourapp.com).
+const corsOrigin = env.CORS_ORIGIN;
+const corsOptions = {
+  origin: corsOrigin === "*" || !corsOrigin ? true : corsOrigin.split(",").map((o) => o.trim()).filter(Boolean),
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Device-ID", "X-Requested-With", "Accept"],
+  credentials: true,
+};
+app.use(cors(corsOptions));
 // Body parser: webhooks need RAW body for HMAC - must NOT parse JSON before verification
 app.use((req, res, next) => {
     const p = req.path;

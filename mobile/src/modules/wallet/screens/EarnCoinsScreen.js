@@ -20,6 +20,7 @@ import { radii, layout } from "../../../theme/designSystem";
 import { spacing } from "../../../theme/spacing";
 import { useWalletStore } from "../wallet.store";
 import { useAuthStore } from "../../../store/auth.store";
+import FeatureGuard from "../../../components/guards/FeatureGuard";
 import * as walletApi from "../wallet.api";
 import { useWatchAdEarn } from "../../gifts/hooks/useWatchAdEarn";
 
@@ -159,7 +160,7 @@ export default function EarnCoinsScreen() {
           const isWatchAd = task.id === "watch_ad";
           const busy = claiming === task.id || (isWatchAd && adLoading);
           const canGo = !task.done && !busy;
-          return (
+          const card = (
             <TouchableOpacity
               key={task.id}
               style={styles.taskCard}
@@ -191,6 +192,25 @@ export default function EarnCoinsScreen() {
               )}
             </TouchableOpacity>
           );
+
+          if (isWatchAd) {
+            return (
+              <FeatureGuard
+                key={task.id}
+                featureName="ads"
+                mode="block"
+                title="Rewards are available on the mobile app"
+                message="Watch rewarded ads and earn MedCoins in the mobile app."
+                iconName="workspace-premium"
+                compact
+                variant="card"
+              >
+                {card}
+              </FeatureGuard>
+            );
+          }
+
+          return card;
         })}
 
         <Text style={styles.disclaimer}>

@@ -5,8 +5,24 @@ import { spacing } from "../../theme/spacing";
 import { useLivestreamStore } from "../../store/livestream.store";
 import { useAuthStore } from "../../store/auth.store";
 import { canLiveStream, getDobFromUser } from "../../utils/age";
+import FeatureGuard from "../../components/guards/FeatureGuard";
 
 export default function LiveHostSetupScreen({ navigation }) {
+  return (
+    <FeatureGuard
+      featureName="livestream-broadcast"
+      mode="block"
+      variant="full"
+      iconName="live-tv"
+      title="Go live from the mobile app"
+      message="Use the mobile app for high-quality livestreaming, better performance, and full camera support."
+    >
+      <LiveHostSetupScreenInner navigation={navigation} />
+    </FeatureGuard>
+  );
+}
+
+function LiveHostSetupScreenInner({ navigation }) {
   const user = useAuthStore((s) => s.user);
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors), [colors]);

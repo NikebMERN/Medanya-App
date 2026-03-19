@@ -1,6 +1,5 @@
 /**
- * VIDEO PREVIEW CARD — 16:9 thumbnail with play icon overlay.
- * Footer: creator avatar + caption + like count
+ * VIDEO PREVIEW CARD — vsd design: large video, play overlay, engagement icons on right side.
  */
 import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity, Image, Dimensions } from "react-native";
@@ -9,18 +8,21 @@ import { spacing } from "../../theme/spacing";
 import { useThemeColors } from "../../theme/useThemeColors";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const CARD_WIDTH = SCREEN_WIDTH - spacing.md * 2;
+const CARD_PADDING = spacing.md * 2;
+const CARD_WIDTH = SCREEN_WIDTH - CARD_PADDING;
 const ASPECT = 16 / 9;
 const THUMB_HEIGHT = Math.round(CARD_WIDTH / ASPECT);
 
-export default function VideoPreviewCard({ data, onPress }) {
+export default function VideoPreviewCard({ data, onPress, onShare }) {
   const colors = useThemeColors();
   const styles = createStyles(colors);
 
   const thumbnailUrl = data?.preview?.thumbnailUrl ?? data?.preview?.videoUrl;
-  const caption = data?.title ?? "";
+  const caption = data?.title ?? "Medanya Live";
   const likeCount = data?.preview?.likeCount ?? 0;
   const commentCount = data?.preview?.commentCount ?? 0;
+
+  const formatCount = (n) => (n >= 1000 ? `${(n / 1000).toFixed(1)}K` : String(n));
 
   return (
     <TouchableOpacity onPress={() => onPress?.()} activeOpacity={0.95}>
@@ -33,25 +35,38 @@ export default function VideoPreviewCard({ data, onPress }) {
               <MaterialIcons name="videocam" size={48} color={colors.textMuted} />
             </View>
           )}
+
           <View style={styles.playOverlay}>
             <View style={styles.playBtn}>
-              <MaterialIcons name="play-arrow" size={40} color="#fff" />
+              <MaterialIcons name="play-arrow" size={48} color="#fff" />
             </View>
           </View>
-        </View>
 
-        <View style={styles.footer}>
-          <View style={styles.avatarPlaceholder}>
-            <MaterialIcons name="person" size={20} color={colors.textMuted} />
-          </View>
-          <View style={styles.footerBody}>
-            <Text style={styles.caption} numberOfLines={1}>{caption}</Text>
-            <View style={styles.stats}>
-              <MaterialIcons name="favorite" size={14} color={colors.textMuted} />
-              <Text style={styles.statsText}>{likeCount}</Text>
-              <MaterialIcons name="chat-bubble-outline" size={14} color={colors.textMuted} style={styles.statIcon} />
-              <Text style={styles.statsText}>{commentCount}</Text>
+          {/* Engagement icons on right (vsd design) */}
+          <View style={styles.rightEngagement}>
+            <View style={styles.engagementItem}>
+              <View style={styles.engagementCircle}>
+                <MaterialIcons name="favorite-border" size={22} color="#fff" />
+              </View>
+              <Text style={styles.engagementCount}>{formatCount(likeCount)}</Text>
             </View>
+            <View style={styles.engagementItem}>
+              <View style={styles.engagementCircle}>
+                <MaterialIcons name="chat-bubble-outline" size={20} color="#fff" />
+              </View>
+              <Text style={styles.engagementCount}>{formatCount(commentCount)}</Text>
+            </View>
+            <View style={styles.engagementItem}>
+              <View style={styles.engagementCircle}>
+                <MaterialIcons name="share" size={20} color="#fff" />
+              </View>
+              <Text style={styles.engagementLabel}>Share</Text>
+            </View>
+          </View>
+
+          {/* Title bottom-left */}
+          <View style={styles.titleOverlay}>
+            <Text style={styles.title} numberOfLines={1}>{caption}</Text>
           </View>
         </View>
       </View>
@@ -63,12 +78,17 @@ function createStyles(colors) {
   return StyleSheet.create({
     card: {
       marginHorizontal: spacing.md,
-      marginBottom: spacing.sm,
-      borderRadius: 12,
+      marginBottom: spacing.md,
+      borderRadius: 18,
       overflow: "hidden",
       backgroundColor: colors.surface,
       borderWidth: 1,
       borderColor: colors.border,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.06,
+      shadowRadius: 8,
+      elevation: 2,
     },
     thumbWrap: { position: "relative", width: CARD_WIDTH, height: THUMB_HEIGHT },
     thumb: { width: "100%", height: "100%" },
@@ -77,30 +97,44 @@ function createStyles(colors) {
       ...StyleSheet.absoluteFillObject,
       justifyContent: "center",
       alignItems: "center",
-      backgroundColor: "rgba(0,0,0,0.2)",
+      backgroundColor: "rgba(0,0,0,0.15)",
     },
     playBtn: {
-      width: 56,
-      height: 56,
-      borderRadius: 28,
-      backgroundColor: "rgba(0,0,0,0.6)",
+      width: 72,
+      height: 72,
+      borderRadius: 36,
+      backgroundColor: "rgba(0,0,0,0.5)",
       justifyContent: "center",
       alignItems: "center",
     },
-    footer: { flexDirection: "row", alignItems: "center", padding: spacing.md },
-    avatarPlaceholder: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
-      backgroundColor: colors.surfaceLight,
+    rightEngagement: {
+      position: "absolute",
+      right: spacing.sm,
+      top: spacing.lg,
+      bottom: spacing.lg,
+      justifyContent: "space-around",
+      alignItems: "center",
+    },
+    engagementItem: { alignItems: "center" },
+    engagementCircle: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: "rgba(0,0,0,0.4)",
       justifyContent: "center",
       alignItems: "center",
-      marginRight: spacing.sm,
+      marginBottom: 4,
     },
-    footerBody: { flex: 1, minWidth: 0 },
-    caption: { fontSize: 14, fontWeight: "600", color: colors.text },
-    stats: { flexDirection: "row", alignItems: "center", marginTop: 2 },
-    statsText: { fontSize: 12, color: colors.textMuted, marginLeft: 4 },
-    statIcon: { marginLeft: spacing.sm },
+    engagementCount: { fontSize: 12, fontWeight: "600", color: "#fff" },
+    engagementLabel: { fontSize: 11, fontWeight: "600", color: "#fff" },
+    titleOverlay: {
+      position: "absolute",
+      bottom: 0,
+      left: 0,
+      right: 60,
+      padding: spacing.md,
+      backgroundColor: "rgba(0,0,0,0.4)",
+    },
+    title: { fontSize: 16, fontWeight: "700", color: "#fff" },
   });
 }

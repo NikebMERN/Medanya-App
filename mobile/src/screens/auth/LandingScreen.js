@@ -5,9 +5,12 @@ import {
   StyleSheet,
   TouchableOpacity,
   KeyboardAvoidingView,
+  ScrollView,
   Platform,
   Alert,
 } from "react-native";
+
+const isWeb = Platform.OS === "web";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 
@@ -25,6 +28,7 @@ import {
   logExpoAuthProxyUrl,
   isExpoGo,
 } from "../../services/firebaseAuth";
+import { getGoogleIdTokenNative } from "../../services/nativeGoogleSignIn";
 import { validateConfig } from "../../config/validateConfig";
 import { env } from "../../utils/env";
 
@@ -44,7 +48,9 @@ export default function LandingScreen() {
   const setAuth = useAuthStore((s) => s.setAuth);
   const authProvidersAvailable = useAuthStore((s) => s.authProvidersAvailable);
   const loginWithGoogle = useAuthStore((s) => s.loginWithGoogle);
+  const loginWithGoogleWebPopup = useAuthStore((s) => s.loginWithGoogleWebPopup);
   const loginWithFacebook = useAuthStore((s) => s.loginWithFacebook);
+  const loginWithFacebookWebPopup = useAuthStore((s) => s.loginWithFacebookWebPopup);
   const refreshConfigFlags = useAuthStore((s) => s.refreshConfigFlags);
 
   const { flags, missing } = useMemo(() => validateConfig(), []);
@@ -185,6 +191,35 @@ export default function LandingScreen() {
       );
       return;
     }
+
+    const isWeb = Platform.OS === "web";
+    if (isWeb) {
+      try {
+        setLoading(true);
+        const res = await loginWithGoogleWebPopup({ onToast });
+        if (res?.ok || res?.cancelled) return;
+      } catch (e) {
+        if (__DEV__) setError(e?.message || "Google sign-in failed.");
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+    if (googleWebClientId) {
+      try {
+        setLoading(true);
+        const nativeResult = await getGoogleIdTokenNative(googleWebClientId);
+        if (nativeResult?.idToken) {
+          await loginWithGoogle(nativeResult.idToken, { onToast });
+          return;
+        }
+      } catch (e) {
+        if (__DEV__) setError(e?.message || "Native sign-in failed.");
+      } finally {
+        setLoading(false);
+      }
+    }
+
     if (!googleRequest) {
       setError("Google sign-in is not ready yet. Wait a moment and try again.");
       return;
@@ -209,6 +244,20 @@ export default function LandingScreen() {
       return;
     }
 
+    const isWebPlatform = Platform.OS === "web";
+    if (isWebPlatform) {
+      try {
+        setLoading(true);
+        const res = await loginWithFacebookWebPopup({ onToast });
+        if (res?.ok || res?.cancelled) return;
+      } catch (e) {
+        if (__DEV__) setError(e?.message || "Facebook sign-in failed.");
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
     try {
       await fbPromptAsync({ useProxy: isExpoGo, showInRecents: true });
     } catch (e) {
@@ -228,7 +277,17 @@ export default function LandingScreen() {
         setError("Guest sign-in failed. Please try again.");
       }
     } catch (e) {
-      setError(e?.response?.data?.message || "Could not continue as guest.");
+      const apiMsg = e?.response?.data?.message;
+      const netMsg = e?.message;
+      if (apiMsg) {
+        setError(apiMsg);
+      } else if (typeof netMsg === "string" && netMsg.toLowerCase().includes("network")) {
+        setError("Could not reach the server. Check EXPO_PUBLIC_API_URL and that your backend is running.");
+      } else if (typeof netMsg === "string" && netMsg.toLowerCase().includes("timeout")) {
+        setError("Server timeout. Check your backend URL and network connection.");
+      } else {
+        setError("Could not continue as guest.");
+      }
     } finally {
       setLoading(false);
     }
@@ -248,92 +307,98 @@ export default function LandingScreen() {
           </Text>
         </TouchableOpacity>
 
-        <View style={styles.content}>
-          <Logo />
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          bounces={false}
+        >
+          <View style={styles.content}>
+            <Logo />
 
-          <TouchableOpacity
-            style={styles.primaryBtn}
-            onPress={() => navigation.navigate("Phone")}
-            activeOpacity={0.9}
-          >
-            <Text style={styles.primaryBtnIcon}>📱</Text>
-            <Text style={styles.primaryBtnText}>GET STARTED WITH PHONE</Text>
-          </TouchableOpacity>
-
-          <View style={styles.divider}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>OR CONNECT VIA</Text>
-            <View style={styles.dividerLine} />
-          </View>
-
-          <View style={styles.socialRow}>
             <TouchableOpacity
-              style={[
-                styles.socialBtn,
-                styles.googleBtn,
-                !googleEnabled && styles.socialBtnDisabled,
-              ]}
-              onPress={handleGoogleLogin}
-              disabled={loading || (googleEnabled && !googleRequest)}
-              activeOpacity={0.8}
+              style={styles.primaryBtn}
+              onPress={() => navigation.navigate("Phone")}
+              activeOpacity={0.9}
             >
-              <Text style={[styles.socialIcon, !googleEnabled && styles.socialLabelDisabled]}>
-                G
-              </Text>
-              <Text style={[styles.socialLabel, !googleEnabled && styles.socialLabelDisabled]}>
-                {googleEnabled ? "GOOGLE" : "Google Sign-in (Setup required)"}
-              </Text>
+              <Text style={styles.primaryBtnIcon}>📱</Text>
+              <Text style={styles.primaryBtnText}>GET STARTED WITH PHONE</Text>
             </TouchableOpacity>
 
+            <View style={styles.divider}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>OR CONNECT VIA</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            <View style={styles.socialRow}>
+              <TouchableOpacity
+                style={[
+                  styles.socialBtn,
+                  styles.googleBtn,
+                  !googleEnabled && styles.socialBtnDisabled,
+                ]}
+                onPress={handleGoogleLogin}
+                disabled={loading || (googleEnabled && !googleRequest)}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.socialIcon, !googleEnabled && styles.socialLabelDisabled]}>
+                  G
+                </Text>
+                <Text style={[styles.socialLabel, !googleEnabled && styles.socialLabelDisabled]}>
+                  {googleEnabled ? "GOOGLE" : "Google Sign-in (Setup required)"}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.socialBtn,
+                  styles.facebookBtn,
+                  !facebookEnabled && styles.socialBtnDisabled,
+                ]}
+                onPress={handleFacebookLogin}
+                disabled={loading}
+                activeOpacity={0.8}
+              >
+                <Text
+                  style={[
+                    styles.socialIcon,
+                    styles.facebookIcon,
+                    !facebookEnabled && styles.socialLabelDisabled,
+                  ]}
+                >
+                  f
+                </Text>
+                <Text
+                  style={[
+                    styles.socialLabel,
+                    styles.facebookLabel,
+                    !facebookEnabled && styles.socialLabelDisabled,
+                  ]}
+                >
+                  {facebookEnabled ? "FACEBOOK" : "Facebook Sign-in (Setup required)"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
             <TouchableOpacity
-              style={[
-                styles.socialBtn,
-                styles.facebookBtn,
-                !facebookEnabled && styles.socialBtnDisabled,
-              ]}
-              onPress={handleFacebookLogin}
+              style={styles.guestBtn}
+              onPress={handleGuestLogin}
               disabled={loading}
               activeOpacity={0.8}
             >
-              <Text
-                style={[
-                  styles.socialIcon,
-                  styles.facebookIcon,
-                  !facebookEnabled && styles.socialLabelDisabled,
-                ]}
-              >
-                f
-              </Text>
-              <Text
-                style={[
-                  styles.socialLabel,
-                  styles.facebookLabel,
-                  !facebookEnabled && styles.socialLabelDisabled,
-                ]}
-              >
-                {facebookEnabled ? "FACEBOOK" : "Facebook Sign-in (Setup required)"}
-              </Text>
+              <Text style={styles.guestBtnText}>Continue as guest</Text>
+              <Text style={styles.guestBtnSubtext}>Watch videos without signing in</Text>
             </TouchableOpacity>
+
+            {error ? <Text style={styles.error}>{error}</Text> : null}
+
+            <View style={styles.footer}>
+              <Text style={styles.footerText}>
+                By joining, you agree to our Community Terms and Safety Guidelines.
+              </Text>
+            </View>
           </View>
-
-          <TouchableOpacity
-            style={styles.guestBtn}
-            onPress={handleGuestLogin}
-            disabled={loading}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.guestBtnText}>Continue as guest</Text>
-            <Text style={styles.guestBtnSubtext}>Watch videos without signing in</Text>
-          </TouchableOpacity>
-
-          {error ? <Text style={styles.error}>{error}</Text> : null}
-
-          <View style={styles.footer}>
-            <Text style={styles.footerText}>
-              By joining, you agree to our Community Terms and Safety Guidelines.
-            </Text>
-          </View>
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -343,6 +408,10 @@ function createStyles(colors) {
   return StyleSheet.create({
     safe: { flex: 1, backgroundColor: colors.background },
     container: { flex: 1, backgroundColor: colors.background },
+    scrollContent: {
+      flexGrow: 1,
+      justifyContent: "center",
+    },
     themeToggle: {
       position: "absolute",
       right: spacing.md,
@@ -371,11 +440,13 @@ function createStyles(colors) {
       borderRadius: 20,
       paddingVertical: spacing.lg,
       marginBottom: spacing.lg,
-      shadowColor: "#000",
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.2,
-      shadowRadius: 8,
-      elevation: 4,
+      ...(isWeb ? { boxShadow: "0 4px 8px rgba(0,0,0,0.2)" } : {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
+        elevation: 4,
+      }),
     },
     primaryBtnIcon: { fontSize: 22 },
     primaryBtnText: {
@@ -413,11 +484,13 @@ function createStyles(colors) {
       borderWidth: 1,
       borderColor: colors.border,
       backgroundColor: colors.surface,
-      shadowColor: "#000",
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.1,
-      shadowRadius: 6,
-      elevation: 2,
+      ...(isWeb ? { boxShadow: "0 2px 6px rgba(0,0,0,0.1)" } : {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 6,
+        elevation: 2,
+      }),
     },
     googleBtn: { backgroundColor: colors.surface },
     facebookBtn: { backgroundColor: "#1877f2", borderColor: "#1877f2" },

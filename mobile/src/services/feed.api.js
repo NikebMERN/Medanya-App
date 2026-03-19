@@ -44,6 +44,35 @@ export async function getHomeFeed(params = {}) {
   };
 }
 
+export async function getPersonalizedFeed(params = {}) {
+  const res = await client.get("/feed/personalized", {
+    params: {
+      tab: params.tab ?? "feeds",
+      cursor: params.cursor ?? undefined,
+      limit: params.limit ?? 20,
+    },
+  });
+  const d = res?.data ?? res;
+  return {
+    items: Array.isArray(d?.items) ? d.items : [],
+    nextCursor: d?.nextCursor ?? null,
+  };
+}
+
+export async function getReportsFeed(params = {}) {
+  const res = await client.get("/feed/reports", {
+    params: {
+      cursor: params.cursor ?? undefined,
+      limit: params.limit ?? 20,
+    },
+  });
+  const d = res?.data ?? res;
+  return {
+    items: Array.isArray(d?.items) ? d.items : [],
+    nextCursor: d?.nextCursor ?? null,
+  };
+}
+
 export async function getLiveStreams(params = {}) {
   const res = await client.get("/feed/home/live", {
     params: { limit: params.limit ?? 10 },

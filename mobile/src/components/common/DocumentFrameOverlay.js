@@ -31,7 +31,7 @@ export default function DocumentFrameOverlay({
     <View style={[styles.container, style]}>
       <CameraView style={StyleSheet.absoluteFill} {...cameraProps} />
       {/* Dimmed mask: 4 rectangles around the frame */}
-      <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      <View style={[StyleSheet.absoluteFill, { pointerEvents: "none" }]}>
         <View style={[styles.maskTop, { backgroundColor: MASK_COLOR }]} />
         <View style={[styles.maskBottom, { backgroundColor: MASK_COLOR }]} />
         <View style={[styles.maskLeft, { backgroundColor: MASK_COLOR }]} />

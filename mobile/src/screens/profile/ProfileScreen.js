@@ -501,7 +501,7 @@ export default function ProfileScreen() {
           <MaterialIcons name={theme === "dark" ? "light-mode" : "dark-mode"} size={28} color={colors.text} style={styles.actionIcon} />
           <Text style={styles.actionLabel}>{theme === "dark" ? "LIGHT MODE" : "DARK MODE"}</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.actionCard} onPress={logout} activeOpacity={0.8}>
+        <TouchableOpacity style={styles.actionCard} onPress={async () => { try { await logout(); } catch (_) {} }} activeOpacity={0.8}>
           <MaterialIcons name="logout" size={24} color={colors.error} style={styles.actionIconLogout} />
           <Text style={styles.actionLabel}>SECURE LOGOUT</Text>
         </TouchableOpacity>

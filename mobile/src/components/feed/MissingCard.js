@@ -1,126 +1,93 @@
 /**
- * MISSING PERSON CARD — Urgent highlight.
- * Large image banner, MISSING badge, name + age overlay, CTA: Call Family + Share
+ * MISSING PERSON CARD — Feed style (mhsd design).
+ * Header (Family Support, time), purple URGENT badge, description, large image, engagement bar.
  */
 import React from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Image,
-  Dimensions,
-} from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, Image, Dimensions } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { spacing } from "../../theme/spacing";
 import { useThemeColors } from "../../theme/useThemeColors";
+import FeedCardShell from "./FeedCardShell";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const CARD_WIDTH = SCREEN_WIDTH - spacing.md * 2;
-const BANNER_HEIGHT = 180;
+const CARD_WIDTH = SCREEN_WIDTH - spacing.md * 4;
+const IMAGE_HEIGHT = 200;
 
 export default function MissingCard({ data, onPress, onCall, onShare }) {
   const colors = useThemeColors();
-  const styles = createStyles(colors);
-
   const photoUrl = data?.preview?.photoUrl ?? data?.photoUrl;
   const title = data?.title ?? "Missing Person";
+  const name = title.replace(/^Missing: /, "");
+  const summary = data?.summary ?? data?.description ?? "";
   const location = data?.location ?? "";
-  const createdAt = data?.createdAt;
 
   return (
     <TouchableOpacity onPress={() => onPress?.()} activeOpacity={0.95}>
-      <View style={styles.card}>
-        <View style={styles.banner}>
+      <FeedCardShell authorName="Family Support" createdAt={data?.createdAt}>
+        <View style={[styles.urgentBadge, { backgroundColor: "#7c3aed" }]}>
+          <MaterialIcons name="person" size={12} color="#fff" style={styles.urgentIcon} />
+          <Text style={styles.urgentText}>+ URGENT</Text>
+        </View>
+
+        <Text style={[styles.description, { color: colors.text }]}>
+          MISSING: {summary || `Last seen at ${location || "unknown location"}. Please contact if seen.`}
+        </Text>
+
+        <View style={styles.imageWrap}>
           {photoUrl ? (
-            <Image source={{ uri: photoUrl }} style={styles.bannerImage} resizeMode="cover" />
+            <Image source={{ uri: photoUrl }} style={styles.image} resizeMode="cover" />
           ) : (
-            <View style={[styles.bannerImage, styles.bannerPlaceholder]}>
+            <View style={[styles.image, styles.imagePlaceholder]}>
               <MaterialIcons name="person" size={64} color={colors.textMuted} />
             </View>
           )}
-          <View style={styles.badge}>
-            <View style={styles.badgeDot} />
-            <Text style={styles.badgeText}>MISSING</Text>
-          </View>
-          <View style={styles.overlay}>
-            <Text style={styles.overlayName} numberOfLines={1}>{title.replace(/^Missing: /, "")}</Text>
-            {location ? <Text style={styles.overlayLocation} numberOfLines={1}>{location}</Text> : null}
-          </View>
         </View>
 
-        <View style={styles.body}>
-          {createdAt ? (
-            <Text style={styles.dateText}>
-              {new Date(createdAt).toLocaleDateString()} • Urgent
-            </Text>
-          ) : null}
-
-          <View style={styles.ctaRow}>
-            <TouchableOpacity
-              style={[styles.ctaPrimary, { backgroundColor: colors.success }]}
-              onPress={() => onCall?.()}
-            >
-              <MaterialIcons name="call" size={18} color="#fff" />
-              <Text style={styles.ctaPrimaryText}>Call Family</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.ctaSecondary, { borderColor: colors.primary }]}
-              onPress={() => onShare?.()}
-            >
-              <MaterialIcons name="share" size={18} color={colors.primary} />
-              <Text style={[styles.ctaSecondaryText, { color: colors.primary }]}>Share</Text>
-            </TouchableOpacity>
-          </View>
+        <View style={[styles.ctaRow, { borderTopColor: colors.border }]}>
+          <TouchableOpacity
+            style={[styles.ctaPrimary, { backgroundColor: colors.success }]}
+            onPress={(e) => { e?.stopPropagation?.(); onCall?.(); }}
+          >
+            <MaterialIcons name="call" size={18} color="#fff" />
+            <Text style={styles.ctaText}>Call Family</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.ctaSecondary, { borderColor: colors.border }]}
+            onPress={(e) => { e?.stopPropagation?.(); onShare?.(); }}
+          >
+            <MaterialIcons name="share" size={18} color={colors.text} />
+            <Text style={[styles.ctaTextSecondary, { color: colors.text }]}>Share Case</Text>
+          </TouchableOpacity>
         </View>
-      </View>
+      </FeedCardShell>
     </TouchableOpacity>
   );
 }
 
-function createStyles(colors) {
-  return StyleSheet.create({
-    card: {
-      marginHorizontal: spacing.md,
-      marginBottom: spacing.sm,
-      borderRadius: 12,
-      overflow: "hidden",
-      backgroundColor: colors.surface,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    banner: { height: BANNER_HEIGHT, position: "relative" },
-    bannerImage: { width: "100%", height: "100%" },
-    bannerPlaceholder: { backgroundColor: colors.surfaceLight, justifyContent: "center", alignItems: "center" },
-    badge: {
-      position: "absolute",
-      top: spacing.sm,
-      left: spacing.sm,
-      flexDirection: "row",
-      alignItems: "center",
-      backgroundColor: "rgba(229,57,53,0.9)",
-      paddingHorizontal: 10,
-      paddingVertical: 4,
-      borderRadius: 6,
-    },
-    badgeDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#fff", marginRight: 6 },
-    badgeText: { fontSize: 11, fontWeight: "800", color: "#fff", letterSpacing: 0.5 },
-    overlay: {
-      position: "absolute",
-      bottom: 0,
-      left: 0,
-      right: 0,
-      padding: spacing.md,
-      backgroundColor: "rgba(0,0,0,0.5)",
-    },
-    overlayName: { fontSize: 18, fontWeight: "800", color: "#fff" },
-    overlayLocation: { fontSize: 13, color: "rgba(255,255,255,0.9)", marginTop: 2 },
-    body: { padding: spacing.md },
-    dateText: { fontSize: 12, color: colors.textMuted, marginBottom: spacing.sm },
-    ctaRow: { flexDirection: "row", gap: spacing.sm },
-    ctaPrimary: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 10 },
-    ctaPrimaryText: { color: "#fff", fontWeight: "600", fontSize: 14 },
-    ctaSecondary: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingHorizontal: spacing.md, paddingVertical: 10, borderRadius: 10, borderWidth: 1 },
-    ctaSecondaryText: { fontWeight: "600", fontSize: 14 },
-  });
-}
+const styles = StyleSheet.create({
+  urgentBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+    marginBottom: spacing.sm,
+  },
+  urgentIcon: { marginRight: 6 },
+  urgentText: { fontSize: 12, fontWeight: "800", color: "#fff" },
+  description: { fontSize: 15, lineHeight: 22, marginBottom: spacing.md },
+  imageWrap: { borderRadius: 12, overflow: "hidden", marginBottom: spacing.md },
+  image: { width: "100%", height: IMAGE_HEIGHT },
+  imagePlaceholder: { backgroundColor: "#f1f5f9", justifyContent: "center", alignItems: "center" },
+  ctaRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    paddingTop: spacing.md,
+    borderTopWidth: 1,
+  },
+  ctaPrimary: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12, borderRadius: 12 },
+  ctaSecondary: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12, borderRadius: 12, borderWidth: 1 },
+  ctaText: { color: "#fff", fontWeight: "600", fontSize: 14 },
+  ctaTextSecondary: { fontWeight: "600", fontSize: 14 },
+});

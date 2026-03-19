@@ -43,36 +43,82 @@ function useLocationPermission() {
     setError(null);
     setLoading(true);
     try {
-      const Location = await import("expo-location");
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
-        setError(
-          "Location permission denied. Allow in device settings to update your location."
-        );
-        setLoading(false);
-        return;
+      let latitude, longitude;
+
+      if (Platform.OS === "web") {
+        // Fallback for web since expo-location can have issues
+        await new Promise((resolve, reject) => {
+          if (!navigator.geolocation) {
+            reject(new Error("Geolocation is not supported by this browser."));
+            return;
+          }
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              latitude = pos.coords.latitude;
+              longitude = pos.coords.longitude;
+              resolve();
+            },
+            (err) => {
+              reject(new Error(err.message || "Could not get location."));
+            },
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
+          );
+        });
+      } else {
+        const Location = await import("expo-location");
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== "granted") {
+          setError(
+            "Location permission denied. Allow in device settings to update your location."
+          );
+          setLoading(false);
+          return;
+        }
+        const position = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        latitude = position.coords.latitude;
+        longitude = position.coords.longitude;
       }
-      const position = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
-      const { latitude, longitude } = position.coords;
-      const [address] = await Location.reverseGeocodeAsync({
-        latitude,
-        longitude,
-      });
+
       let neighborhood = null;
-      if (address) {
-        const parts = [
-          address.city,
-          address.district,
-          address.subregion,
-          address.region,
-        ].filter(Boolean);
-        neighborhood =
-          parts.length > 0
-            ? parts.join(", ")
-            : `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+      try {
+        if (Platform.OS === "web") {
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=10`
+          );
+          const data = await res.json();
+          if (data && data.address) {
+            const parts = [
+              data.address.city || data.address.town || data.address.village,
+              data.address.state || data.address.region,
+            ].filter(Boolean);
+            if (parts.length > 0) neighborhood = parts.join(", ");
+          }
+        } else {
+          const Location = await import("expo-location");
+          const [address] = await Location.reverseGeocodeAsync({
+            latitude,
+            longitude,
+          });
+          if (address) {
+            const parts = [
+              address.city,
+              address.district,
+              address.subregion,
+              address.region,
+            ].filter(Boolean);
+            if (parts.length > 0) neighborhood = parts.join(", ");
+          }
+        }
+      } catch (geoErr) {
+        console.warn("Geocoding failed:", geoErr);
       }
+
+      if (!neighborhood) {
+        neighborhood = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+      }
+
       onResult({ lastLat: latitude, lastLng: longitude, neighborhood });
     } catch (e) {
       setError(

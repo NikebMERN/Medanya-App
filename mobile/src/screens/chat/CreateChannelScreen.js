@@ -139,33 +139,32 @@ export default function CreateChannelScreen() {
   };
 
   const tabNav = navigation.getParent?.() ?? navigation;
-  const listHeader = (
-    <View style={styles.headerWrap}>
+
+  const formHeader = (
+    <View style={[styles.form, { paddingHorizontal: spacing.lg }]}>
+      <Text style={styles.label}>Channel name</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="Enter channel name"
+        placeholderTextColor={colors.textMuted}
+        value={channelName}
+        onChangeText={setChannelName}
+      />
+      <Text style={[styles.label, { marginTop: spacing.lg }]}>Add members (from your followers)</Text>
+    </View>
+  );
+
+  return (
+    <View style={styles.container}>
       <SubScreenHeader
         title="Create channel"
         onBack={() => navigation.goBack()}
         showProfileDropdown
         navigation={tabNav}
       />
-      <View style={[styles.form, { paddingHorizontal: spacing.lg }]}>
-        <Text style={styles.label}>Channel name</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Enter channel name"
-          placeholderTextColor={colors.textMuted}
-          value={channelName}
-          onChangeText={setChannelName}
-        />
-        <Text style={[styles.label, { marginTop: spacing.lg }]}>Add members (from your followers)</Text>
-      </View>
-    </View>
-  );
-
-  return (
-    <View style={styles.container}>
       {loading ? (
         <View style={styles.center}>
-          {listHeader}
+          {formHeader}
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
       ) : (
@@ -173,7 +172,7 @@ export default function CreateChannelScreen() {
           data={contacts}
           keyExtractor={(item) => String(item.id ?? item.userId)}
           renderItem={renderContact}
-          ListHeaderComponent={listHeader}
+          ListHeaderComponent={formHeader}
           contentContainerStyle={styles.listContent}
           ListEmptyComponent={
             <Text style={styles.emptyText}>No followers to add. Follow people first.</Text>

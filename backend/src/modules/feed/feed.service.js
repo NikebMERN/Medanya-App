@@ -2,6 +2,7 @@
 const jobsDb = require("../jobs/job.mysql");
 const marketDb = require("../marketplace/market.mysql");
 const reportService = require("../reports/report.service");
+const contentVisibility = require("./contentVisibility.service");
 const MissingPerson = require("../missingPersons/missing.model");
 const Stream = require("../livestream/stream.model");
 const Video = require("../videos/video.model");
@@ -69,6 +70,7 @@ function normalizeJob(row) {
 }
 
 function normalizeMarket(row) {
+    const imgUrls = Array.isArray(row.image_urls) ? row.image_urls : (row.image_urls && typeof row.image_urls === "string" ? JSON.parse(row.image_urls || "[]") : []);
     return {
         type: "marketplace",
         id: row.id,
@@ -78,11 +80,9 @@ function normalizeMarket(row) {
         createdAt: toIsoDate(row.created_at),
         preview: {
             price: row.price,
+            currency: row.currency || "AED",
             category: row.category,
-            imageUrl:
-                Array.isArray(row.image_urls) && row.image_urls[0]
-                    ? row.image_urls[0]
-                    : "",
+            imageUrl: imgUrls[0] || row.image_url || "",
         },
     };
 }
@@ -233,17 +233,16 @@ async function getHighlights({ limit = 20 } = {}) {
 }
 
 const TAB_TYPES = {
-    all: ["job", "report", "missing_person", "marketplace", "video"],
-    alerts: ["report"],
+    feeds: ["job", "missing_person", "marketplace", "video"],
+    reports: ["report"],
     jobs: ["job"],
     missing: ["missing_person"],
-    market: ["marketplace"],
 };
 
-async function getHomeFeed({ tab = "all", cursor, limit = 20 } = {}) {
+async function getHomeFeed({ tab = "feeds", cursor, limit = 20 } = {}) {
     const l = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 50);
     const cursorObj = decodeCursor(cursor);
-    const types = TAB_TYPES[tab] || TAB_TYPES.all;
+    const types = TAB_TYPES[tab] || TAB_TYPES.feeds;
     const perSource = Math.min(l * 3, 40);
 
     if (!cursor) {
@@ -258,8 +257,26 @@ async function getHomeFeed({ tab = "all", cursor, limit = 20 } = {}) {
         types.includes("job") ? jobsDb.listRecentJobsForFeed({ limit: perSource }) : [],
         types.includes("marketplace") ? marketDb.listRecentMarketplaceForFeed({ limit: perSource }) : [],
         types.includes("report") ? reportService.listBlacklistSummariesForFeed({ limit: perSource }) : [],
-        types.includes("missing_person") ? MissingPerson.find({ status: "active" }).sort({ createdAt: -1 }).limit(perSource).lean() : [],
-        types.includes("video") ? Video.find({ status: { $in: ["ACTIVE", "approved"] } }).sort({ createdAt: -1 }).limit(perSource).lean() : [],
+        types.includes("missing_person")
+            ? (async () => {
+                const excluded = await contentVisibility.getExcludedUserIds();
+                const docs = await MissingPerson.find({ status: "active" })
+                    .sort({ createdAt: -1 })
+                    .limit(perSource * 2)
+                    .lean();
+                return docs.filter((d) => !excluded.has(String(d.createdBy || ""))).slice(0, perSource);
+            })()
+            : [],
+        types.includes("video")
+            ? (async () => {
+                const excluded = await contentVisibility.getExcludedUserIds();
+                const docs = await Video.find({ status: { $in: ["ACTIVE", "approved"] } })
+                    .sort({ createdAt: -1 })
+                    .limit(perSource * 2)
+                    .lean();
+                return docs.filter((d) => !excluded.has(String(d.uploaderId || d.createdBy || ""))).slice(0, perSource);
+            })()
+            : [],
     ]);
 
     const cards = [];
@@ -296,6 +313,27 @@ async function getHomeFeed({ tab = "all", cursor, limit = 20 } = {}) {
     return { items, nextCursor };
 }
 
+/** Reports tab only: scam alerts, abuse reports, blacklist/safety. No jobs, missing, or marketplace. */
+async function getReportsFeed({ cursor, limit = 20 } = {}) {
+    const l = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 50);
+    const cursorObj = decodeCursor(cursor);
+    const perSource = Math.min(l * 2, 60);
+    const reportSummaries = await reportService.listBlacklistSummariesForFeed({ limit: perSource });
+    const cards = reportSummaries.map((s) => {
+        const d = normalizeReportSummary(s);
+        return { type: "ALERT", data: d, createdAt: d.createdAt, _key: makeKey("ALERT", d.id) };
+    });
+    cards.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    const filtered = filterByCursor(cards, cursorObj);
+    const pageItems = filtered.slice(0, l);
+    const last = pageItems[pageItems.length - 1];
+    const nextCursor = pageItems.length === l && last ? encodeCursor({ t: last.createdAt, k: last._key }) : null;
+    return {
+        items: pageItems.map(({ type, data, createdAt }) => ({ type, data, createdAt })),
+        nextCursor,
+    };
+}
+
 async function getLiveStreamsForHome({ limit = 10 } = {}) {
     const l = Math.min(Math.max(parseInt(limit, 10) || 10, 1), 20);
     const streams = await Stream.find({ status: "live" })
@@ -316,5 +354,6 @@ module.exports = {
     getFeed,
     getHighlights,
     getHomeFeed,
+    getReportsFeed,
     getLiveStreamsForHome,
 };

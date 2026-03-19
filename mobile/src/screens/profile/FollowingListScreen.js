@@ -104,42 +104,39 @@ export default function FollowingListScreen() {
   };
 
   const tabNav = navigation.getParent?.() ?? navigation;
-  const listHeader = (
-    <View style={styles.headerWrap}>
+  const searchBar = (
+    <View style={styles.searchWrap}>
+      <MaterialIcons name="search" size={22} color={colors.textMuted} />
+      <TextInput
+        style={styles.searchInput}
+        placeholder="Search by name, ID or phone..."
+        placeholderTextColor={colors.textMuted}
+        value={searchQuery}
+        onChangeText={setSearchQuery}
+      />
+      {searchQuery.length > 0 && (
+        <TouchableOpacity onPress={() => setSearchQuery("")} hitSlop={12}>
+          <MaterialIcons name="close" size={20} color={colors.textMuted} />
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+
+  return (
+    <View style={styles.container}>
       <SubScreenHeader
         title="Following"
         onBack={() => navigation.goBack()}
         showProfileDropdown
         navigation={tabNav}
       />
-      <View style={styles.searchWrap}>
-        <MaterialIcons name="search" size={22} color={colors.textMuted} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search by name, ID or phone..."
-          placeholderTextColor={colors.textMuted}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-        />
-        {searchQuery.length > 0 && (
-          <TouchableOpacity onPress={() => setSearchQuery("")} hitSlop={12}>
-            <MaterialIcons name="close" size={20} color={colors.textMuted} />
-          </TouchableOpacity>
-        )}
-      </View>
-    </View>
-  );
-
-  return (
-    <View style={styles.container}>
+      {searchBar}
       {loading && users.length === 0 ? (
         <View style={styles.center}>
-          {listHeader}
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
       ) : error ? (
         <View style={styles.center}>
-          {listHeader}
           <Text style={styles.error}>{error}</Text>
         </View>
       ) : (
@@ -147,7 +144,6 @@ export default function FollowingListScreen() {
           data={users}
           keyExtractor={(item) => String(item.id)}
           renderItem={renderItem}
-          ListHeaderComponent={listHeader}
           contentContainerStyle={users.length === 0 ? styles.emptyList : undefined}
           ListEmptyComponent={<Text style={styles.emptyText}>No following found</Text>}
           refreshControl={

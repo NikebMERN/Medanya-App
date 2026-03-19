@@ -199,10 +199,11 @@ const listRecentJobsForFeed = async ({ limit = 25 } = {}) => {
     const l = Math.min(Math.max(parseInt(limit, 10) || 25, 1), 100);
     const [rows] = await pool.query(
         `
-    SELECT id, title, category, salary, location, image_url, status, created_at
-    FROM jobs
-    WHERE status = 'active'
-    ORDER BY created_at DESC
+    SELECT j.id, j.title, j.category, j.salary, j.location, j.image_url, j.status, j.created_at, j.created_by
+    FROM jobs j
+    LEFT JOIN users u ON u.id = j.created_by
+    WHERE j.status = 'active' AND (u.id IS NULL OR (u.is_banned = 0 AND u.is_active = 1))
+    ORDER BY j.created_at DESC
     LIMIT ?
     `,
         [l],

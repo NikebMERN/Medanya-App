@@ -1,7 +1,9 @@
 import React from "react";
+import { View } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { useAuthStore } from "../store/auth.store";
+import Toast from "../components/ui/Toast";
 import { HeaderBackProvider } from "../context/HeaderBackContext";
 import AuthNavigator from "./AuthNavigator";
 import MainTabs from "./MainTabs";
@@ -32,6 +34,7 @@ export default function RootNavigator() {
   const profileComplete = isProfileComplete(user);
 
   return (
+    <View style={{ flex: 1 }}>
     <NavigationContainer linking={linking}>
       {!isAuthenticated ? (
         <Stack.Navigator screenOptions={{ headerShown: false }}>
@@ -73,5 +76,7 @@ export default function RootNavigator() {
         </HeaderBackProvider>
       )}
     </NavigationContainer>
+    <Toast />
+    </View>
   );
 }

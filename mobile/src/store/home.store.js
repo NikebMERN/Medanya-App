@@ -3,17 +3,17 @@
  */
 import { create } from "zustand";
 import * as feedApi from "../services/feed.api";
+import * as livestreamApi from "../api/livestream.api";
 
 export const TABS = [
-  { id: "all", label: "All Feed" },
-  { id: "alerts", label: "Alerts" },
-  { id: "jobs", label: "Jobs" },
-  { id: "missing", label: "Missing" },
-  { id: "market", label: "Market" },
+  { id: "feeds", label: "Feeds", icon: "home" },
+  { id: "reports", label: "Reports", icon: "warning" },
+  { id: "jobs", label: "Jobs", icon: "work" },
+  { id: "missing", label: "Missing", icon: "person-search" },
 ];
 
 export const useHomeStore = create((set, get) => ({
-  selectedTab: "all",
+  selectedTab: "feeds",
   homeFeedItems: [],
   nextCursor: null,
   liveStreams: [],
@@ -28,9 +28,15 @@ export const useHomeStore = create((set, get) => ({
     const { selectedTab } = get();
     set({ refreshing: true, error: null, nextCursor: null });
     try {
+      const feedPromise =
+        selectedTab === "feeds"
+          ? feedApi.getPersonalizedFeed({ tab: "feeds", limit: 20 })
+          : selectedTab === "reports"
+            ? feedApi.getReportsFeed({ limit: 20 })
+            : feedApi.getHomeFeed({ tab: selectedTab, limit: 20 });
       const [feedRes, liveRes] = await Promise.all([
-        feedApi.getHomeFeed({ tab: selectedTab, limit: 20 }),
-        feedApi.getLiveStreams({ limit: 10 }),
+        feedPromise,
+        livestreamApi.getLiveStreamsFollowing({ limit: 10 }).catch(() => ({ streams: [] })),
       ]);
       set({
         homeFeedItems: feedRes.items ?? [],
@@ -52,11 +58,13 @@ export const useHomeStore = create((set, get) => ({
     if (loadingMore || loading || !nextCursor) return;
     set({ loadingMore: true, error: null });
     try {
-      const res = await feedApi.getHomeFeed({
-        tab: selectedTab,
-        cursor: nextCursor,
-        limit: 20,
-      });
+      const fetchFn =
+        selectedTab === "feeds"
+          ? () => feedApi.getPersonalizedFeed({ tab: "feeds", cursor: nextCursor, limit: 20 })
+          : selectedTab === "reports"
+            ? () => feedApi.getReportsFeed({ cursor: nextCursor, limit: 20 })
+            : () => feedApi.getHomeFeed({ tab: selectedTab, cursor: nextCursor, limit: 20 });
+      const res = await fetchFn();
       const newItems = res.items ?? [];
       set((s) => ({
         homeFeedItems: [...(s.homeFeedItems ?? []), ...newItems],
@@ -73,10 +81,12 @@ export const useHomeStore = create((set, get) => ({
 
   refreshLiveOnly: async () => {
     try {
-      const res = await feedApi.getLiveStreams({ limit: 10 });
+      const res = await livestreamApi.getLiveStreamsFollowing({ limit: 10 });
       set({ liveStreams: res.streams ?? [] });
     } catch (_) {}
   },
+
+  clearError: () => set({ error: null }),
 
   clear: () =>
     set({

@@ -150,12 +150,6 @@ export default function SearchJoinGroupScreen() {
   const tabNav = navigation.getParent?.() ?? navigation;
   const listHeader = (
     <View style={styles.header}>
-      <SubScreenHeader
-        title="Search & join group"
-        onBack={() => navigation.goBack()}
-        showProfileDropdown
-        navigation={tabNav}
-      />
       <Text style={styles.hint}>Search by group name or paste group ID</Text>
       <View style={styles.toggleRow}>
         <TouchableOpacity
@@ -203,6 +197,12 @@ export default function SearchJoinGroupScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
       keyboardVerticalOffset={0}
     >
+      <SubScreenHeader
+        title="Search & join group"
+        onBack={() => navigation.goBack()}
+        showProfileDropdown
+        navigation={tabNav}
+      />
       <FlatList
         data={groups}
         keyExtractor={(item) => String(item.id ?? item._id)}

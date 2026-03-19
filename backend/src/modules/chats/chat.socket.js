@@ -157,6 +157,7 @@ module.exports = function registerChatSocket(io, socket) {
             if (code === "INVALID_CHAT") return ackErr(ack, "INVALID_CHAT");
             if (code === "FORBIDDEN") return ackErr(ack, "FORBIDDEN");
             if (code === "VALIDATION_ERROR") return ackErr(ack, "VALIDATION_ERROR");
+            if (code === "MUTUAL_FOLLOW_REQUIRED") return ackErr(ack, "MUTUAL_FOLLOW_REQUIRED");
             logger.error("chat:message:send error", e);
             return ackErr(ack, "SERVER_ERROR");
         }
