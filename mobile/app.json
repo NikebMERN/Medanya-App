@@ -121,6 +121,7 @@
         }
       ],
       "expo-audio",
+      "./plugins/withAgpDowngrade.js",
       "./plugins/withVeriffMaven.js"
     ],
     "extra": {
