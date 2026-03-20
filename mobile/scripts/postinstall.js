@@ -6,6 +6,7 @@
 const { spawnSync } = require("child_process");
 
 function run(cmd, args, opts = {}) {
+  console.log(`[postinstall] Running: ${cmd} ${args.join(" ")}`);
   const res = spawnSync(cmd, args, { stdio: "inherit", shell: false, ...opts });
   return res.status === 0;
 }
@@ -13,14 +14,16 @@ function run(cmd, args, opts = {}) {
 // 1) patch-package (best-effort)
 try {
   // Use npx to ensure we run the local binary
-  run("npx", ["patch-package"], { cwd: process.cwd() });
+  const ok = run("npx", ["patch-package"], { cwd: process.cwd() });
+  if (!ok) console.warn("[postinstall] patch-package failed (best-effort).");
 } catch (e) {
   // ignore
 }
 
 // 2) patch AGP pin (must run)
 try {
-  run("node", ["scripts/patch-agp.js"], { cwd: process.cwd() });
+  const ok = run("node", ["scripts/patch-agp.js"], { cwd: process.cwd() });
+  if (!ok) console.warn("[postinstall] patch-agp.js failed.");
 } catch (e) {
   // If this fails, native build will likely break; rethrow so it's visible.
   throw e;
