@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -15,22 +15,17 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 
 import * as WebBrowser from "expo-web-browser";
-import * as Google from "expo-auth-session/providers/google";
-import * as Facebook from "expo-auth-session/providers/facebook";
 
 import Logo from "../../components/ui/Logo";
 import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
 import { useAuthStore } from "../../store/auth.store";
 import { useThemeStore } from "../../store/theme.store";
-import {
-  getAppRedirectUri,
-  logExpoAuthProxyUrl,
-  isExpoGo,
-} from "../../services/firebaseAuth";
-import { getGoogleIdTokenNative } from "../../services/nativeGoogleSignIn";
+import { getAppRedirectUri, isExpoGo } from "../../services/firebaseAuth";
+import { useAuthRequest as useGoogleAuthRequest } from "expo-auth-session/providers/google";
+import { useAuthRequest as useFacebookAuthRequest } from "expo-auth-session/providers/facebook";
 import { validateConfig } from "../../config/validateConfig";
-import { env } from "../../utils/env";
+import { authConfig } from "../../config/authConfig";
 
 // ✅ CRITICAL: completes auth sessions correctly (fixes "missing initial state")
 WebBrowser.maybeCompleteAuthSession();
@@ -61,125 +56,39 @@ export default function LandingScreen() {
 
   const styles = useMemo(() => createStyles(colors), [colors]);
 
-  const googleWebClientId = env.googleWebClientId || "";
-  const googleExpoClientId = env.googleExpoClientId || googleWebClientId;
-  const googleIosClientId = env.googleIosClientId || googleWebClientId;
-  const googleAndroidClientId = env.googleAndroidClientId || googleWebClientId;
-
-  const facebookAppId = env.facebookAppId || "";
-  const redirectUri = useMemo(() => getAppRedirectUri(isExpoGo), []);
+  const googleWebClientId = authConfig.google.webClientId || "";
 
   useEffect(() => {
-    logExpoAuthProxyUrl();
     refreshConfigFlags();
   }, [refreshConfigFlags]);
 
-  // Google: Expo Go uses proxy + expoClientId (or webClientId); Dev Build uses iosClientId/androidClientId
-  const googleClientIdForExpoGo = googleExpoClientId || googleWebClientId;
-  const [googleRequest, googleResponse, googlePromptAsync] =
-    Google.useIdTokenAuthRequest(
-      {
-        webClientId: googleWebClientId,
-        iosClientId: isExpoGo ? googleClientIdForExpoGo : (googleIosClientId || googleWebClientId),
-        androidClientId: isExpoGo ? googleClientIdForExpoGo : (googleAndroidClientId || googleWebClientId),
-        redirectUri,
-        scopes: ["openid", "profile", "email"],
-      },
-      { scheme: "medanya", path: "redirect" }
-    );
-
-  // ✅ FACEBOOK: Use Auth request
-  const [fbRequest, fbResponse, fbPromptAsync] = Facebook.useAuthRequest({
-    clientId: facebookAppId,
-    scopes: ["public_profile", "email"],
-    redirectUri,
-  });
-
   const onToast = useCallback((msg) => setError(msg || ""), []);
 
-  const lastGoogleSuccessRef = useRef(null);
-  const lastFbSuccessRef = useRef(null);
+  const redirectUri = useMemo(() => getAppRedirectUri(), []);
+  if (__DEV__) console.log("[Auth] OAuth redirectUri:", redirectUri);
+  const facebookClientIdForAuth = authConfig.facebook.appId || "0";
 
-  // =========================
-  // GOOGLE RESPONSE HANDLER
-  // =========================
-  useEffect(() => {
-    if (!googleResponse) return;
+  // Expo Go / Expo runtime: use expo-auth-session OAuth flows (works without native modules).
+  // Client IDs differ between Expo Go (proxy/web redirect) and installed builds (native redirect).
 
-    if (googleResponse.type === "success") {
-      // token may live in params or authentication
-      const idToken =
-        googleResponse.params?.id_token ||
-        googleResponse.authentication?.idToken;
+  const effectiveGoogleClientId = isExpoGo
+    ? googleWebClientId
+    : Platform.OS === "android"
+      ? authConfig.google.androidClientId || googleWebClientId
+      : Platform.OS === "ios"
+        ? authConfig.google.iosClientId || googleWebClientId
+        : googleWebClientId;
 
-      // prevent double-handling
-      if (!idToken || lastGoogleSuccessRef.current === googleResponse) return;
-      lastGoogleSuccessRef.current = googleResponse;
-
-      setError("");
-      setLoading(true);
-
-      loginWithGoogle(idToken, { onToast })
-        .then((res) => {
-          if (res?.cancelled) setError("");
-        })
-        .catch(() => {
-          setError("Google sign-in failed. Please try again.");
-        })
-        .finally(() => setLoading(false));
-    }
-
-    if (googleResponse.type === "error") {
-      const msg =
-        googleResponse.error?.message ||
-        googleResponse.error?.code ||
-        "Google sign-in failed.";
-      if (String(msg).toLowerCase().includes("cancel")) {
-        setError("");
-      } else {
-        setError("Google sign-in failed. Check your Google settings or try again.");
-      }
-    }
-  }, [googleResponse, loginWithGoogle, onToast]);
-
-  // =========================
-  // FACEBOOK RESPONSE HANDLER
-  // =========================
-  useEffect(() => {
-    if (!fbResponse) return;
-
-    if (fbResponse.type === "success") {
-      const accessToken =
-        fbResponse.authentication?.accessToken || fbResponse.params?.access_token;
-
-      if (!accessToken || lastFbSuccessRef.current === fbResponse) return;
-      lastFbSuccessRef.current = fbResponse;
-
-      setError("");
-      setLoading(true);
-
-      loginWithFacebook(accessToken, { onToast })
-        .then((res) => {
-          if (res?.cancelled) setError("");
-        })
-        .catch(() => {
-          setError("Facebook sign-in failed. Please try again.");
-        })
-        .finally(() => setLoading(false));
-    }
-
-    if (fbResponse.type === "error") {
-      const msg =
-        fbResponse.error?.message ||
-        fbResponse.error?.code ||
-        "Facebook sign-in failed.";
-      if (String(msg).toLowerCase().includes("cancel")) {
-        setError("");
-      } else {
-        setError("Facebook sign-in failed. Try again.");
-      }
-    }
-  }, [fbResponse, loginWithFacebook, onToast]);
+  const [googleAuthRequest, , promptGoogleAuth] = useGoogleAuthRequest({
+    clientId: effectiveGoogleClientId,
+    redirectUri,
+    scopes: ["openid", "email", "profile"],
+  });
+  const [facebookAuthRequest, , promptFacebookAuth] = useFacebookAuthRequest({
+    clientId: facebookClientIdForAuth,
+    redirectUri,
+    scopes: ["public_profile", "email"],
+  });
 
   const handleGoogleLogin = async () => {
     setError("");
@@ -192,8 +101,8 @@ export default function LandingScreen() {
       return;
     }
 
-    const isWeb = Platform.OS === "web";
-    if (isWeb) {
+    const isWebPlatform = Platform.OS === "web";
+    if (isWebPlatform) {
       try {
         setLoading(true);
         const res = await loginWithGoogleWebPopup({ onToast });
@@ -205,31 +114,44 @@ export default function LandingScreen() {
       }
       return;
     }
-    if (googleWebClientId) {
-      try {
-        setLoading(true);
-        const nativeResult = await getGoogleIdTokenNative(googleWebClientId);
-        if (nativeResult?.idToken) {
-          await loginWithGoogle(nativeResult.idToken, { onToast });
-          return;
-        }
-      } catch (e) {
-        if (__DEV__) setError(e?.message || "Native sign-in failed.");
-      } finally {
-        setLoading(false);
-      }
-    }
 
-    if (!googleRequest) {
-      setError("Google sign-in is not ready yet. Wait a moment and try again.");
+    if (!effectiveGoogleClientId || effectiveGoogleClientId === "0") {
+      setError("Google sign-in is not configured. Missing Google client id in .env.");
       return;
     }
 
     try {
-      await googlePromptAsync({ useProxy: isExpoGo, showInRecents: true });
+      setLoading(true);
+      if (!promptGoogleAuth || !googleAuthRequest) {
+        setError("Google sign-in is not ready yet. Try again in a moment.");
+        return;
+      }
+
+      const result = await promptGoogleAuth();
+      if (__DEV__) console.log("[Auth][Google] oauth result:", result);
+      if (result?.type === "success") {
+        const idToken =
+          result?.params?.id_token ||
+          result?.params?.idToken ||
+          result?.authentication?.idToken ||
+          result?.authentication?.id_token;
+        if (idToken) {
+          const loginRes = await loginWithGoogle(idToken, { onToast });
+          if (loginRes?.cancelled) setError("");
+          return;
+        }
+        const msg = result?.params?.error_description || result?.params?.error || "Google sign-in failed.";
+        setError(String(msg));
+        return;
+      }
+
+      if (result?.type === "dismiss" || result?.type === "cancel" || result?.type === "cancelled") return;
+      setError("Google sign-in failed. Please try again.");
     } catch (e) {
-      const msg = e?.message || "Google sign-in could not start.";
-      setError(__DEV__ ? msg : "Google sign-in could not start. Try again.");
+      if (__DEV__) setError(e?.message || "Google sign-in failed.");
+      else setError("Google sign-in failed. Please try again.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -259,9 +181,38 @@ export default function LandingScreen() {
     }
 
     try {
-      await fbPromptAsync({ useProxy: isExpoGo, showInRecents: true });
+      setLoading(true);
+      if (!promptFacebookAuth || !facebookAuthRequest) {
+        setError("Facebook sign-in is not ready yet. Try again in a moment.");
+        return;
+      }
+
+      const result = await promptFacebookAuth();
+      if (__DEV__) console.log("[Auth][Facebook] oauth result:", result);
+      if (result?.type === "success") {
+        const accessToken =
+          result?.params?.access_token ||
+          result?.params?.accessToken ||
+          result?.params?.token ||
+          result?.authentication?.accessToken ||
+          result?.authentication?.access_token;
+        if (accessToken) {
+          const loginRes = await loginWithFacebook(accessToken, { onToast });
+          if (loginRes?.cancelled) setError("");
+          return;
+        }
+        const msg = result?.params?.error_description || result?.params?.error || "Facebook sign-in failed.";
+        setError(String(msg));
+        return;
+      }
+
+      if (result?.type === "dismiss" || result?.type === "cancel" || result?.type === "cancelled") return;
+      setError("Facebook sign-in failed. Please try again.");
     } catch (e) {
-      setError("Facebook sign-in could not start. Try again.");
+      if (__DEV__) setError(e?.message || "Facebook sign-in failed.");
+      else setError("Facebook sign-in failed. Please try again.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -338,7 +289,7 @@ export default function LandingScreen() {
                   !googleEnabled && styles.socialBtnDisabled,
                 ]}
                 onPress={handleGoogleLogin}
-                disabled={loading || (googleEnabled && !googleRequest)}
+                disabled={loading || !googleEnabled}
                 activeOpacity={0.8}
               >
                 <Text style={[styles.socialIcon, !googleEnabled && styles.socialLabelDisabled]}>
@@ -356,7 +307,7 @@ export default function LandingScreen() {
                   !facebookEnabled && styles.socialBtnDisabled,
                 ]}
                 onPress={handleFacebookLogin}
-                disabled={loading}
+                disabled={loading || !facebookEnabled}
                 activeOpacity={0.8}
               >
                 <Text
