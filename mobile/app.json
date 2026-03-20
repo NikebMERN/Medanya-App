@@ -118,7 +118,11 @@
             "deploymentTarget": "15.1"
           },
           "android": {
-            "extraMavenRepos": ["https://cdn.veriff.me/android/"]
+            "extraMavenRepos": [
+              "https://cdn.veriff.me/android/"
+            ],
+            "kotlinVersion": "1.9.24",
+            "allowBackup": false
           }
         }
       ],
