@@ -17,7 +17,6 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.medanya.app",
       "googleServicesFile": "./GoogleService-Info.plist",
-      "deploymentTarget": "15.1",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "CFBundleURLTypes": [
@@ -113,7 +112,8 @@
         "expo-build-properties",
         {
           "ios": {
-            "useFrameworks": "static"
+            "useFrameworks": "static",
+            "deploymentTarget": "15.1"
           },
           "android": {
             "extraMavenRepos": ["https://cdn.veriff.me/android/"]

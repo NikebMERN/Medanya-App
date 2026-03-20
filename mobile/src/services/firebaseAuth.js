@@ -26,10 +26,11 @@ export const isExpoGo = Constants.appOwnership === "expo";
  * Uses EXPO_PUBLIC_OAUTH_REDIRECT_URI when set to override.
  */
 export function getAppRedirectUri(useProxy = isExpoGo) {
+  // If a redirect URI is explicitly provided (EXPO_PUBLIC_OAUTH_REDIRECT_URI),
+  // we use it. This is important because some providers (notably Google OAuth)
+  // may reject custom schemes (e.g. `medanya://redirect`) in "Web" redirect URI fields.
   const fromEnv = env.oauthRedirectUri;
-  if (fromEnv) {
-    return fromEnv.trim().replace(/\/+$/, "");
-  }
+  if (fromEnv && useProxy) return fromEnv.trim().replace(/\/+$/, "");
   if (useProxy) {
     try {
       return AuthSession.getRedirectUrl();
