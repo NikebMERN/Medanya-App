@@ -12,7 +12,7 @@
     "ios": "expo start --offline --ios",
     "web": "node scripts/update-api-url.js && expo start --web",
     "web:clean": "node scripts/update-api-url.js && expo start --clear --web",
-    "postinstall": "patch-package && node scripts/patch-agp.js",
+    "postinstall": "node scripts/postinstall.js",
     "prebuild": "npx expo prebuild",
     "build:dev:ios": "npx eas-cli build --profile development --platform ios",
     "build:dev:android": "npx eas-cli build --profile development --platform android",

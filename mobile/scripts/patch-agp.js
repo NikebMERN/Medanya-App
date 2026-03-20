@@ -15,15 +15,15 @@ if (!fs.existsSync(filePath)) {
 }
 
 let content = fs.readFileSync(filePath, "utf8");
-if (content.includes(`agp = "${TARGET_AGP}"`)) {
-  process.exit(0);
-}
+if (content.includes(`agp = "${TARGET_AGP}"`)) process.exit(0);
 
-const newContent = content.replace(/agp = "8\.\d+\.\d+"/, `agp = "${TARGET_AGP}"`);
-if (newContent === content) {
+// Be tolerant to formatting differences.
+const agpRegex = /agp\\s*=\\s*\"8\\.[0-9]+\\.[0-9]+\"/;
+if (!agpRegex.test(content)) {
   console.warn("[patch-agp] Could not find agp version to replace");
   process.exit(0);
 }
 
+const newContent = content.replace(agpRegex, `agp = "${TARGET_AGP}"`);
 fs.writeFileSync(filePath, newContent);
 console.log(`[patch-agp] Pinned AGP to ${TARGET_AGP}`);
