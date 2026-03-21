@@ -41,6 +41,9 @@ export async function getFacebookAccessTokenNative({ permissions = ["public_prof
     // eslint-disable-next-line global-require
     const { LoginManager, AccessToken } = require("react-native-fbsdk-next");
 
+    if (Platform.OS === "android") {
+      LoginManager.setLoginBehavior("web_only");
+    }
     const res = await LoginManager.logInWithPermissions(permissions);
     if (res?.isCancelled) return { cancelled: true };
 

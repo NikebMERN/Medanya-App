@@ -23,6 +23,7 @@ import { useAuthStore } from "../../store/auth.store";
 import { useThemeStore } from "../../store/theme.store";
 import { getAppRedirectUri, isExpoGo } from "../../services/firebaseAuth";
 import { getGoogleIdTokenNative } from "../../services/nativeGoogleSignIn";
+import { getFacebookAccessTokenNative } from "../../services/nativeFacebookSignIn";
 import { useAuthRequest as useGoogleAuthRequest } from "expo-auth-session/providers/google";
 import { useAuthRequest as useFacebookAuthRequest } from "expo-auth-session/providers/facebook";
 import { validateConfig } from "../../config/validateConfig";
@@ -196,6 +197,19 @@ export default function LandingScreen() {
 
     try {
       setLoading(true);
+
+      // Dev/production builds: native Facebook SDK (no web redirect — avoids "unable to process").
+      // Expo Go: native module unavailable → expo-auth-session below.
+      if (!isExpoGo) {
+        const nativeRes = await getFacebookAccessTokenNative();
+        if (nativeRes?.accessToken) {
+          const loginRes = await loginWithFacebook(nativeRes.accessToken, { onToast });
+          if (loginRes?.cancelled) setError("");
+          return;
+        }
+        if (nativeRes?.cancelled) return;
+      }
+
       if (!promptFacebookAuth || !facebookAuthRequest) {
         setError("Facebook sign-in is not ready yet. Try again in a moment.");
         return;

@@ -1,3 +1,4 @@
+import { Platform } from "react-native";
 import Constants from "expo-constants";
 import * as AuthSession from "expo-auth-session";
 import * as WebBrowser from "expo-web-browser";
@@ -17,33 +18,36 @@ WebBrowser.maybeCompleteAuthSession();
  */
 export const isExpoGo = Constants.appOwnership === "expo";
 
+function getWebAppHomepage() {
+  if (env.webAppUrl) return env.webAppUrl;
+  if (typeof window !== "undefined" && window.location?.origin) {
+    return window.location.origin;
+  }
+  return "https://medanya.app";
+}
+
 /**
- * Redirect URI for OAuth (expo-auth-session + native token flow).
- *
- * - Expo Go: uses proxy → https://auth.expo.io/@username/slug (add to Google/Facebook consoles)
- * - Dev/Prod build: uses scheme medanya://redirect
- *
- * Uses EXPO_PUBLIC_OAUTH_REDIRECT_URI when set to override.
+ * Redirect URI for OAuth (expo-auth-session / web).
+ * - Web: App homepage (e.g. https://medanya.app or http://localhost:19006). Add this in Google/Facebook and Firebase Authorized domains.
+ * - Native: Expo proxy or custom scheme — never the Firebase handler (breaks mobile flows).
  */
-export function getAppRedirectUri(useProxy = isExpoGo) {
-  // If a redirect URI is explicitly provided (EXPO_PUBLIC_OAUTH_REDIRECT_URI),
-  // we use it only for non-Expo-Go (custom-scheme) flows.
-  // For Expo Go we intentionally ignore this env override because it is easy to misconfigure
-  // (e.g. using a Firebase auth handler URL), which breaks the OAuth callback.
+export function getAppRedirectUri() {
+  if (Platform.OS === "web") {
+    return getWebAppHomepage();
+  }
+
   const fromEnv = env.oauthRedirectUri;
-  if (fromEnv && !useProxy) return fromEnv.trim().replace(/\/+$/, "");
-  if (useProxy) {
-    try {
-      return AuthSession.getRedirectUrl();
-    } catch (e) {
-      // fall through to scheme
-    }
+  const trimmed = fromEnv?.trim().replace(/\/+$/, "") ?? "";
+  if (trimmed && !trimmed.includes("firebaseapp.com/__/auth/handler")) {
+    return trimmed;
+  }
+  try {
+    return AuthSession.getRedirectUrl();
+  } catch (e) {
+    // fallback if getRedirectUrl fails
   }
   const scheme = Constants.expoConfig?.scheme ?? "medanya";
-  return AuthSession.makeRedirectUri({
-    scheme,
-    path: "redirect",
-  });
+  return AuthSession.makeRedirectUri({ scheme, path: "redirect" });
 }
 
 /**

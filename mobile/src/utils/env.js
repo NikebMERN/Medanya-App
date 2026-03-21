@@ -37,6 +37,7 @@ export const env = {
   admobRewardedIdAndroid: extra.admobRewardedIdAndroid || process.env.EXPO_PUBLIC_ADMOB_REWARDED_ID_ANDROID || "",
   oauthRedirectUri: (extra.oauthRedirectUri || process.env.EXPO_PUBLIC_OAUTH_REDIRECT_URI || "").trim().replace(/^["']|["']$/g, "") || null,
   stripePublishableKey: (extra.stripePublishableKey || process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || "").trim() || null,
+  webAppUrl: (extra.webAppUrl || process.env.EXPO_PUBLIC_WEB_APP_URL || "").trim().replace(/\/+$/, "") || null,
 };
 
 const DEFAULT_MIME = {
