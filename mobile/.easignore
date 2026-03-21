@@ -1,0 +1,18 @@
+# https://docs.expo.dev/build-reference/easignore/
+# Paths relative to this file (same directory as eas.json).
+
+# Gradle caches — often locked (EBUSY on Windows) while daemons run; not needed on EAS.
+android/.gradle/
+android/**/.gradle/
+
+# Local build outputs (rebuilt on EAS)
+android/app/build/
+android/build/
+android/**/build/
+
+# CMake / prefab intermediates
+android/.cxx/
+android/**/.cxx/
+
+# Kotlin incremental cache (local)
+.kotlin/
