@@ -18,14 +18,7 @@
       "bundleIdentifier": "com.medanya.app",
       "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false,
-        "CFBundleURLTypes": [
-          {
-            "CFBundleURLSchemes": [
-              "com.googleusercontent.apps.12212015536-iabo63q7ah6231qs7nthmhu7sduher66"
-            ]
-          }
-        ]
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -56,12 +49,18 @@
       "expo-dev-client",
       "@react-native-firebase/app",
       [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.12212015536-497i5237sf5bs7bmu2a94c80m4vvb7aa"
+        }
+      ],
+      [
         "react-native-fbsdk-next",
         {
-          "appID": "3255354417977637",
-          "clientToken": "2db00a3dda965efdfce1abf02afa31c0",
-          "displayName": "Medanya",
-          "scheme": "fb3255354417977637"
+          "appID": "917378897864325",
+          "clientToken": "YOUR_FACEBOOK_CLIENT_TOKEN",
+          "displayName": "Nyla",
+          "scheme": "fb917378897864325"
         }
       ],
       [

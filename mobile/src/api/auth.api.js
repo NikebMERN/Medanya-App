@@ -46,9 +46,19 @@ export async function linkFirebase(idToken) {
 }
 
 /**
- * Sign in as guest. Guest can only watch videos.
+ * Sign in as guest. Uses Firebase anonymous auth when available for a reliable
+ * per-device guest session. Falls back to legacy shared guest if Firebase is unavailable.
  */
 export async function loginAsGuest() {
-  const { data } = await client.post("/auth/guest");
+  let idToken = null;
+  try {
+    const { signInAnonymouslyAndGetToken } = await import("../services/firebaseAuth");
+    idToken = await signInAnonymouslyAndGetToken();
+  } catch (e) {
+    if (__DEV__) console.warn("[auth] Firebase anonymous unavailable, using legacy guest:", e?.message);
+  }
+
+  const body = idToken ? { idToken } : {};
+  const { data } = await client.post("/auth/guest", body);
   return data;
 }

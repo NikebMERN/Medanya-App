@@ -1,6 +1,6 @@
 /**
- * Social auth service with config guards and consistent return shape.
- * Awaits authReady so Firebase persistence has restored (fixes "missing initial state").
+ * Social auth service: Firebase popup (web) and credential exchange (native).
+ * Web: signInWithPopup only. Native: receives idToken/accessToken from native SDKs.
  */
 import { Platform } from "react-native";
 import {
@@ -17,33 +17,22 @@ const isWeb = Platform.OS === "web";
 const GOOGLE_NOT_CONFIGURED = "GOOGLE_AUTH_NOT_CONFIGURED";
 const FACEBOOK_NOT_CONFIGURED = "FACEBOOK_AUTH_NOT_CONFIGURED";
 
-/**
- * @returns {{ ok: boolean, cancelled?: boolean, errorCode?: string, message?: string, firebaseIdToken?: string }}
- */
 function success(token) {
   return { ok: true, firebaseIdToken: token };
 }
 
-/**
- * @returns {{ ok: boolean, cancelled?: boolean, errorCode?: string, message?: string, firebaseIdToken?: string }}
- */
 function fail(opts) {
   return { ok: false, ...opts };
 }
 
 /**
- * Sign in with Google on web using Firebase popup (avoids COOP / window.closed issues).
- * Use this instead of expo-auth-session when Platform.OS === "web".
- * @returns {Promise<{ ok: boolean, cancelled?: boolean, firebaseIdToken?: string, message?: string }>}
+ * Web only: Sign in with Google via Firebase signInWithPopup.
+ * Do not use on native — use native SDK + signInWithGoogle(idToken) instead.
  */
 export async function signInWithGoogleWebPopup() {
-  if (!isWeb) {
-    return fail({ message: "Web only." });
-  }
+  if (!isWeb) return fail({ message: "Web only. Use native SDK on iOS/Android." });
   const flags = getFeatureFlags();
-  if (!flags.googleEnabled) {
-    throw new Error(GOOGLE_NOT_CONFIGURED);
-  }
+  if (!flags.googleEnabled) throw new Error(GOOGLE_NOT_CONFIGURED);
   if (!firebaseReady || !auth) {
     return fail({ errorCode: "MISSING_CONFIG", message: "Firebase is not configured." });
   }
@@ -52,61 +41,23 @@ export async function signInWithGoogleWebPopup() {
     const provider = new GoogleAuthProvider();
     const result = await signInWithPopup(auth, provider);
     const token = await result.user.getIdToken();
-    if (__DEV__) console.log("[Firebase] Google ID token:", token);
     return success(token);
   } catch (err) {
-    const code = err?.code || err?.message || "";
-    const msg = String(code).toLowerCase();
-
-    // User cancelled / closed popup
-    if (
-      msg.includes("cancel") ||
-      msg.includes("popup_closed") ||
-      msg.includes("user_cancelled") ||
-      code === "auth/popup-closed-by-user" ||
-      code === "auth/cancelled-popup-request"
-    ) {
-      return fail({ cancelled: true });
-    }
-
-    // Common web misconfig: auth/argument-error from Firebase when provider or config is invalid
-    if (code === "auth/argument-error") {
-      return fail({
-        errorCode: "AUTH_ARGUMENT_ERROR",
-        message:
-          "Google sign-in is misconfigured. Check your Firebase project Auth settings and authorized domains.",
-      });
-    }
-
-    if (msg.includes("invalid") || msg.includes("credential") || msg.includes("network")) {
-      return fail({
-        errorCode: "AUTH_FAILED",
-        message: err?.message || "Google sign-in failed.",
-      });
-    }
-
-    return fail({
-      errorCode: "AUTH_FAILED",
-      message: err?.message || "Google sign-in failed.",
-    });
+    return mapFirebaseError(err, "Google");
   }
 }
 
 /**
- * Sign in with Google ID token (from expo-auth-session or native).
- * @param {string} idToken - Google ID token from OAuth flow
+ * Exchange Google ID token (from native SDK) for Firebase credential and backend-ready idToken.
+ * Use on native only; web should use signInWithGoogleWebPopup.
  */
 export async function signInWithGoogle(idToken) {
   const flags = getFeatureFlags();
-  if (!flags.googleEnabled) {
-    throw new Error(GOOGLE_NOT_CONFIGURED);
-  }
+  if (!flags.googleEnabled) throw new Error(GOOGLE_NOT_CONFIGURED);
   if (!firebaseReady || !auth) {
     return fail({ errorCode: "MISSING_CONFIG", message: "Firebase is not configured." });
   }
-  if (!idToken) {
-    return fail({ errorCode: "MISSING_TOKEN", message: "Google ID token is required." });
-  }
+  if (!idToken) return fail({ errorCode: "MISSING_TOKEN", message: "Google ID token is required." });
 
   try {
     await authReady;
@@ -115,38 +66,17 @@ export async function signInWithGoogle(idToken) {
     const token = await userCred.user.getIdToken();
     return success(token);
   } catch (err) {
-    const code = err?.code || err?.message || "";
-    const msg = String(code).toLowerCase();
-    if (
-      msg.includes("cancel") ||
-      msg.includes("popup_closed") ||
-      msg.includes("user_cancelled") ||
-      code === "auth/user-cancelled"
-    ) {
-      return fail({ cancelled: true });
-    }
-    if (msg.includes("invalid") || msg.includes("credential") || msg.includes("network")) {
-      return fail({
-        errorCode: "AUTH_FAILED",
-        message: err?.message || "Google sign-in failed.",
-      });
-    }
-    return fail({
-      errorCode: "AUTH_FAILED",
-      message: err?.message || "Google sign-in failed.",
-    });
+    return mapCredentialError(err, "Google");
   }
 }
 
 /**
- * Sign in with Facebook access token (from expo-auth-session).
- * @param {string} accessToken - Facebook access token from OAuth flow
+ * Exchange Facebook access token (from native SDK) for Firebase credential and backend-ready idToken.
+ * Use on native only; web should use signInWithFacebookWebPopup.
  */
 export async function signInWithFacebook(accessToken) {
   const flags = getFeatureFlags();
-  if (!flags.facebookEnabled) {
-    throw new Error(FACEBOOK_NOT_CONFIGURED);
-  }
+  if (!flags.facebookEnabled) throw new Error(FACEBOOK_NOT_CONFIGURED);
   if (!firebaseReady || !auth) {
     return fail({ errorCode: "MISSING_CONFIG", message: "Firebase is not configured." });
   }
@@ -161,41 +91,18 @@ export async function signInWithFacebook(accessToken) {
     const token = await userCred.user.getIdToken();
     return success(token);
   } catch (err) {
-    const code = err?.code || err?.message || "";
-    const msg = String(code).toLowerCase();
-    if (
-      msg.includes("cancel") ||
-      msg.includes("popup_closed") ||
-      msg.includes("user_cancelled") ||
-      code === "auth/user-cancelled"
-    ) {
-      return fail({ cancelled: true });
-    }
-    if (msg.includes("invalid") || msg.includes("credential") || msg.includes("network")) {
-      return fail({
-        errorCode: "AUTH_FAILED",
-        message: err?.message || "Facebook sign-in failed.",
-      });
-    }
-    return fail({
-      errorCode: "AUTH_FAILED",
-      message: err?.message || "Facebook sign-in failed.",
-    });
+    return mapCredentialError(err, "Facebook");
   }
 }
 
 /**
- * Sign in with Facebook on web using Firebase popup (standard web flow).
- * @returns {Promise<{ ok: boolean, cancelled?: boolean, firebaseIdToken?: string, message?: string }>}
+ * Web only: Sign in with Facebook via Firebase signInWithPopup.
+ * Do not use on native — use native SDK + signInWithFacebook(accessToken) instead.
  */
 export async function signInWithFacebookWebPopup() {
-  if (!isWeb) {
-    return fail({ message: "Web only." });
-  }
+  if (!isWeb) return fail({ message: "Web only. Use native SDK on iOS/Android." });
   const flags = getFeatureFlags();
-  if (!flags.facebookEnabled) {
-    throw new Error(FACEBOOK_NOT_CONFIGURED);
-  }
+  if (!flags.facebookEnabled) throw new Error(FACEBOOK_NOT_CONFIGURED);
   if (!firebaseReady || !auth) {
     return fail({ errorCode: "MISSING_CONFIG", message: "Firebase is not configured." });
   }
@@ -204,25 +111,77 @@ export async function signInWithFacebookWebPopup() {
     const provider = new FacebookAuthProvider();
     const result = await signInWithPopup(auth, provider);
     const token = await result.user.getIdToken();
-    if (__DEV__) console.log("[Firebase] Facebook ID token:", token);
     return success(token);
   } catch (err) {
-    const code = err?.code || err?.message || "";
-    const msg = String(code).toLowerCase();
-    if (
-      msg.includes("cancel") ||
-      msg.includes("popup_closed") ||
-      msg.includes("user_cancelled") ||
-      code === "auth/popup-closed-by-user" ||
-      code === "auth/cancelled-popup-request"
-    ) {
-      return fail({ cancelled: true });
-    }
+    return mapFirebaseError(err, "Facebook");
+  }
+}
+
+function mapFirebaseError(err, provider) {
+  const code = err?.code || err?.message || "";
+  const msg = String(code).toLowerCase();
+
+  if (
+    msg.includes("cancel") ||
+    msg.includes("popup_closed") ||
+    msg.includes("user_cancelled") ||
+    code === "auth/popup-closed-by-user" ||
+    code === "auth/cancelled-popup-request"
+  ) {
+    return fail({ cancelled: true });
+  }
+
+  if (code === "auth/argument-error") {
     return fail({
-      errorCode: "AUTH_FAILED",
-      message: err?.message || "Facebook sign-in failed.",
+      errorCode: "AUTH_ARGUMENT_ERROR",
+      message: `${provider} sign-in is misconfigured. Check Firebase Auth settings, Authorized domains (add localhost and your web domain), and that ${provider} provider is enabled.`,
     });
   }
+
+  if (code === "auth/unauthorized-domain") {
+    return fail({
+      errorCode: "UNAUTHORIZED_DOMAIN",
+      message: `This domain is not authorized for sign-in. Add it in Firebase Console → Authentication → Settings → Authorized domains.`,
+    });
+  }
+
+  if (msg.includes("invalid") || msg.includes("credential") || msg.includes("network")) {
+    return fail({
+      errorCode: "AUTH_FAILED",
+      message: err?.message || `${provider} sign-in failed.`,
+    });
+  }
+
+  return fail({
+    errorCode: "AUTH_FAILED",
+    message: err?.message || `${provider} sign-in failed.`,
+  });
+}
+
+function mapCredentialError(err, provider) {
+  const code = err?.code || err?.message || "";
+  const msg = String(code).toLowerCase();
+
+  if (
+    msg.includes("cancel") ||
+    msg.includes("popup_closed") ||
+    msg.includes("user_cancelled") ||
+    code === "auth/user-cancelled"
+  ) {
+    return fail({ cancelled: true });
+  }
+
+  if (msg.includes("invalid") || msg.includes("credential") || msg.includes("network")) {
+    return fail({
+      errorCode: "AUTH_FAILED",
+      message: err?.message || `${provider} sign-in failed.`,
+    });
+  }
+
+  return fail({
+    errorCode: "AUTH_FAILED",
+    message: err?.message || `${provider} sign-in failed.`,
+  });
 }
 
 export const ERROR_CODES = {

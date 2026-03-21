@@ -2,6 +2,7 @@ const {
     verifyFirebaseToken,
     findOrCreateUser,
     findOrCreateGuestUser,
+    findOrCreateAnonymousGuestUser,
     linkFirebaseToUser,
     issueJWT,
     sendOtp,
@@ -127,7 +128,29 @@ const verifyOtpAndLoginServer = async (req, res, next) => {
 
 const guestLogin = async (req, res, next) => {
     try {
-        const user = await findOrCreateGuestUser();
+        const { idToken } = req.body || {};
+
+        let user;
+        if (idToken && typeof idToken === "string" && idToken.trim()) {
+            try {
+                const firebaseUser = await verifyFirebaseToken(idToken);
+                if (firebaseUser.provider !== "anonymous") {
+                    return res.status(400).json({
+                        success: false,
+                        message: "Use sign in with Google or Facebook to create a full account.",
+                    });
+                }
+                user = await findOrCreateAnonymousGuestUser(firebaseUser.firebaseUid);
+            } catch (e) {
+                return res.status(401).json({
+                    success: false,
+                    message: "Invalid or expired guest session. Please try again.",
+                });
+            }
+        } else {
+            user = await findOrCreateGuestUser();
+        }
+
         if (user.is_banned) {
             return res.status(403).json({ success: false, message: "Guest access is disabled" });
         }

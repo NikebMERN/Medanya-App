@@ -4,6 +4,7 @@ import * as AuthSession from "expo-auth-session";
 import * as WebBrowser from "expo-web-browser";
 import {
   signInWithCredential,
+  signInAnonymously,
   GoogleAuthProvider,
   FacebookAuthProvider,
 } from "firebase/auth";
@@ -75,4 +76,21 @@ export async function signInWithFacebookCredential(accessToken) {
   const userCred = await signInWithCredential(auth, credential);
   const token = await userCred.user.getIdToken();
   return { user: userCred.user, token };
+}
+
+/**
+ * Sign in anonymously with Firebase. Returns idToken for backend auth.
+ * Reuses existing anonymous session if already signed in (persisted across app restarts).
+ */
+export async function signInAnonymouslyAndGetToken() {
+  if (!firebaseReady || !auth) throw new Error("Firebase not configured.");
+
+  let fbUser = auth.currentUser;
+  if (fbUser?.isAnonymous) {
+    const token = await fbUser.getIdToken(true);
+    return token;
+  }
+  const userCred = await signInAnonymously(auth);
+  const token = await userCred.user.getIdToken();
+  return token;
 }

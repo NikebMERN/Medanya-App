@@ -14,23 +14,15 @@ const isWeb = Platform.OS === "web";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 
-import * as WebBrowser from "expo-web-browser";
-
 import Logo from "../../components/ui/Logo";
 import { useThemeColors } from "../../theme/useThemeColors";
 import { spacing } from "../../theme/spacing";
 import { useAuthStore } from "../../store/auth.store";
 import { useThemeStore } from "../../store/theme.store";
-import { getAppRedirectUri, isExpoGo } from "../../services/firebaseAuth";
-import { getGoogleIdTokenNative } from "../../services/nativeGoogleSignIn";
-import { getFacebookAccessTokenNative } from "../../services/nativeFacebookSignIn";
-import { useAuthRequest as useGoogleAuthRequest } from "expo-auth-session/providers/google";
-import { useAuthRequest as useFacebookAuthRequest } from "expo-auth-session/providers/facebook";
 import { validateConfig } from "../../config/validateConfig";
 import { authConfig } from "../../config/authConfig";
-
-// ✅ CRITICAL: completes auth sessions correctly (fixes "missing initial state")
-WebBrowser.maybeCompleteAuthSession();
+import { getGoogleIdTokenNative } from "../../services/nativeGoogleSignIn";
+import { getFacebookAccessTokenNative } from "../../services/nativeFacebookSignIn";
 
 export default function LandingScreen() {
   const navigation = useNavigation();
@@ -66,32 +58,6 @@ export default function LandingScreen() {
 
   const onToast = useCallback((msg) => setError(msg || ""), []);
 
-  const redirectUri = useMemo(() => getAppRedirectUri(), []);
-  if (__DEV__) console.log("[Auth] OAuth redirectUri:", redirectUri);
-  const facebookClientIdForAuth = authConfig.facebook.appId || "0";
-
-  // Expo Go / Expo runtime: use expo-auth-session OAuth flows (works without native modules).
-  // Client IDs differ between Expo Go (proxy/web redirect) and installed builds (native redirect).
-
-  const effectiveGoogleClientId = isExpoGo
-    ? googleWebClientId
-    : Platform.OS === "android"
-      ? authConfig.google.androidClientId || googleWebClientId
-      : Platform.OS === "ios"
-        ? authConfig.google.iosClientId || googleWebClientId
-        : googleWebClientId;
-
-  const [googleAuthRequest, , promptGoogleAuth] = useGoogleAuthRequest({
-    clientId: effectiveGoogleClientId,
-    redirectUri,
-    scopes: ["openid", "email", "profile"],
-  });
-  const [facebookAuthRequest, , promptFacebookAuth] = useFacebookAuthRequest({
-    clientId: facebookClientIdForAuth,
-    redirectUri,
-    scopes: ["public_profile", "email"],
-  });
-
   const handleGoogleLogin = async () => {
     setError("");
     if (!googleEnabled) {
@@ -103,68 +69,45 @@ export default function LandingScreen() {
       return;
     }
 
-    const isWebPlatform = Platform.OS === "web";
-    if (isWebPlatform) {
+    if (isWeb) {
       try {
         setLoading(true);
         const res = await loginWithGoogleWebPopup({ onToast });
         if (res?.ok || res?.cancelled) return;
+        setError(res?.message || "Google sign-in failed.");
       } catch (e) {
-        if (__DEV__) setError(e?.message || "Google sign-in failed.");
+        setError(e?.message || "Google sign-in failed.");
       } finally {
         setLoading(false);
       }
       return;
     }
 
-    if (!effectiveGoogleClientId || effectiveGoogleClientId === "0") {
-      setError("Google sign-in is not configured. Missing Google client id in .env.");
+    if (!googleWebClientId || googleWebClientId === "0") {
+      setError("Google sign-in is not configured. Missing Google web client ID in .env.");
       return;
     }
 
     try {
       setLoading(true);
-
-      // Dev / production builds: @react-native-google-signin + idToken → Firebase (same as google-tutorial).
-      // Expo Go: native module unavailable → expo-auth-session below.
-      if (!isExpoGo && googleWebClientId) {
-        const nativeRes = await getGoogleIdTokenNative(googleWebClientId);
-        if (nativeRes?.idToken) {
-          const loginRes = await loginWithGoogle(nativeRes.idToken, { onToast });
-          if (loginRes?.cancelled) setError("");
-          return;
-        }
-        if (nativeRes?.cancelled) return;
-      }
-
-      if (!promptGoogleAuth || !googleAuthRequest) {
-        setError("Google sign-in is not ready yet. Try again in a moment.");
+      const nativeRes = await getGoogleIdTokenNative({
+        webClientId: googleWebClientId,
+        iosClientId: authConfig.google.iosClientId || undefined,
+      });
+      if (nativeRes?.unavailable) {
+        setError("Google sign-in is not available. Use a development or production build (not Expo Go).");
         return;
       }
-
-      const result = await promptGoogleAuth();
-      if (__DEV__) console.log("[Auth][Google] oauth result:", result);
-      if (result?.type === "success") {
-        const idToken =
-          result?.params?.id_token ||
-          result?.params?.idToken ||
-          result?.authentication?.idToken ||
-          result?.authentication?.id_token;
-        if (idToken) {
-          const loginRes = await loginWithGoogle(idToken, { onToast });
-          if (loginRes?.cancelled) setError("");
-          return;
-        }
-        const msg = result?.params?.error_description || result?.params?.error || "Google sign-in failed.";
-        setError(String(msg));
+      if (nativeRes?.cancelled) return;
+      if (nativeRes?.idToken) {
+        const loginRes = await loginWithGoogle(nativeRes.idToken, { onToast });
+        if (loginRes?.cancelled) setError("");
+        else if (!loginRes?.ok && loginRes?.message) setError(loginRes.message);
         return;
       }
-
-      if (result?.type === "dismiss" || result?.type === "cancel" || result?.type === "cancelled") return;
-      setError("Google sign-in failed. Please try again.");
+      setError("Google sign-in did not return a token. Please try again.");
     } catch (e) {
-      if (__DEV__) setError(e?.message || "Google sign-in failed.");
-      else setError("Google sign-in failed. Please try again.");
+      setError(e?.message || "Google sign-in failed. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -181,14 +124,14 @@ export default function LandingScreen() {
       return;
     }
 
-    const isWebPlatform = Platform.OS === "web";
-    if (isWebPlatform) {
+    if (isWeb) {
       try {
         setLoading(true);
         const res = await loginWithFacebookWebPopup({ onToast });
         if (res?.ok || res?.cancelled) return;
+        setError(res?.message || "Facebook sign-in failed.");
       } catch (e) {
-        if (__DEV__) setError(e?.message || "Facebook sign-in failed.");
+        setError(e?.message || "Facebook sign-in failed.");
       } finally {
         setLoading(false);
       }
@@ -197,48 +140,21 @@ export default function LandingScreen() {
 
     try {
       setLoading(true);
-
-      // Dev/production builds: native Facebook SDK (no web redirect — avoids "unable to process").
-      // Expo Go: native module unavailable → expo-auth-session below.
-      if (!isExpoGo) {
-        const nativeRes = await getFacebookAccessTokenNative();
-        if (nativeRes?.accessToken) {
-          const loginRes = await loginWithFacebook(nativeRes.accessToken, { onToast });
-          if (loginRes?.cancelled) setError("");
-          return;
-        }
-        if (nativeRes?.cancelled) return;
-      }
-
-      if (!promptFacebookAuth || !facebookAuthRequest) {
-        setError("Facebook sign-in is not ready yet. Try again in a moment.");
+      const nativeRes = await getFacebookAccessTokenNative();
+      if (nativeRes?.unavailable) {
+        setError("Facebook sign-in is not available. Use a development or production build (not Expo Go).");
         return;
       }
-
-      const result = await promptFacebookAuth();
-      if (__DEV__) console.log("[Auth][Facebook] oauth result:", result);
-      if (result?.type === "success") {
-        const accessToken =
-          result?.params?.access_token ||
-          result?.params?.accessToken ||
-          result?.params?.token ||
-          result?.authentication?.accessToken ||
-          result?.authentication?.access_token;
-        if (accessToken) {
-          const loginRes = await loginWithFacebook(accessToken, { onToast });
-          if (loginRes?.cancelled) setError("");
-          return;
-        }
-        const msg = result?.params?.error_description || result?.params?.error || "Facebook sign-in failed.";
-        setError(String(msg));
+      if (nativeRes?.cancelled) return;
+      if (nativeRes?.accessToken) {
+        const loginRes = await loginWithFacebook(nativeRes.accessToken, { onToast });
+        if (loginRes?.cancelled) setError("");
+        else if (!loginRes?.ok && loginRes?.message) setError(loginRes.message);
         return;
       }
-
-      if (result?.type === "dismiss" || result?.type === "cancel" || result?.type === "cancelled") return;
-      setError("Facebook sign-in failed. Please try again.");
+      setError("Facebook sign-in did not return a token. Please try again.");
     } catch (e) {
-      if (__DEV__) setError(e?.message || "Facebook sign-in failed.");
-      else setError("Facebook sign-in failed. Please try again.");
+      setError(e?.message || "Facebook sign-in failed. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -258,14 +174,17 @@ export default function LandingScreen() {
     } catch (e) {
       const apiMsg = e?.response?.data?.message;
       const netMsg = e?.message;
+      const status = e?.response?.status;
       if (apiMsg) {
         setError(apiMsg);
+      } else if (status === 401) {
+        setError("Session expired. Please try again.");
       } else if (typeof netMsg === "string" && netMsg.toLowerCase().includes("network")) {
-        setError("Could not reach the server. Check EXPO_PUBLIC_API_URL and that your backend is running.");
+        setError("Could not reach the server. Check your connection and try again.");
       } else if (typeof netMsg === "string" && netMsg.toLowerCase().includes("timeout")) {
-        setError("Server timeout. Check your backend URL and network connection.");
+        setError("Request timed out. Please try again.");
       } else {
-        setError("Could not continue as guest.");
+        setError("Could not continue as guest. Please try again.");
       }
     } finally {
       setLoading(false);

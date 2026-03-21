@@ -1,6 +1,7 @@
 /**
- * Native Facebook sign-in (iOS/Android) for Expo dev/prod builds.
- * Uses react-native-fbsdk-next so we avoid expo-auth-session redirect/deep-link issues.
+ * Native Facebook sign-in (iOS/Android) for Expo dev/production builds.
+ * Uses react-native-fbsdk-next. Requires EAS/dev build (not Expo Go).
+ * Do NOT use web_only — it causes redirect to Facebook app/home instead of returning to app.
  */
 import { Platform } from "react-native";
 
@@ -8,10 +9,8 @@ const isWeb = Platform.OS === "web";
 let didInit = false;
 
 function hasFbsdkNativeModule() {
+  if (isWeb) return false;
   try {
-    // react-native-fbsdk-next is installed, but we still want to guard for unsupported runtime contexts.
-    // If native modules aren't available, requiring here or calling initialize may fail.
-    // eslint-disable-next-line global-require
     require("react-native-fbsdk-next");
     return true;
   } catch {
@@ -22,42 +21,45 @@ function hasFbsdkNativeModule() {
 function initSdkOnce() {
   if (didInit) return;
   didInit = true;
-
-  // eslint-disable-next-line global-require
-  const { Settings } = require("react-native-fbsdk-next");
-  Settings.initializeSDK();
+  try {
+    const { Settings } = require("react-native-fbsdk-next");
+    Settings.initializeSDK();
+  } catch (e) {
+    if (__DEV__) console.warn("[Native Facebook] init failed:", e?.message);
+  }
 }
 
 /**
- * @returns {Promise<{ accessToken: string } | { cancelled: true } | { unavailable: true }>}
+ * Get Facebook access token via native SDK (for Firebase credential exchange).
+ * Uses native app-switch flow; do not set web_only — it breaks return-to-app.
+ * @param {object} [opts]
+ * @param {string[]} [opts.permissions] - Default: ["public_profile", "email"]
+ * @returns {Promise<{ accessToken: string } | { cancelled: true } | { unavailable: true } | { error: string }>}
  */
 export async function getFacebookAccessTokenNative({ permissions = ["public_profile", "email"] } = {}) {
-  if (isWeb) return null;
+  if (isWeb) return { unavailable: true };
   if (!hasFbsdkNativeModule()) return { unavailable: true };
 
   try {
     initSdkOnce();
-
-    // eslint-disable-next-line global-require
     const { LoginManager, AccessToken } = require("react-native-fbsdk-next");
 
-    if (Platform.OS === "android") {
-      LoginManager.setLoginBehavior("web_only");
-    }
+    // Do NOT use setLoginBehavior("web_only") — it causes redirect to Facebook app
+    // instead of returning to our app. Native flow (NATIVE_WITH_FALLBACK) is correct.
     const res = await LoginManager.logInWithPermissions(permissions);
     if (res?.isCancelled) return { cancelled: true };
 
     const token = await AccessToken.getCurrentAccessToken();
     const accessToken = token?.accessToken;
-    if (!accessToken) return { unavailable: true };
+    if (!accessToken) return { unavailable: true, error: "No access token returned" };
 
     return { accessToken };
   } catch (e) {
     const msg = e?.message || String(e);
-    // If SDK throws on user cancellation, map it into cancelled when possible.
-    if (msg.toLowerCase().includes("cancel")) return { cancelled: true };
-    if (__DEV__) console.warn("[Native Facebook Sign-In] failed:", msg);
-    return { unavailable: true };
+    if (msg.toLowerCase().includes("cancel") || msg.toLowerCase().includes("cancelled")) {
+      return { cancelled: true };
+    }
+    if (__DEV__) console.warn("[Native Facebook Sign-In]", msg);
+    return { unavailable: true, error: msg };
   }
 }
-

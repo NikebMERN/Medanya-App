@@ -28,7 +28,13 @@ const verifyFirebaseToken = async (idToken) => {
     const normalized = normalizeIdToken(idToken);
     const decoded = await admin.auth().verifyIdToken(normalized);
     const providerRaw = decoded.firebase?.sign_in_provider || "";
-    const authProvider = providerRaw.includes("google") ? "google" : providerRaw.includes("facebook") ? "facebook" : "otp";
+    const authProvider = providerRaw.includes("anonymous")
+        ? "anonymous"
+        : providerRaw.includes("google")
+        ? "google"
+        : providerRaw.includes("facebook")
+        ? "facebook"
+        : "otp";
     return {
         phone: decoded.phone_number || null,
         email: decoded.email || null,
@@ -81,6 +87,7 @@ const issueJWT = (user) => {
 
 /**
  * Find or create a shared guest user. Guest users can only watch videos.
+ * Fallback when Firebase anonymous is not available.
  */
 async function findOrCreateGuestUser() {
     const [rows] = await pool.query(
@@ -102,6 +109,24 @@ async function findOrCreateGuestUser() {
         }
         throw e;
     }
+}
+
+/**
+ * Find or create a guest user by Firebase anonymous UID. Each device gets its own guest user.
+ * Enables later account linking when user upgrades to full sign-in.
+ */
+async function findOrCreateAnonymousGuestUser(firebaseUid) {
+    const [byUid] = await pool.query("SELECT * FROM users WHERE firebase_uid = ?", [firebaseUid]);
+    if (byUid.length) return byUid[0];
+
+    const phoneNumber = `anon_${String(firebaseUid).slice(0, 50)}`;
+    const [result] = await pool.query(
+        `INSERT INTO users (phone_number, firebase_uid, auth_provider, display_name, role, is_verified)
+         VALUES (?, ?, 'anonymous', 'Guest', 'guest', 1)`,
+        [phoneNumber, firebaseUid]
+    );
+    const [user] = await pool.query("SELECT * FROM users WHERE id = ?", [result.insertId]);
+    return user[0];
 }
 
 function toE164(normalized) {
@@ -342,6 +367,7 @@ module.exports = {
     findOrCreateUser,
     findOrCreateUserByPhone,
     findOrCreateGuestUser,
+    findOrCreateAnonymousGuestUser,
     linkFirebaseToUser,
     issueJWT,
     sendOtp,
