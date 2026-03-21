@@ -1,11 +1,38 @@
-# OAuth (Google & Facebook sign-in) – Native flow
+# OAuth (Google & Facebook sign-in)
 
-The app uses **expo-auth-session** and a **scheme-based redirect** so the browser returns to the app. **Do not use the Firebase auth handler URL** (`https://...firebaseapp.com/__/auth/handler`) as the redirect — that page uses sessionStorage and causes **"Unable to process request due to missing initial state"** in mobile.
+## Platform summary
 
-- **Google:** `useIdTokenAuthRequest` → we get `id_token` → `signInWithCredential(auth, GoogleAuthProvider.credential(id_token))`.
-- **Facebook:** `useAuthRequest` → we get `access_token` → `signInWithCredential(auth, FacebookAuthProvider.credential(accessToken))`.
+| Platform | Flow | Redirect URI |
+|----------|------|--------------|
+| **Web** | Firebase `signInWithPopup` | App homepage: `https://medanya.app` or `http://localhost:19006` |
+| **Native (iOS/Android)** | Native SDKs or expo-auth-session | Expo proxy or `medanya://redirect` |
 
-**Redirect URI:** Use your **app deep link** (e.g. `medanya://redirect`), printed in the console on the landing screen. Add **that exact URI** in both Google Cloud Console and Meta (Facebook) Login settings. **Do not add** `https://.../__/auth/handler` for RN token flow — that causes "missing initial state".
+**Firebase Authorized domains** must include every domain where the app runs (fixes "misconfigured" on web).
+
+---
+
+## 0. Firebase Authorized domains (required for web)
+
+**Fixes:** "Google sign-in is misconfigured", "auth/argument-error"
+
+1. [Firebase Console](https://console.firebase.google.com) → your project → **Authentication** → **Settings** (gear) → **Authorized domains**
+2. Add:
+   - `localhost` (for local dev)
+   - `medanya.app` (production)
+   - Any other domain where you host the web app
+3. Save. Without these, web sign-in will fail with "misconfigured".
+
+---
+
+## Web: Redirect URI
+
+Set `EXPO_PUBLIC_WEB_APP_URL` in `.env`:
+- **Dev:** `http://localhost:19006`
+- **Prod:** `https://medanya.app`
+
+Add this exact URL to:
+- **Google Cloud Console** → OAuth client → Authorized redirect URIs
+- **Facebook** → Facebook Login → Valid OAuth Redirect URIs
 
 ---
 
@@ -43,7 +70,9 @@ npx expo start -c
    - Scopes: add `email`, `profile`, `openid` (or leave defaults).
 6. Application type: **Web application** (use Web client ID for Expo).
 7. Name: e.g. "Medanya Web Client".
-8. Under **Authorized redirect URIs**, add your **app deep link** (e.g. `medanya://redirect`). Use the **exact** URI printed in the app console when you open the landing screen.
+8. Under **Authorized redirect URIs**, add:
+   - **Native:** `medanya://redirect`, `https://auth.expo.io/@nikeb/medanya` (Expo proxy)
+   - **Web:** `http://localhost:19006`, `https://medanya.app`, `https://medanya-project.firebaseapp.com/__/auth/handler` (Firebase popup)
 9. Click **Create**. Copy the **Client ID** for `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`.
 10. Save. Wait a minute for changes to propagate.
 
@@ -77,13 +106,22 @@ npx expo start -c
 
 ---
 
-## 4. Facebook: "Invalid Scopes: email"
+## 4. Facebook: Redirects to Facebook app (FYP) instead of returning to Medanya
+
+On Android, the app uses `web_only` login so the in-app browser is used instead of opening the Facebook app. If you still land on the Facebook feed:
+- Ensure you have the latest build (the `web_only` fix is in `nativeFacebookSignIn.js`).
+- In Facebook App → Facebook Login → Settings → Valid OAuth Redirect URIs: add your app’s redirect URI (Expo proxy or scheme) exactly as shown in the console.
+- Clear the Facebook app’s data/cache or try on a device where the Facebook app is not installed.
+
+---
+
+## 5. Facebook: "Invalid Scopes: email"
 
 The app requests only **public_profile** (no `email`) so Login works without App Review. If you need email, add the **email** permission in the Facebook app and then you can add `email` to the requested scopes in code.
 
 ---
 
-## 5. "Unable to process request due to missing initial state"
+## 6. "Unable to process request due to missing initial state"
 
 ### Root cause
 
@@ -119,13 +157,13 @@ If `EXPO_PUBLIC_OAUTH_REDIRECT_URI` or `EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN` would 
 
 ---
 
-## 6. Env
+## 7. Env
 
 In `.env` (or app config):
 
 - `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` – Google OAuth client ID (Web client is fine for Expo when using one ID for all).
 - `EXPO_PUBLIC_FACEBOOK_APP_ID` – Facebook App ID.
-- `EXPO_PUBLIC_OAUTH_REDIRECT_URI` – Redirect URI for OAuth (e.g. `medanya://redirect`). Add this **exact** URI in Google Cloud Console and Facebook → Valid OAuth Redirect URIs. If not set, the app uses the scheme-based URI from `makeRedirectUri`.
+- `EXPO_PUBLIC_WEB_APP_URL` – Web app homepage, used as OAuth redirect on web (e.g. `https://medanya.app` or `http://localhost:19006`). Add this in Google, Facebook, and Firebase Authorized domains.
 
 Optional: `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` / `EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID` for native builds.
 

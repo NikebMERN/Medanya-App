@@ -6,6 +6,10 @@ let initialized = false;
 
 function initFirebase() {
   if (initialized) return admin;
+  if (admin.apps.length > 0) {
+    initialized = true;
+    return admin;
+  }
 
   const projectId = env.FIREBASE_PROJECT_ID;
   const clientEmail = env.FIREBASE_CLIENT_EMAIL;

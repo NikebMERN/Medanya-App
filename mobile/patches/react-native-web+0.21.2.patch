@@ -1,0 +1,15 @@
+diff --git a/node_modules/react-native-web/dist/modules/createDOMProps/index.js b/node_modules/react-native-web/dist/modules/createDOMProps/index.js
+index 18f5e8b..4485f08 100644
+--- a/node_modules/react-native-web/dist/modules/createDOMProps/index.js
++++ b/node_modules/react-native-web/dist/modules/createDOMProps/index.js
+@@ -801,9 +801,7 @@ var createDOMProps = (elementType, props, options) => {
+   }
+ 
+   // Resolve styles
+-  if (pointerEvents != null) {
+-    warnOnce('pointerEvents', "props.pointerEvents is deprecated. Use style.pointerEvents");
+-  }
++  // (pointerEvents deprecation warning suppressed - RN core still uses prop)
+   var _StyleSheet = StyleSheet([style, pointerEvents && pointerEventsStyles[pointerEvents]], _objectSpread({
+       writingDirection: 'ltr'
+     }, options)),
