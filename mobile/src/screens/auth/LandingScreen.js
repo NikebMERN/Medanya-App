@@ -22,6 +22,7 @@ import { spacing } from "../../theme/spacing";
 import { useAuthStore } from "../../store/auth.store";
 import { useThemeStore } from "../../store/theme.store";
 import { getAppRedirectUri, isExpoGo } from "../../services/firebaseAuth";
+import { getGoogleIdTokenNative } from "../../services/nativeGoogleSignIn";
 import { useAuthRequest as useGoogleAuthRequest } from "expo-auth-session/providers/google";
 import { useAuthRequest as useFacebookAuthRequest } from "expo-auth-session/providers/facebook";
 import { validateConfig } from "../../config/validateConfig";
@@ -122,6 +123,19 @@ export default function LandingScreen() {
 
     try {
       setLoading(true);
+
+      // Dev / production builds: @react-native-google-signin + idToken → Firebase (same as google-tutorial).
+      // Expo Go: native module unavailable → expo-auth-session below.
+      if (!isExpoGo && googleWebClientId) {
+        const nativeRes = await getGoogleIdTokenNative(googleWebClientId);
+        if (nativeRes?.idToken) {
+          const loginRes = await loginWithGoogle(nativeRes.idToken, { onToast });
+          if (loginRes?.cancelled) setError("");
+          return;
+        }
+        if (nativeRes?.cancelled) return;
+      }
+
       if (!promptGoogleAuth || !googleAuthRequest) {
         setError("Google sign-in is not ready yet. Try again in a moment.");
         return;

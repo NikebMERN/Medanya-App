@@ -1,9 +1,8 @@
 /**
- * Native Google Sign-In (iOS/Android).
- * This is the preferred flow for Expo dev/prod builds (avoids redirect/popup issues).
+ * Native Google Sign-In (iOS/Android), matching the standard RNGoogleSignin + Firebase flow:
+ * configure(webClientId) → hasPlayServices → signIn() → idToken from response.data → Firebase credential.
  *
- * On web or when native module is unavailable, returns an explicit status so callers can show
- * a correct error instead of falling back to expo-auth-session on native.
+ * On web or when the native module is missing, returns { unavailable: true } so callers can use expo-auth-session.
  */
 import { Platform } from "react-native";
 
@@ -21,36 +20,57 @@ function hasGoogleSignInNativeModule() {
 }
 
 /**
- * @param {string} webClientId - Google OAuth web client ID (required for idToken)
+ * @param {string} webClientId - Web OAuth client ID (Firebase “Web client” ID — required for idToken)
  * @returns {Promise<{ idToken: string } | { cancelled: true } | { unavailable: true }>}
  */
 export async function getGoogleIdTokenNative(webClientId) {
   if (isWeb || !webClientId) return { unavailable: true };
   if (!hasGoogleSignInNativeModule()) return { unavailable: true };
+
   try {
-    const { GoogleSignin, statusCodes } = require("@react-native-google-signin/google-signin");
+    const {
+      GoogleSignin,
+      statusCodes,
+      isErrorWithCode,
+      isSuccessResponse,
+      isCancelledResponse,
+    } = require("@react-native-google-signin/google-signin");
+
     if (!didConfigure) {
       GoogleSignin.configure({ webClientId });
-      if (Platform.OS === "android") {
-        const { GoogleSignin: G } = require("@react-native-google-signin/google-signin");
-        await G.hasPlayServices({ showPlayServicesUpdateDialog: true });
-      }
       didConfigure = true;
     }
-    const res = await GoogleSignin.signIn();
-    if (res?.type === "cancelled") return { cancelled: true };
-    if (res?.type === "noSavedCredentialFound") return { unavailable: true };
-    if (res?.type === "success" && res?.data) {
-      const tokens = await GoogleSignin.getTokens();
-      const idToken = tokens?.idToken ?? res?.data?.idToken;
+
+    await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+    const response = await GoogleSignin.signIn();
+
+    if (isCancelledResponse(response)) {
+      return { cancelled: true };
+    }
+
+    if (isSuccessResponse(response)) {
+      let idToken = response.data?.idToken ?? null;
+      if (!idToken) {
+        const tokens = await GoogleSignin.getTokens();
+        idToken = tokens?.idToken ?? null;
+      }
       if (idToken) return { idToken };
     }
+
     return { unavailable: true };
-  } catch (e) {
-    if (e?.code === statusCodes?.SIGN_IN_CANCELLED || e?.code === statusCodes?.IN_PROGRESS)
-      return { cancelled: true };
-    if (__DEV__) console.warn("[Native Google Sign-In] failed:", e?.message || e);
+  } catch (error) {
+    const { statusCodes, isErrorWithCode } = require("@react-native-google-signin/google-signin");
+    if (isErrorWithCode(error)) {
+      switch (error.code) {
+        case statusCodes.SIGN_IN_CANCELLED:
+        case statusCodes.IN_PROGRESS:
+          return { cancelled: true };
+        case statusCodes.PLAY_SERVICES_NOT_AVAILABLE:
+        default:
+          break;
+      }
+    }
+    if (__DEV__) console.warn("[Native Google Sign-In] failed:", error?.message || error);
     return { unavailable: true };
   }
 }
-

@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "12212015536-20jj5i9t7g0h66g2nfn1tfbuknenga5o.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.medanya.app",
+            "certificate_hash": "be63e7aac1456c29f6de215a23054f054ae2aec1"
+          }
+        },
+        {
           "client_id": "12212015536-jkd02r826k6f59eqm68j0ql2d0445jcq.apps.googleusercontent.com",
           "client_type": 3
         }
@@ -31,7 +39,7 @@
               "client_type": 3
             },
             {
-              "client_id": "12212015536-iabo63q7ah6231qs7nthmhu7sduher66.apps.googleusercontent.com",
+              "client_id": "12212015536-497i5237sf5bs7bmu2a94c80m4vvb7aa.apps.googleusercontent.com",
               "client_type": 2,
               "ios_info": {
                 "bundle_id": "com.medanya.app"
