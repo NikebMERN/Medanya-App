@@ -119,7 +119,7 @@
             "extraMavenRepos": [
               "https://cdn.veriff.me/android/"
             ],
-            "kotlinVersion": "1.9.24",
+            "kotlinVersion": "2.0.21",
             "allowBackup": false
           }
         }
