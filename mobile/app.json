@@ -48,6 +48,7 @@
     "plugins": [
       "expo-dev-client",
       "@react-native-firebase/app",
+      "@react-native-firebase/auth",
       [
         "@react-native-google-signin/google-signin",
         {
@@ -57,10 +58,14 @@
       [
         "react-native-fbsdk-next",
         {
-          "appID": "917378897864325",
-          "clientToken": "YOUR_FACEBOOK_CLIENT_TOKEN",
-          "displayName": "Nyla",
-          "scheme": "fb917378897864325"
+          "appID": "1496080555400148",
+          "clientToken": "35364c5ad525f07031f2e0e26df5c461",
+          "displayName": "Medanya",
+          "scheme": "fb1496080555400148",
+          "advertiserIDCollectionEnabled": false,
+          "autoLogAppEventsEnabled": false,
+          "isAutoInitEnabled": true,
+          "iosUserTrackingPermission": "This identifier will be used to deliver personalized ads to you."
         }
       ],
       [
